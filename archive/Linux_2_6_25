@@ -1,0 +1,650 @@
+#pragma section-numbers on
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.25 development
+
+Linux kernel version 2.6.25 Released 17 April 2008 ([[http://kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.25|full SCM git log]])
+
+'''Summary''': 2.6.25 includes support of a new architecture (MN10300/AM33) and the widely used [[http://linuxdevices.com/news/NS5637467946.html|Orion]] SoCs, a new interface for more accurate measurement of process memory usage, a 'memory resource controller' for controlling the memory usage of groups of processes, realtime group scheduling, a tool for measuring high latencies called [[http://latencytop.org|latencytop]], ACPI thermal regulation, timer event notifications through file descriptors, an alternative MAC security framework called SMACK, an ext4 update, BRK and PIE-executable address space randomization, RCU preemption support, FIFO spinlocks in x86, EFI support in x86-64, a new network protocol called [[http://en.wikipedia.org/wiki/Controller_Area_Network|CAN]], initial ATI r500 DRI/DRM support, the beginning of the end for tasks stuck in D state, improved device support and many other small improvements.
+
+<<TableOfContents>>
+
+= Important features (AKA: the cool stuff) =
+== Memory Resource Controller ==
+Recommended LWN article (somewhat outdated, but still interesting): [[http://lwn.net/Articles/243795/|"Controlling memory use in containers"]]
+
+The memory resource controller is a cgroups-based feature. Cgroups, aka "Control Groups", is a feature that was merged in [[http://kernelnewbies.org/Linux_2_6_24|2.6.24]], and its purpose is to be a generic framework where several "resource controllers" can plug in and manage different resources of the system such as process scheduling or memory allocation. It also offers a unified user interface, based on a virtual filesystem where administrators can assign arbitrary resource constraints to a group of chosen tasks. For example, in [[http://kernelnewbies.org/Linux_2_6_24|2.6.24]] they merged two resource controllers: Cpusets and Group Scheduling. The first allows to bind CPU and Memory nodes to the arbitrarily chosen group of tasks, aka cgroup, and the second allows to bind a CPU bandwidth policy to the cgroup.
+
+The memory resource controller isolates the memory behavior of a group of tasks -cgroup- from the rest of the system. It can be used to:
+ * Isolate an application or a group of applications. Memory hungry applications can be isolated and limited to a smaller amount of memory.
+ * Create a cgroup with limited amount of memory, this can be used as a good alternative to booting with mem=XXXX.
+ * Virtualization solutions can control the amount of memory they want to assign to a virtual machine instance.
+ * A CD/DVD burner could control the amount of memory used by the rest of the system to ensure that burning does not fail due to lack of available memory.
+
+The configuration interface, like all the cgroups, is done by mounting the cgroup filesystem with the "-o memory" option, creating a randomly-named directory (the cgroup), adding tasks to the cgroup by catting its PID to the 'task' file inside the cgroup directory, and writing values to the following files: 'memory.limit_in_bytes', 'memory.usage_in_bytes' (memory statistic for the cgroup), 'memory.stats' (more statistics: RSS, caches, inactive/active pages), 'memory.failcnt' (number of times that the cgroup exceeded the limit), and 'mem_control_type'. OOM conditions are also handled in a per-cgroup manner: when the tasks in the cgroup surpass the limits, OOM will be called to kill a task between all the tasks involved in that specific cgroup.
+
+Code: (commit [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1b6df3aa457690100f9827548943101447766572|1]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8cdea7c05454260c0d4d83503949c358eb131d17|2]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e552b6617067ab785256dcec5ca29eeea981aacb|3]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=78fb74669e80883323391090e4d26d17fe29488f|4]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8a9f3ccd24741b50200c3f33d62534c7271f3dfc|5]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=66e1707bc34609f626e2e7b4fe7e454c9748bad5|6]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=67e465a77ba658635309ee00b367bec6555ea544|7]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0eea10301708c64a6b793894c156e21ddd15eb64|8]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c7ba5c9e8176704bfac0729875fa62798037584d|9]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8697d33194faae6fdd6b2e799f6308aa00cfdf67|10]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=bed7161a519a2faef53e1bce1b47595e297c1d14|11]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e1a1cd590e3fcb0d2e230128daf2337ea55387dc|12]])
+
+== Real Time Group scheduling ==
+Group scheduling is a feature introduced in [[http://kernelnewbies.org/Linux_2_6_24|2.6.24]]. It allows to assign different process scheduling priorities other than nice levels. For example, given two users on a system, you may want to to assign 50% of CPU time to each one, regardless of how many processes is running each one (traditionally, if one user is running f.e. 10 cpu-bound processes and the other user only 1, this last user would get starved its CPU time), this is the "group tasks by user id" configuration option of Group Scheduling does. You may also want to create arbitrary groups of tasks and give them CPU time privileges, this is what the "group tasks by Control Groups" option does, basing its configuration interface in cgroups (feature introduced in 2.6.24 and described in the "Memory resource controller" section).
+
+Those are the two working modes of Control Groups. Additionally there're several types of tasks. What 2.6.25 adds to Group Scheduling is the ability to also handle real time (aka SCHED_RT) processes. This makes much easier to handle RT tasks and give them scheduling guarantees.
+
+Documentation: [[https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/Documentation/sched-rt-group.txt?id=9f0c1e560c43327b70998e6c702b2f01321130d9|sched-rt-group.txt]]
+
+Code: (commit [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=fa85ae2418e6843953107cd6a06f645752829bc0|1]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6f505b16425a51270058e4a93441fe64de3dd435|2]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9f0c1e560c43327b70998e6c702b2f01321130d9|3]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=052f1dc7eb02300b05170ae341ccd03b76207778|4]])
+
+There's serious interest in running RT tasks on enterprise-class hardware, so a large number of enhancements to the RT scheduling class and load-balancer have been merged to provide optimum behaviour for RT tasks.
+
+Code: (commit [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e8fa136262e1121288bb93befe2295928ffd240d|1]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4fd29176b7cd24909f8ceba2105cb3ae2857b90c|2]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f65eda4f789168ba5ff3fa75546c29efeed19f58|3]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4642dafdf93dc7d66ee33437b93a5e6b8cea20d2|4]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c7a1e46aa9782a947cf2ed506245d43396dbf991|5]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=73fe6aae84400e2b475e2a1dc4e8592cd3ed6e69|6]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e7693a362ec84bb5b6fd441d8a8b4b9d568a7a0c|7]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=318e0893ce3f524ca045f9fd9dfd567c0a6f9446|8]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6e1254d2c41215da27025add8900ed187bca121d|9]])
+
+== RCU Preemption support ==
+Recommended LWN article: [[http://lwn.net/Articles/253651/|"The design of preemptible read-copy-update"]]
+
+[[http://en.wikipedia.org/wiki/Read-copy-update|RCU]] is a very powerful locking scheme used in Linux to scale to [[http://lkml.org/lkml/2007/5/4/314|very large]] number of CPUs on a single system. However, it wasn't well suited for low latency,RT-ish workloads, and some parts could cause high latency. In 2.6.25, RCU can be preempted, eliminating that source of latencies and making Linux a bit more RT-ish.
+
+Code: (commit [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e260be673a15b6125068270e0216a3bfbfc12f87|1]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2232c2d8e0a6a31061dec311f3d1cf7624bc14f1|2]])
+
+
+== FIFO ticket spinlocks in x86 ==
+Recommended LWN article: [[http://lwn.net/Articles/267968/|"Ticket spinlocks"]]
+
+In certain workloads, spinlocks can be unfair, ie: a process spinning on a spinlock can be starved up to 1,000,000 times. Usually starvation in spinlocks is not a problem, and it was thought that it was not too important because such spinlock would become a performance problem before any starvation is noticed, but testing has showed the contrary. And it's always possible to find an obscure corner case that will generate a lot of contention on some lock, and the processor that will grab the lock does it randomly.
+
+With the new spinlocks, the processes grab the spinlock in FIFO order, ensuring fairness (and more importantly, guaranteeing to some point the
+
+Spinlocks configured to run on machines with more than 255 CPUs will use a 32-bit value, and 16 bits when the number of CPUs is smaller (as a bonus, the maximum theoretical limit of CPUs that spinlocks can support is raised up to 65536 processors)
+
+Code: (commit [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=314cdbefd1fd0a7acf3780e9628465b77ea6a836|1]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3a556b26a2718e48aa2b6ce06ea4875ddcd0778e|2]])
+
+
+== Better process memory usage measurement ==
+Recommended LWN article: [[http://lwn.net/Articles/230975/|"How much memory are applications really using?"]]
+
+Measuring how much memory processes are using is more difficult than it looks, specially when processes are sharing the memory used. Features like /proc/$PID/smaps (added in [[http://kernelnewbies.org/Linux_2_6_14|2.6.14]]) help, but it has not been enough. 2.6.25 adds new statistics to make this task easier. A new /proc/$PID/pagemaps file is added for each process. In this file the kernel exports (in binary format) the physical page localization for each page used by the process. Comparing this file with the files of other processes allows to know what pages they are sharing. Another file, /proc/kpagemaps, exposes another kind of statistics about the pages of the system. The author of the patch, Matt Mackall, proposes two new statistic metrics: "proportional set size" (PSS) - divide each shared page by the number of processes sharing it; and "unique set size" (USS) (counting of pages not shared). The first statistic, PSS, has also been added to each file in /proc/$PID/smaps. In [[http://selenic.com/repo/pagemap/|this HG repository]] you can find some sample command line and graphic tools that exploits all those statistics.
+
+Code: (commit [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1e88328111aae3ea408f346763ba9f9bad71f876|1]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=304daa8132a95e998b6716d4b7bd8bd76aa152b2|2]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=161f47bf41c5ece90ac53cbb6a4cb9bf74ce0ef6|3]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=85863e475e59afb027b0113290e3796ee6020b7d|4]])
+
+== timerfd() syscall ==
+timerfd() is a feature that got merged in 2.6.22 but was disabled due to late complaints about the syscall interface. Its purpose is to extend the timer event notifications to something else than signals, because doing such things with signals is hard. poll()/epoll() only covers file descriptors, so the options were a BSDish kevent-like subsystem or delivering time notifications via a file descriptor, so that poll/epoll could handle them.
+
+There were implementations for both approaches, but the cleaner and more "unixy" design of the file descriptor approach won. In 2.6.25, a revised API has been finally introduced. The API can be found [[http://lwn.net/Articles/260172/|in this LWN article]]
+
+Code: [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4d672e7ac79b5ec5cdc90e450823441e20464691|(commit)]]
+
+
+== SMACK, Simplified Mandatory Access Control ==
+Recommended LWN article: [[http://lwn.net/Articles/244531/|"Smack for simplified access control"]]
+
+The most used MAC solution in Linux is SELinux, a very powerful security framework. [[http://www.schaufler-ca.com/|SMACK]] is an alternative MAC framework, not so powerful as SELinux but simpler to use and configure. Linux is all about flexibility, and in the same way it has several filesystems, this alternative security framework doesn't pretends to reemplaze SELinux, it's just an alternative for those who find it more suited to its needs.
+
+From the LWN article: ''Like SELinux, Smack implements Mandatory Access Control (MAC), but it purposely leaves out the role based access control and type enforcement that are major parts of SELinux. Smack is geared towards solving smaller security problems than SELinux, requiring much less configuration and very little application support.''
+
+Code: [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e114e473771c848c3cfec05f0123e70f1cdbdc99|(commit)]]
+
+== Latencytop ==
+Recommended LWN article: [[http://lwn.net/Articles/266153/|"Finding system latency with LatencyTOP"]]
+
+Slow servers, Skipping audio, Jerky video - everyone knows the symptoms of latency. But to know what's really going on in the system, what's causing
+the latency, and how to fix it... those are difficult questions without good answers right now. LatencyTOP is a Linux tool for software developers (both kernel and userspace), aimed at identifying where system latency occurs, and what kind of operation/action is causing the latency to happen. By identifying this, developers can then change the code to avoid the worst latency hiccups.
+
+There are many types and causes of latency, and LatencyTOP focus on type that causes audio skipping and desktop stutters. Specifically, LatencyTOP
+focuses on the cases where the applications want to run and execute useful code, but there's some resource that's not currently available (and the
+kernel then blocks the process). This is done both on a system level and on a per process level, so that you can see what's happening to the system,
+and which process is suffering and/or causing the delays.
+
+You can find the latencytop userspace tool, including screenshots, at [[http://www.latencytop.org|latencytop.org]].
+
+Code: [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9745512ce79de686df354dc70a8d1a74d801892d|(commit)]]
+
+
+== BRK and PIE executable randomization ==
+
+[[http://en.wikipedia.org/wiki/Exec_Shield|Exec-shield]] is a Red Hat that was started in 2003 by Red Hat to implement several security protections and is mainly used in Red Hat and Fedora. Many features have already been merged lot of time ago, but not all of them. In 2.6.25 two of them are being merged: brk() randomization and PIE executable randomization. Those two features should make the address space randomization on i386 and x86_64 complete.
+
+Code (commit [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c1d171a002942ea2d93b4fbd0c9583c56fce0772|1]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=cc503c1b43e002e3f1fed70f46d947e2bf349bb6|2]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=32a932332c8bad842804842eaf9651ad6268e637|3]])
+
+
+
+== Controller area network (CAN) protocol support ==
+Recommended LWN article: [[http://lwn.net/Articles/253425/|"PF_CAN"]]
+
+From the [[http://en.wikipedia.org/wiki/Controller_Area_Network|"Controller Area Network" Wikipedia article]]: ''Controller Area Network (CAN or CAN-bus) is a computer network protocol and bus standard designed to allow microcontrollers and devices to communicate with each other and without a host computer.''. This implementation has been contributed by Volkswagen.
+
+Code: (commit [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=cd05acfe65ed2cf2db683fa9a6adb8d35635263b|1]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0d66548a10cbbe0ef256852d63d30603f0f73f9b|2]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c18ce101f2e47d97ace125033e2896895a6db3dd|3]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ffd980f976e7fd666c2e61bf8ab35107efd11828|4]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ccb29637991fa6b8321a80c2320a71e379aea962|5]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f7ab97f78a5c573e49474edbd260ea6898ddccda|6]])
+
+
+== ACPI thermal regulation/WMI ==
+
+In 2.6.25 ACPI adds thermal regulation support (commit [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3f655ef8c439e0775ffb7d1ead5d1d4f060e1f8b|1]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=203d3d4aa482339b4816f131f713e1b8ee37f6dd|2]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=05a83d972293f39a66bc2aa409a5e7996bba585d|3]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d9460fd227ed2ce52941b6a12ad4de05c195f6aa|4]])
+and a WMI ([[http://www.microsoft.com/whdc/archive/wmi-acpi.mspx|Windows Management Interface]], a proprietary extension to ACPI) mapper (commit [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=bff431e49ff531a343fbb2b4426e313000844f32|1]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=745a5d2126926808295742932d0e36d485efa485|2]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=dd8cd7793781c87be47bbfee65efa3fb5110f898|3]])
+
+
+== EXT4 update ==
+Recommended article: [[http://lwn.net/Articles/266274/|"A better ext4"]]
+
+EXT4 mainline snapshot gets an update with a bunch of features: Multi-block allocation, large blocksize up to PAGE_SIZE, journal checksumming, large file support, large filesystem support, inode versioning, and allow in-inode extended attributes on the root inode. These features should be the last ones that require on-disk format changes. Other features that don't affect the disk format, like delayed allocation, have still to be merged.
+
+Code: (commit [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c9de560ded61faa5b754137b7753da252391c55a|1]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0040d9875dcccfcb2131417b10fbd9841bc5f05b|2]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0fc1b451471dfc3cabd6e99ef441df9804616e63|3]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c14c6fd5c56a0d0495d8a7c0f2bc330be658663e|4]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=25ec56b518257a56d2ff41a941d288e4b5ff9488|5]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=725d26d3f09ccb5bac4b4293096b985a312a0d67|6]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7a224228ed79d587ece2304869000aad1b8e97dd|7]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8180a5627d126362c2f64e4fa886d6f608d9632a|8]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=818d276ceb83aa9fdebb5e0a53188290312de987|9]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8e85fb3f305b24b79c6d9cb7a56d22b062335ad3|10]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=afc7cbca5bfd556c3e12d3acefbee5ab0cbd4670|11]])
+
+== MN10300/AM33 architecture support ==
+
+The MN10300/AM33 architecture is now supported under the "mn10300" subdirectory. 2.6.25 adds support MN10300/AM33 CPUs produced by MEI. It also adds board support for the ASB2303 with the ASB2308 daughter board, and the ASB2305. The only processor supported is the MN103E010, which is an AM33v2 core plus on-chip devices.
+
+Code: [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=b920de1b77b72ca9432ac3f97edb26541e65e5dd|(commit)]]
+
+
+== TASK_KILLABLE ==
+
+Most Unix systems have two states when sleeping -- interruptible and uninterruptible.  2.6.25 adds a third state: killable.  While interruptible sleeps can be interrupted by any signal, killable sleeps can only be interrupted by fatal signals.  The practical implications of this feature is that NFS has been converted to use it, and as a result you can now kill -9 a task that is waiting for an NFS server that isn't contactable.
+
+Further uses include allowing the OOM killer to make better decisions (it can't kill a task that's sleeping uninterruptibly) and changing more parts of the kernel to use the killable state.  If you have a task stuck in uninterruptible sleep with the 2.6.25 kernel, please contact MatthewWilcox with the output from
+
+`$ ps -eo pid,stat,wchan:40,comm |grep D`
+
+Code: Commits 1-11 are prep-work.  Patches 15 and 21 accomplish the major user-visible features, but depend on all the commits which have gone before them.
+
+(commit
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4a6e9e2ce822c9f597b3036887f6cf5fa3a79375|1]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=92a1f4bc7af13949d2185449307088cf98b4755d|2]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=21498223daad359d048b35b0ee4d1b93300ef258|3]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1587e2b1880632d959db6ac9e79cb1d99a73c656|4]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6d8982d9b8f4b771754335f1398e406cc72003c3|5]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e64d66c8edf11629aa203328daf898775ee27dd4|6]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d2f60e5faa9aef9a08d0abaee2007e5a0800d2c5|7]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6618a3e275519e10001a2ac4669f46141d4c108b|8]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d9514f6c6b95b5a747ba902858eff577281e8659|9]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e1abb39c60971590b6580c0d3a12119dcbad9c50|10]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=338077e54e17e656da470a84724b773816207316|11]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f021a3c2b14d0dd082c2cee890c204d9e1dee52b|12]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f776d12dd16da1b0cd55a1240002c1b31f315d5d|13]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2687a3569e40b1302f96698bcd6329aeb0ce3dd2|14]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0b94e97a25d9b06ef17fca8da23169200bead1e2|15]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ad776537cc6b4b936cfd11893e7b698dfa072666|16]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=da78451190bdaae0e67d6c96b1ec3366abc45474|17]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=294d5cc233d81ec4aec77ebc60dc5752a3d0082a|18]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1411d5a7fbe7dce1568b6f0a94c7cbc69eed1bfe|19]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=009e577e079656d51d0fe9b15e61e41b00816c29|20]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=150030b78a454ba50d5e267b0dcf01b162809192|21]],
+[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2dfe485a2c8afa54cb069fcf48476f6c90ea3fdf|22]])
+
+
+= Subsystems =
+== Various ==
+ * Block/VFS
+  * IO context sharing. Syslets (or other threads/processes that want io context sharing) can set the CLONE_IO clone() flag to enforce sharing of io context [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d38ecf935fcb10264a6bc190855d9595165e6eeb|(commit 1]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=66dac98ed0de7a1125fb0dd7907f238f6b9d2f60|2]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4ac845a2e9a816ed5a7b301f56dcc0a3d0b1ba4d|3]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=521f3bbdba6b92582ef8047df01b156668343542|4]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=fadad878cc0640cc9cd5569998bf54b693f7b38b|5)]]
+  * Enhanced partition statistics: core statistics [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ea5c48ab2a76559d4af39e1f7de137c0851ac0a5|(commit 1]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6f2576af5ba5913538fda7dfb7c6a17771025477|2]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=34e8beac92c27d292938065f8375842d2840767c|3]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=28f39d553ee242000e62f6c589ee3dc6de3f9aaa|4]]
+  * rewrite the ramdisk block device driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9db5579be4bb5320c3248f6acf807aedf05ae143|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=75acb9cd2ef0bbb463098fdd40cbcdda79d45fa3|(commit)]]
+  * blktrace: Add blktrace ioctls to SCSI generic devices [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6da127ad0918f93ea93678dad62ce15ffed18797|(commit)]]
+  * UBI: add auto-resize feature [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4ccf8cffa963c7b5bdc6d455ea9417084ee49aa8|(commit)]]
+  * SIGIO-driven I/O with inotify queues [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=bcfbf84d4067674b0740a39605f8057622ad5230|(commit)]]
+  * get rid of NR_OPEN and introduce a sysctl_nr_open [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9cfe015aa424b3c003baba3841a60dd9b5ad319b|(commit)]]
+  * md: allow devices to be shared between md arrays [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c5d79adba7ced41d7ac097c2ab74759d10522dd5|(commit)]], allow a maximum extent to be set for resyncing [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c620727779f7cc8ea96efb71f0651a26349e59c1|(commit)]], support 'external' metadata for md arrays [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e691063a61f7f72a7d2882eb744b07a520cde23b|(commit)]]
+
+
+ * Process scheduler
+  * Make the BKL always preemptable [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6478d8800b75253b2a934ddcb734e13ade023ad0|(commit)]]
+  * High-resolution preemption tick: it uses High Resolution timers (when available) to deliver an accurate preemption tick [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8f4d37ec073c17e2d4aa8851df5837d798606d6f|(commit)]]
+  * SCHED_FIFO/SCHED_RR watchdog timer [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=78f2c7db6068fd6ef75b8c120f04a388848eacb5|(commit)]]
+  * softlockup: automatically detect hung TASK_UNINTERRUPTIBLE tasks [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=82a1fcb90287052aabfa235e7ffc693ea003fe69|(commit)]]
+  * cpu-hotplug: refcount based cpu hotplug [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d221938c049f4845da13c8593132595a6b9222a8|(commit)]]
+
+
+ * Memory Management
+  * writeback: speed up writeback of big dirty files [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8bc3be2751b4f74ab90a446da1912fd8204d53f7|(commit)]]
+  * change dmapool free block management [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a35a3455142976e3fffdf27027f3082cbaba6e8c|(commit)]]
+  * slub: Support for performance statistics [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8ff12cfc009a2a38d87fa7058226fe197bb2696f|(commit)]]
+  * slob: reduce external fragmentation by using three free lists [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=20cecbae44528d347c46e71f40650b75e0dcbc8e|(commit)]]
+  * hugetlb: allow sticky directory mount option [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=75897d60a54ccee94253312107f941a83b5077cb|(commit)]]
+  * oom: add sysctl to enable task memory dump [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=fef1bdd68c81b71882ccb6f47c70980a03182063|(commit)]]
+  * Allow executables larger than 2GB [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=abe8be3abe4c2043bd766f32d7eba62c12dbb0b3|(commit)]]
+
+
+ * Power Management
+  * pm qos infrastructure and interface [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d82b35186eaa816267f044bd70cc0acb3c7971a3|(commit)]]
+  * Suspend: Testing facility [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0e7d56e3d9d7e37c79d0e05ffb3994e34beb3bbc|(commit)]]
+  * Hibernation: New testing facility [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4cc79776c9ea431790e04fcacbebb30d28eb1570|(commit)]]
+
+ * Various
+  * Linux Kernel Markers: support multiple probes [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=fb40bd78b0f91b274879cf5db8facd1e04b6052e|(commit)]]
+  * The scheduled 'time' option removal [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a36219ac93b3fd029f5e800642226c57796c152f|(commit)]]
+  * Remove a.out interpreter support in ELF loader [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d20894a23708c2af75966534f8e4dedb46d48db2|(commit)]]
+  * futex: Add bitset conditional wait/wakeup functionality [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=cd689985cf49f6ff5c8eddc48d98b9d581d9475d|(commit)]]
+  * virtio: PCI device [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3343660d8c62c6b00b2f15324ef3fcb6be207bfa|(commit)]], balloon driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6b35e40767c6c1ac783330109ae8e0c09ea6bc82|(commit)]]
+
+== Filesystems ==
+ * CIFS
+  * Allow setting mode via CIFS ACL. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=97837582bc1e191d2792af74c1f3762ed01243b9|(commit)]]
+  * DFS support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e6ab15827eec0bc4444421f7ccf0223de321c708|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6d5ae0deb1641bf615eafd8fef64218e10cb2fd0|(commit)]]
+ * OCFS2
+  * Online resize. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d659072f736837e56b6433d58e5315ad1d4d5ccf|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7909f2bf835376a20d6dbf853eb459a27566eba2|(commit)]]
+  * Support commit= mount option. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d147b3d630edef1d34de6ea819787a1ac1b8603b|(commit)]]
+ * XFS: Implement fallocate. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3ed6526441053d79b85d206b14d75125e6f51cc2|(commit)]]
+
+== Networking ==
+ * IPV6
+  * Support RFC3484 configurable address selection policy table. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2a8cc6c89039e0530a3335954253b76ed0f9339a|(commit)]]
+  * RFC4214 support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c7dc89c0ac8e7c3796bff91becf58ccdbcaf9f18|(commit)]]
+ * IPV4
+  * ipconfig: Implement DHCP Class-identifier. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=62013dbb8418eb7231c1577d238cf2e76b7696b0|(commit)]]
+  * route cache: Introduce rt_genid for smooth cache invalidation [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=29e75252da20f3ab9e132c68c9aed156b87beae6|(commit)]]
+ * Netlabel
+  * Introduce a new kernel configuration API for Netlabel [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=eda61d32e8ad1d9102872f9a0abf3344bf9c5e67|(commit)]]
+  * Introduce stati network labels for unlabeled connections [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8cc44579d1bd77ba3a32f2cb76fd9669c229c5fd|(commit)]]
+  * Add auditing to the static labeling mechanism [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=13541b3adad2dc2f56761c5193c2b88db3597f0e|(commit)]]
+ * Network namespaces. There're was a initial attempt of network namespaces, but a huge amount of work to support it fully have been put into 2.6.25
+ * TCP: Splice receive support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9c55e01c0cc835818475a6ce8c4d684df9949ac8|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a0974dd3da87667e26ef5d3b32989a43319866f2|(commit)]]
+ * Netfilter
+  * Add CONFIG_NETFILTER_ADVANCED option. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=33b8e776056202aceaf4c90f465d0f4ee53432ac|(commit)]]
+  * x_tables: add TCPOPTSTRIP target. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=338e8a79262c3709e314fbcc7ca193323e534934|(commit)]]
+  * Merge ipt_tos into xt_dscp. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c3b33e6a2cdefba38d83442ebae2ee42e853ea51|(commit)]], merge ipt_TOS into xt_DSCP. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c9fd49680954714473d6cbd2546d6ff120f96840|(commit)]]
+  * IPv6 capable xt_TOS v1 target. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5c350e5a380333c64da8580fa134a2fd8e71fea4|(commit)]], IPv6 capable xt_tos v1 match. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f1095ab51d4297d4a84b64a65c71054183a73486|(commit)]]
+  * ip_tables: remove obsolete SAME target. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=cb76c6a597350534d211ba79d92da1f9771f8226|(commit)]]
+  * x_tables: add RATEEST target. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5859034d7eb8793d3d78d3af515c4175e7b9d03a|(commit)]], add rateest match [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=50c164a81f1c0dfad056f99e5685537fdd0f07dd|(commit)]]
+  * ctnetlink: add support for secmark. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=37fccd8577d38e249dde71512fb38d2f6a4d9d3c|(commit)]]
+
+ * Introducing socket mark socket option. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4a19ec5800fc3bb64e2d87c4d9fdd9e636086fe0|(commit)]]
+ * Introducing new memory accounting interface. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3ab224be6d69de912ee21302745ea45a99274dbc|(commit)]], add UDP memory accounting. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=95766fff6b9a78d11fc2d3812dd035381690b55d|(commit)]]
+ * Net Sched: Add flow classifier [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e5dfb815181fcb186d6080ac3a091eadff2d98fe|(commit)]], support classification based on VLAN tag [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9ec138101f8a79007bc571174976a7814ed616f8|(commit)]]
+
+ * 9p: add support for sticky bit [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d199d652c513a010145a5a0d4e64c96361b97bee|(commit)]], block-based virtio client [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e2735b7720320b68590ca2b32b78ca91213931b2|(commit)]]
+ * IPSEC: Allow async algorithms [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6fbf2cb77461a0cd0675228d20dd0f70d7b2251f|(commit)]], add support for combined mode algorithms [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1a6509d991225ad210de54c63314fd9542922095|(commit)]]
+ * The scheduled shaper removal. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f1862b0ae2294f6970f695abf02392d025e02dbe|(commit)]]
+
+
+ * mac80211
+  * Better rate control algorithm selection. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4b475898ec9dc6e62cebcb8fc0b3495c986a4590|(commit)]], add PID controller based rate control algorithm [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ad01837593338f13508463fa11c8dbf8109a1e5d|(commit)]], make PID rate control algorithm the default [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c21b39aca4f8f4975784e54cd3a1b80bab80dcc0|(commit)]]
+  * Introduce key handling [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=41ade00f21a72d30911c6351a93823a491fffa39|(commit)]], support adding/removing keys via cfg80211 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e8cbb4cbeb7642d179b01c35adf036ddb65f3dd0|(commit)]], support getting key sequence counters via cfg80211 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=62da92fb75c346b503bca765fd1337e08771c9fe|(commit)]]
+  * Add beacon settings [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ed1b6cc7f80f831e192704b05b9917f9cc37be15|(commit)]], add beacon configuration via cfg80211 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5dfdaf58d61f06a458529430c24b1191ea4d1a27|(commit)]]
+  * Station handling [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5727ef1b2e797a1922f5bc239b6afb2b4cfb80bc|(commit)]], implement station attribute retrieval [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=fd5b74dcb88cfc109d6576b22deaef6f47f82c12|(commit)]], implement station stats retrieval [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7bbdd2d987971f9d123a2db89ed921bf02e34f9a|(commit)]], implement cfg80211 station handling [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4fd6931ebe24640bec72b91ba612325843a5e3cc|(commit)]]
+
+
+
+== Crypto ==
+ * salsa20: Salsa20 stream cipher [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2407d60872dd2a95404c6048f775f3b64d438f4b|(commit)]]
+ * gcm: New algorithm [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=28db8e3e38e593d22e2c69942bb1ca7be2a35f05|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=dadbc53d0bbde0e84c40b9f6bc5c50eb9eb7352a|(commit)]]
+ * ctr: Add CTR (Counter) block cipher mode [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=23e353c8a681cc30d42fbd4f2c2be85c44fe209b|(commit)]]
+ * hifn_795x: HIFN 795x crypto accelerator driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f7d0561ea1dadec5462846520b1f4fb304294fd5|(commit)]]
+ * sha256-generic: Extend to support SHA-224. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=cd12fb906d2591e80da9edcbd4794b9b916d7489|(commit)]]
+ * tcrypt: Add aead support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e3a4ea4fd2e5f154ae9233f1ce30e7564e5cbcfc|(commit)]]
+ * lzo: Add LZO compression algorithm support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0b77abb3b2d0c2eee1da79a3f3bd4312a0edb156|(commit)]]
+ * chainiv: Add chain IV generator. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7f47073911f0e4384d38a0827d28305a177c8816|(commit)]]
+ * eseqiv: Add Encrypted Sequence Number IV Generator. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=806d183aa6cc565d0f6bd2fb7fc6bfb175cc4813|(commit)]]
+ * seqiv: Add Sequence Number IV Generator. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0a270321dbf948963aeb0e8382fe17d2c2eb3771|(commit)]], add AEAD support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=14df4d80433b8413f901e80880c39e8759b8418f|(commit)]]
+ * null: Add null blkcipher algorithm. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3631c650c495d61b1dabf32eb26b46873636e918|(commit)]]
+ * ccm: Added CCM mode. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4a49b499dfa0c9e42be6d6fdd771f3434c776278|(commit)]]
+ * salsa20_i586: Salsa20 stream cipher algorithm (i586 version). [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=974e4b752ee623854c5dc2bbfc7c7725029ce173|(commit)]]
+
+== Security ==
+ * SELinux
+  * SELinux: Add network ingress and egress control permission checks [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=effad8df44261031a882e1a895415f7186a5098e|(commit)]]
+  * Support 64-bit capabilities [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=b68e418c445e8a468634d0a7ca2fb63bbaa74028|(commit)]]
+
+ * AUDIT
+  * Collect uid, loginuid, and comm in OBJ_PID records [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c2a7780efe37d01bdb3facc85a94663e6d67d4a8|(commit)]]
+  * Add uid, gid fields to ANOM_PROMISCUOUS message [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7759db82774802885f96c250b36c3dfe317e62ff|(commit)]]
+  * Add session id to audit messages [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4746ec5b01ed07205a91e4f7ed9de9d70f371407|(commit)]]
+  * Add End of Event record [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c0641f28dcbecb6dc34a4fd003a9947fcd080696|(commit)]]
+
+ * Allow Kconfig to set default mmap_min_addr protection [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a5ecbcb8c13ea8a822d243bf782d0dc9525b4f84|(commit)]]
+ * LSM/SELinux: Interfaces to allow FS to control mount options [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e0007529893c1c064be90bd21422ca0da4a0198e|(commit)]]
+ * Add 64-bit capability support to the kernel [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e338d263a76af78fe8f38a72131188b58fceb591|(commit)]], introduce per-process capability bounding set [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3b7391de67da515c91f48aa371de77cb6cc5c07e|(commit)]]
+
+== Architecture-specific changes ==
+ * x86
+   * EFI x86-64 support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5b83683f32b113d07edfb67a33ce389fc624423d|(commit)]]
+   * kprobe-booster for x86-64 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=aa470140e86e45723cf8387292edbce9106ddc1f|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=da07ab0375897bb9e108b28129df140ecd3ee94e|(commit)]]
+   * Provide a configurable (boot parameter or DMI based) port 0x80 I/O delay override [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=b02aae9cf52956dfe1bec73f77f81a3d05d3902b|(commit 1]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d0049e71c6e14a3b0a5b8cedaa1325a1a91fecb0|2]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6e7c402590b75b6b45138792445ee0f0315a8473|3)]]
+   * x86-64: Make sparsemem vmemmap the only memory model. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=b263295dbffd33b0fbff670720fa178c30e3392a|(commit)]]
+   * ptrace: Support for branch trace store(BTS) [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=eee3af4a2c83a97fff107ddc445d9df6fded9ce4|(commit)]], overflow signal API. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c6334593c61c71ab2e666c015eef13995736f49a|(commit)]]
+   * Add noclflush boot option [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=191679fdfa63342752ff6a094a2522ae939b8d0c|(commit)]]
+   * Add generic clearcpuid=... boot option [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ac72e7888a612dccfbc15b34698aad441bdfda10|(commit)]]
+   * Add generic GPIO support to x86 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a608295935d237bdbe95eefdba1e3fa40676df31|(commit)]]
+   * Add support for the RDC R-321x SoC [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5e3a77e9a9b7bfc1f69f51fe6d34aa649887980c|(commit)]]
+   * Enable DEBUG_PAGEALLOC on 64-bit [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=31a0717cbc6191fc56326fdf95548d87055686e3|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=b1d95f4e41d6a5969e3a847ceeae8379f30c84c3|(commit)]]
+   * Early boot debugging via Firewire (ohci1394_dma=early). [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f212ec4b7b4d84290f12c9c0416cdea283bf5f40|(commit)]]
+   * Remove iBCS support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=612a95b4e053b8a06319049191fd2dce9c970189|(commit)]]
+
+
+ * POWERPC
+  * Fake NUMA emulation for PowerPC [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1daa6d08d1257aa61f376c3cc4795660877fb9e3|(commit)]]
+  * celleb: Add support for native CBE. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9858ee8ac52117cb38d7ef79b4db3382ea465a2a|(commit)]]
+  * Merge libfdt upstream source. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1cade99497c881a8c719df561d1bdc96831ff040|(commit)]]
+  * Use embedded libfdt in the bootwrapper. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2f0dfeaa84a8eea56218b77ffc61ed3dd7181847|(commit)]]
+  * Add SPRN for Embedded registers specified in PowerISA 2.04. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=fd351b89205bc14f79af2e0d69f4198bcea1cf6a|(commit)]]
+  * 83xx: Add platform support for MPC837x MDS board. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=833e31e7368335b40be344f73b67fe79c61eb63d|(commit)]]
+  * pasemi: Implement MSI support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=38958dd9113c19cd7a927009ae585bd5aba3295e|(commit)]]
+  * Merge dtc upstream source. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a4da2e3ec84cda635ac441efbe781a38d2ee41ee|(commit)]]
+  * 4xx: PLB to PCI-X support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5738ec6d00b7abbcd4cd342af83fd18d192b0979|(commit)]], PLB to PCI 2.x support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c839e0eff500af03de65e560c2e21c3831586e6e|(commit)]], PLB to PCI Express support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a2d2e1ec07a80946cbe812dc8c73291cad8214b2|(commit)]], PCI support for Ebony board [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=69c0785112921a43739495a68f459fde88a9bbd8|(commit)]], add early udbg support for 40x processors [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9dae8afdf212d39bc7c25f1b1ca9b10f10f6beaa|(commit)]], EP405 boards support for arch/powerpc [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=619740384cebe2601a8d307654a22d9ed85f2fcb|(commit)]], add PCI to Walnut platform. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=379865d63cb97f8e8241724aae48e795a6b7cb10|(commit)]], base support for 440GX Taishan eval board. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6bbc5476298a3dd46a7a19c2af03778b094acb15|(commit)]], base support for 440SPe "Katmai" eval board. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3de9c9cd22c69c6aa2e17d4dcf55dcf1260b5718|(commit)]], 440GRx Rainier board support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6272175d2a0849ac36e3ea54c0b6949009532a75|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3910cd8c11a883a5e4d644f24c56b9897dffb34c|(commit)]], PIKA Warp base platform [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f9bdedb2c5f2952f33e4f88038e5c48e27144cda|(commit)]]
+  * pasemi: Implement NMI support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f365355e65ee619e3b7baeca69b46fd2c4a5ec68|(commit)]], distribute interrupts evenly across CPUs. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d87bf3bed71375b141e95b5fdbac413ac4b65184|(commit)]]
+  * Add hugepagesz boot-time parameter. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4ec161cf73bc0b4e5c36843638ef9171896fc0b9|(commit)]]
+  * mpc5200: Add generic support for simple MPC5200 based boards. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5b5820d08b8cc90ba0148bf8d4a5a1f792e9e8ba|(commit)]]
+  * QE: Add ability to upload QE firmware. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=bc556ba940085e46e0ab1b5ed7c31428dc86dd03|(commit)]], add support for Freescale QUICCEngine UART. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=845cf505cebd159b57b3ae3b25e9ad0eb036f9ab|(commit)]], add support for Freescale QUICCEngine UART. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d7584ed2b994a572326650b0c4d2c25961e6f49d|(commit)]]
+  * 8xx: Analogue & Micro Adder875 board support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=b09c16440eb39c12cc91aea5b572c753a5567d57|(commit)]]
+  * 82xx: Embedded Planet EP8248E support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0dde1a1df9ab0615ed08558fb7144e7739e9f565|(commit)]]
+  * Add initial iomega Storcenter board port. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3490cba56f7f8a78ef4c94814c3181f09ce1e2ef|(commit)]]
+  * PS3: Add logical performance monitor device support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ed7570022a42a60ecb67c53f429bc96c7bc5597d|(commit)]], add logical performance monitor driver support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=781749a46b34dc5c9e4000df7b9d37d675c17463|(commit)]]
+  * 85xx: Port STX GP3 board over from arch/ppc [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=77e03a2241fe9a15749b2b30196fc14637310959|(commit)]], port TQM85xx boards over from arch/ppc [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0052bc5d5c3adc4ee4ba567470aebe775fcf2006|(commit)]], add support for Wind River SBC8560 in arch/powerpc [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2c19806122832a5fd83253ba8321308a531051da|(commit)]], add v1 device tree source for Wind River SBC8560 board [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6a35b6f09b8ef19ac99342951e49e3b242b5093b|(commit)]], add basic support for Wind River SBC8548 board [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0e0fffe887673a04bb8f8ec8287c5057e2ed8f27|(commit)]],
+  * 83xx: Add support for Wind River SBC834x boards [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a43414ccb49c7866febd7f9c70adc124f6bba636|(commit)]], add device tree source for Wind River SBC834x board. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6c538111e337ac47d2ba0cc50b6aab0fc4742873|(commit)]], add MPC837x RDB platform support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=38f66f90b2f89b3280ab505bd410e199fc461ed6|(commit)]]
+  * Cell IOMMU fixed mapping support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=99e139126ab2e84be67969650f92eb37c12ab5cd|(commit)]]
+  * Add oprofile support for e300 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1347a2c1eb61fce8b5085801761c7b63f9e7ba8b|(commit)]]
+  * Xilinx: hwicap driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ef141a0bb0dc6172bb8fe5408cf8adbd5f76ff45|(commit)]]
+  * mpc512x: Add MPC512x PSC support to MPC52xx psc driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=25ae3a0739c69425a911925b43213895a9802b98|(commit)]]
+  * spufs: Add marker-based tracing facility [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=038200cfdc6467fa8100c5b9c3b81730f0158370|(commit)]]
+  * PS3: gelic: add support for port link status [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=01fed4c284def58b8a9ee0b915c3956b93c670b7|(commit)]], add support for dual network interface [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=589866f9f1cb14273b644993d362ec7845007f94|(commit)]], add wireless support for PS3 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=09dde54c6a69d4f9ea1213923b93aeae7020f8b6|(commit)]]
+
+
+
+ * SH
+  * Add SH7203 CPU support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6d01f51086cf6c475470cdae67d2f45e5fb57833|(commit)]]
+  * Add SH7263 CPU support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a8f67f4b4d4b74cd14d3540ade8657ebee543340|(commit)]]
+  * Add support for SH7721 CPU subtype. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=31a49c4bf8f964b7a9897baa889916d71b51d9c1|(commit)]]
+  * Add support for SH7763 CPU subtype. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7d740a066fb9c6681c2898c7977209725c9e552f|(commit)]]
+  * Add support for sh7366 processor [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9109a30e5a548b39463b5a777943cf103da507af|(commit)]]
+  * SH-2A FPU support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=74d99a5e262229ee865f6f68528d10b82471ead6|(commit)]]
+  * Declared coherent memory support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f93e97eaead5c50af35d73cca7301ebbfdff116c|(commit)]]
+  * Syscall audit support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1322b9def91ab8e9e673b58a64e13d6effaaa652|(commit)]]
+  * Trapped io support V2 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e7cc9a7340b8ec018caa9eb1d035fdaef1f2fc51|(commit)]]
+  * sh7712 clock support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c3aa92afd0a6c253df974556b4a43c0a182d1fc4|(commit)]]
+  * Add support for SDK7780 board. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4862ec073975e28f432f164405e60fa6f5c9d071|(commit)]]
+  * Migor board support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=70f784ec1ddacf8e17da2663f842efac029da796|(commit)]]
+  * Kill off dead HS771RVoIP board support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a5350a9686efa65cbd2ad4677bcb9372c7ad05c7|(commit)]]
+
+ * ARM
+  * kprobes support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=24ba613c9d6cad315f484e658288db152f1dc447|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=25ce1dd71b8326f2542cf030f68e0e64c3d94dc1|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=35aa1df4328340f38edc46f00837f08d33d49f63|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5de865b4c5af253db19bdae3c0553952dc7eda1d|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=785d3cd286f0bf67d1bf692559b9ae5de12678f5|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=796969104cab0d454dbc792ad0d12a4f365a8564|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d30a0c8bf99f0e6a7d8c57bd4524039585ffbced|(commit)]]
+  * AT91CAP9 core support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2b3b3516b6eeea1464e205b2dde9ebc9b7dd2ec8|(commit)]]
+  * Marvell Feroceon CPU core support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e50d64097b6e63278789ee3a4394d127bd6e4254|(commit)]]
+  * Support for the Marvell Orion SoC family. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=585cf17561d3174a745bec49c422c1a621c95fc4|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=038ee0832ee1b1e2bd2be4599cd535ea9aaaf658|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c67de5b3c0bb48ac56f14928e11f1f7d76add26f|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=01af72e4e36fba66cd7cfc2a628efee866c346d1|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=b11e9e020c8c6cdd7e7cc6d5178cce2ad0ac0784|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3085de6a82821e3d227e8fae7403dc7a5dc27932|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f00666140cb84cd80276c9a874198874890d5733|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=51cbff1d6f1946f97b847f9a144737eca20ede84|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ca26f7d3ed3c841e561613a9ea2f44ca899e27de|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e07c9d85726e57914608a4e66a5dbb35863cd8fb|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e448b12cdacd4b26747480250df843b734896ae5|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=817eb2109d28fcac8f4fd84a9ef3a761de4f8b50|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1e78045306e9a402b096eef95864ddf313d402d8|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c9e3de941a1694aeab60a10bd39eb710c975010d|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=555a36561be191eb01658a5229aa11b4e4a8a7f0|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=144aa3db1e8faa34bb33c61131494ac879a6d978|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3faf2ee870c26f6a809af3f32368f96c357ed91b|(commit)]]
+  * pcm027: add support for phyCORE-PXA270 CPU module. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=34e31d871ee4b6a9f6c5504da7d6dcc24967844c|(commit)]], add network support for phyCORE-PXA270. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4f15a98025c2e71be85c80adecc14b82770cd865|(commit)]], add support for pcm990 baseboard for phyCORE-PXA270. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2e927b76267a57a44c018ffcc64cde5fedde1fcf|(commit)]]
+  * Base support for pxa-based Toshiba e-series PDAs. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3abcd199db312abeec617083be8a7655cab73ec8|(commit)]]
+  * Add basic support for HTC Magician PDA phones. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e5c271ec3bdfaca5e8d47a9e63cfc0bf889881aa|(commit)]]
+  * KS8695: PCI support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7d77ce8f67358c6b7708726f8fa230cd58d75b2c|(commit)]]
+  * Support for Qualcomm MSM7X00A based systems. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3042102a28501510a409fe86962f20369e325cf2|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3e4ea3728a38b224d8b35ff8a9281407f603aa20|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9e73c84c89b7c91ad5d6a141c58efbbe139f6b6c|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=bfe645adf1a79b873b528556523abb46f281a5dc|(commit)]]
+  * sa1100: add clock source support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d142b6e77d394a4fcc0a42381b03852bd9c4e263|(commit)]]
+  * ARMv7: Add VFPv3 support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=25ebee020bd34d1f4c5678538204f0b10bf9f6d5|(commit)]], add Advanced SIMD (NEON) extension support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=b5872db4a2ebe7dbc7a5e4013ae8ee37f3de3b97|(commit)]]
+  * AT91: Configurable HZ, default to 128. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5248c657898c018bcd23ef77759fa1d6c690bdf4|(commit)]]
+  * AT91CAP9A-DK board support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=86640cae60147b0cd2705145de8067e24db70a8b|(commit)]]
+  * Adds drivers for IXP4xx QMgr and NPE features [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=82a96f5790ac93a406be72ed8f308dd29ad7e6af|(commit)]]
+
+  * pxa: add basic support for Littleton (PXA3xx Form Factor Platform). [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e1d9b9532522f4a04b925e151c1790e669312c55|(commit)]], add preliminary suspend/resume code for pxa3xx [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c4d1fb627ff307256d792280efcb09e1235affea|(commit)]], add cpufreq support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9e2697ff371b4380dca108a66860868c19d8c4b6|(commit)]]
+
+  * Realview: clocksource support for the Realview platforms [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=85802afeb010502471f64dccf9839f60995c8579|(commit)]], clockevents support for the RealView platforms [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ae30ceac3c6bbacdb227816abe6f0c7ea867ac7c|(commit)]], add broadcasting clockevents support for ARM11MPCore [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a8655e83fc44ec2b92cbea9f3ff3cc0da05a991c|(commit)]], add clockevents suport for the local timers [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=93c2904d5081468128e66792a85439df314de773|(commit)]], add core-tile detection [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7dd19e755dbe481ae42590dbd921dfd47e94779c|(commit)]]
+  * OMAP: Add DMA support for chaining and 3430 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f8151e5c327bfc41f0993a45fb61ea121bebfee4|(commit)]]
+
+ * CRIS
+  * Support Artpec-3, Etrax-FS [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=18a1e013cdd94d1ade2c07acdbac61d533c7fc60|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=035e111f9a9b29843bc899f03d56f19d94bebb53|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=58d083192825c5fbd46fa0b1ff4d1ecc9118b692|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6107c61fd3e6b47106b078db1726ad814564efef|(commit)]],
+  * New version of I2C driver. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=201ca54aa039eb1e5143a98311e7ea25afc57ebb|(commit)]]
+  * Add synchronous serial port driver for CRIS v10. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c974a9e5a3c52f1c61501b22a0b0a278250a6bd1|(commit)]]
+
+
+ * AVR32
+  * Oprofile support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2853ce5ecefe9d9ca119f33db0c23a3f075e35d9|(commit)]]
+  * Add support for AT32AP7001 and AT32AP7002. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=438ff3f3cc33833206a48492e9d6674e4e82bed8|(commit)]]
+  * Add support for ATSTK1003 and ATSTK1004. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=78693e47a285dbfafabc85a42797660e4fe2967b|(commit)]]
+
+ * Blackfin
+  * Initial checkin of the memory protection support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=b97b8a998397e8c64699559099fa9febffae2b4d|(commit)]]
+  * Added support for 8250-class UARTs in HV Sistemas H8606 board, modification in 8250.c driver for correct compilation with Blackfin. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=fb96c56de33def1484614c6a3d0fbef76595ce2f|(commit)]]
+  * Add support for BF523/BF524/BF526. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1545a1111a02b5aafe6f141e133a6269c5741285|(commit)]]
+  * Added support for OpenCores Keyboard Controller to H8606 board. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7a5f819187ff827c131721dbba11ad9596ae5e30|(commit)]]
+  * Add Hitachi TX09D70VM1CDA TFT LCD driver resource to Blackfin board. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0d4a89bb3eb58f39831186fa6b1542893dbfdc9f|(commit)]]
+  * Add "memmap=nn[KMG]@ss[KMG]" and "memmap=nn[KMG]$ss[KMG]" options to blackfin, based on arch/i386/kernel/e820.c [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=856783b37a958086c83ea44544d366affd0c2c4b|(commit)]]
+
+ * S390
+  * latencytop support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a3afe70b83fdbbd4d757d2911900d168bc798a31|(commit)]]
+  * Standby CPU activation/deactivation. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=08d07968277cd898c88bf12b7720d89c02c4f139|(commit)]]
+  * dasd: Add hyper PAV support to DASD device driver, part 1. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8e09f21574ea3028d5629e5de759e0b196c690c5|(commit)]]
+  * 1K/2K page table pages [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=146e4b3c8b92071b18f0b2e6f47165bad4f9e825|(commit)]], add four level page tables for CONFIG_64BIT=y. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5a216a20837c5f5fa1ca4b8ae8991ffd96b08e6f|(commit)]], dynamic page tables [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6252d702c5311ce916caf75ed82e5c8245171c92|(commit)]], CONFIG_HIGHPTE vs. sub-page page tables. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2f569afd9ced9ebec9a6eb3dbf6f83429be0a7b4|(commit)]]
+
+
+ * MIPS
+  * MT: Scheduler support for SMT. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0ab7aefc4d43a6dee26c891b41ef9c7a67d2379b|(commit)]]
+  * TXx9 watchdog support for rbhma3100, rbhma4200, and rbhma4500. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2064ba23e58daa929eec6f5e7a2abc24574a95b9|(commit)]]
+  * IP28 support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e2defae5a9b4f8d1acb058be212ef89c8763dc5b|(commit)]]
+  * Alchemy: Au1210/Au1250 CPU support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=237cfee1db66147aef4457f02b56a41e6f84bfd3|(commit)]]
+
+ * SPARC64: Add kretprobe support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d38f1220666a2bd89c4f62d286723a3417b34b9e|(commit)]]
+
+ * uml: runtime host VMSPLIT detection [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=536788fe2d28e11db6aeda74207d95d750fb761f|(commit)]]
+
+
+= Drivers =
+== Graphics ==
+ * i915:
+  * Add suspend/resume support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ba8bbcf6ff4650712f64c0ef61139c73898e2165|(commit)]]
+  * Add support for E7221 chipset. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4d1f78880e9631fb08052dcc8e3341eecea537e0|(commit)]]
+  * Add chipset ID for Intel Integrated Graphics Device. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5f5f9d4c7bf96c044fb98c7c107172a730b2a247|(commit)]]
+ * Add initial ATI r500 DRM support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3d5e2c13b13468f5eb2ac9323690af7e17f195fe|(commit)]]
+ * Suspend support for SiS AGP [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=16469a0ea0f6b7562eac98ebb8a7c41ce902d0b1|(commit)]]
+ * Add initial rs690 support to drm. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=60f92683943c5b7a85963b283d6f8a853aa09203|(commit)]]
+ * Add support for Sis 662/671 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2e374748c73f34e018a1c13a86a96a15fc55a65a|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=feac7af508ebdfe1db9920d4e45d0ffd286abe75|(commit)]]
+ * fbdev: add BF52x EZkit Display driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=99eeed47a1ee26fbce49c878788a6882bf90d8f2|(commit)]]
+ * Add S3c2412 support to S3c2410 fb driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f62e770b25bdc24e18c9191fe2ca3e159036bd79|(commit)]]
+
+
+== SATA/IDE ==
+ * Palmchip BK3710 IDE driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7c7e92a9268965e08bba853ecdb94fa55e886741|(commit)]]
+ * pata_ninja32: Cardbus ATA initial support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=51dbd490614e6228e9b2b198bd4f5f76ef961059|(commit)]]
+ * pata_legacy: Merge winbond support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=b832548773b0cd98216534caa31b9ed7607c4e76|(commit)]]
+ * libata: implement drain buffers [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=fa2fc7f4813bfec1ae3232d49e3befbd601e8a6f|(commit)]]
+ * cmd64x: Remove /proc/ide/cmd64x. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=63c4467805c9b23231d8bc9b61305b2013f9fea2|(commit)]]
+ * cdrom: Add support for Sega Dreamcast GD-ROM. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=74ee1a7590b782a6df01d00ae38093cbfbee5ca9|(commit)]]
+ * Add support for the RB500 PATA Compactflash [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3db691daa4f6c4b899e144ea54a65738402c94e3|(commit)]]
+ * ahci: Add Marvell 6121 SATA support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c40e7cb89f9d36924131ef708ff1f16a76611add|(commit)]]
+ * sata_mv: Enable NCQ [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=138bfdd03f2c08cc62b6af3900fb7be1c696315b|(commit)]], support SoC controllers [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f351b2d638c3cb0b95adde3549b7bfaf3f991dfa|(commit)]]
+ * pata_sl82c105: dual channel support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=92ba5d02d993ccf4a87b945779fe052f67c3c334|(commit)]]
+ * sata_svw: Add support for HT1100 SATA controller [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=931506d3b2208362efc678ee863ee42a90755e89|(commit)]]
+
+
+== Sound ==
+ * Scheduled OSS driver removal [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=83bad1d764b836a482b88e0a1f44d7a5c3e1fee0|(commit)]]
+ * HDA: Add Asus VX1 support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d9f9b8baa0fbdba93b0ebb8e5b3ec042a6b4a8fb|(commit)]], add support for RV610/RV630 HDMI audio. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2797f724cdde5b3c630f6422a1cc3a21772728dd|(commit)]], STAC92HD71 codec mixer. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9b35947fcd697001332d0bb2adf6fbc419f5dd4f|(commit)]], add support of HP Thin Client T5735. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=66d2a9d659ccc6ecf51d606fea9d1058d357f453|(commit)]], add support for RV6xx HDMI audio. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=27da183402ac5ca7d5a4c4704c4a405cd1009c43|(commit)]], initial support of the Mitac 8252D (based on ALC883). [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a8848bd6476102ff1d3bbe56662a18d6ada8674f|(commit)]], add ALC889/ALC267/ALC269 support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f6a92248aef841f14a5806cc299c431e7809c733|(commit)]], add support for VIA VT1708B HD audio codec. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f7278fd0a57ea6cde4988ab820851b01be20daef|(commit)]], added more 92HD71 codecs. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=541eee8768b60ffc233f5ca0796a4cef54df699b|(commit)]], added STAC92HD73 support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e1f0d6690817d1296161094106b23a0be9ee6ca0|(commit)]], add IEC958 digital out support for Lenovo Thinkpads T61/X61. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ebf00c54a6e1be0ae25d41236a063747c74ed5bf|(commit)]], device ID for Macbook sound card. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3d5fa2e59630a852f2dda7096885b64ffa03427d|(commit)]], 92HD71BXX Mono Mute Support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a780c0aeb39e9251c1b48166380f4455871bc067|(commit)]], 92HD7XXX power management support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a64135a2d880183a2aff149f42dab7779a37a67f|(commit)]], add the support of Dell OEM laptops with ALC268. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3866f0b0c2df3d179b2901d084670d3cf711b1da|(commit)]], new model for conexant 5045 codec to support benq r55e. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5218c892652c1e8f89964a7fd4cf8b71cc863094|(commit)]], add model for Acer Aspire 5315. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=29a52c242d76deee155cb94756bcf7ebf58de4fe|(commit)]], add Conexant 5051 codec support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=461e2c78b153e38f284d09721c50c0cd3c47e073|(commit)]], add model for Acer Aspire 5310. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=dafc83578d1633d7faf3e9de67fd922286c1b38d|(commit)]], add model for HP DV9553EG laptop. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0f6a5156dee091466b743c163800708383c15bdb|(commit)]], ALSA HD Audio patch for Intel ICH10 DeviceID's. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c34f5a0469c64a3e4e84b04a691247b72175402d|(commit)]], add Dell T3400 support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0aaa22e554c0934625faf79deea42bfecbdbc23d|(commit)]], add support for Intel SCH. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4979bca9dcfe4c21c26f378ce446c912fc583ac1|(commit)]], add missing model for HD-audio Cx5045 codec [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=178532348c215d23d8d64548c6ff0e38b50fca6c|(commit)]], add support for Samsung Q1 Ultra Vista edition. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f651b50b9d1ab44f7b09d1ef28ba702903732fd3|(commit)]]
+ * ice1724: Add support of Onkyo SE-90PCI and SE-200PCI. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f31639b8c5916f58441b529c9c364715921b29af|(commit)]]
+ * soc: ln2440sbc ac97 support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=040956fabbc16b9ce746a03d2b589052e1771138|(commit)]]
+ * Remove sequencer instrument layer. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e5723b41abe559bafc52591dcf8ee19cc131d3a1|(commit)]]
+ * Xilinx ML403 AC97 Controller Reference device driver. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a9f00d8df2115b396f13ea74b835f18215a871cc|(commit)]]
+ * ASoC TLV320AIC3X codec driver. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=44d0a879951a90a4eb463fb1d3b91942f97f36ca|(commit)]]
+ * usb-caiaq: add support for Kore controller 2. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7829d0eccbddc7431cc9af662c7cd3442b5598bd|(commit)]]
+ * sis7019: Support the SiS 7019 Audio Accelerator. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=175859bf1602c7ee38d720daa14a287072cc2b72|(commit)]]
+ * USB audio suspend support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f85bf29c9435baf927e1817e6b43c9429b84f822|(commit)]]
+ * Add Asus Xonar driver. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1b8ff22fa8d724e7f4367ec220c2c44ae38743fc|(commit)]]
+ * Add CMI8788 driver. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d0ce9946c52e7bdf95afb09553775cf28b752254|(commit)]]
+ * ASoC TLV support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a7a4ac86b4754f44eb06221f3087debb4775d588|(commit)]], S3c2412 IIS driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=49646dfa2ae81e770da1c12c4fce227062ce4612|(commit)]]
+ * soc: Preliminary ac97 drivers for Toshiba e800 PDAs. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ab40d4f12cda366ed1f308d2a041480769f9a77e|(commit)]]
+ * Add ASoC drivers for the Freescale MPC8610 SoC. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=17467f23395f05ba7b361f7b504fe0f1095d5bb7|(commit)]]
+ * ICE1724: Added support for Audiotrak Prodigy 7.1 Hifi & HD2, Hercules Fortissimo IV. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6b8d6e5518e2812b150c2d7c1e975a1bd33f0ccc|(commit)]]
+
+== SCSI ==
+ * Bidirectional command support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6f9a35e2dafa0f855ab051c11bdbf739745ff6f5|(commit)]]
+ * lpfc: Added support for ASICs that report temperature. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=57127f157298ea2dacbbc878a3c5d2a5daca772c|(commit)]]
+ * megaraid_sas: add hibernation support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=31ea7088974c2405e19d72f17c2afb103ef19e02|(commit)]]
+ * AHS Support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=004d6530f83bee43a55b51bb5960db96e7ae0ffa|(commit)]],[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=38ad03de3fd350e683213ddf898a7049534628a8|(commit)]]
+ * qla2xxx: Add Fibre Channel Event (FCE) tracing support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=df613b96077cee826b14089ae6e75eeabf71faa3|(commit)]]
+ * aacraid: Add Voodoo Lite class of cards [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=cb1042f285c2168bd8cf10aca0e24802e682252b|(commit)]], add optional MSI support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8ef2224707996aede1808f40116cd467b7c8d549|(commit)]]
+ * psi240i: Remove driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=864a4675b239dcc3ae5b8adce15a370639b5ccab|(commit)]]
+ * seagate: Remove driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=caa1e8c32131201193fc4711f5b07a36d3d941df|(commit)]]
+ * mvsas: Add Marvell 6440 SAS/SATA driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=b5762948263dd5e9725a380e7a9626f99e40ae9d|(commit)]], convert from rough draft to working driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8f261aaf9be5c1246013cf6a65b98586d24832a5|(commit)]]
+ * qla4xxx: add async scan support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=921601b7031f8a2c71f49f1b965ee00ebbca6886|(commit)]]
+ * ses: add new Enclosure ULD [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9927c68864e9c39cc317b4f559309ba29e642168|(commit)]]
+ * enclosure: add support for enclosure services [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d569d5bb3fd96d2907acaddd7c4ea5cb07d02ab8|(commit)]]
+ * mca_53c9x: remove driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c9e86b8b1da8aea2cad6d3a825791c25ea67624d|(commit)]]
+ * remove m68k NCR53C9x based drivers [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=642978beb48331db1bafde0262eee33f658cfc39|(commit)]]
+ * dec_esp: Remove driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=da19d2f53269210adfa9aa5a163a9fad8dc63d27|(commit)]]
+ * NCR53C9x: remove driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a2c6ef71364e3c7e7509d1bf0e61e8b853744190|(commit)]]
+
+
+== Network ==
+ * Add driver for enc28j60 ethernet chip [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3ec9c11da03342b556f11724ea005e60160bc744|(commit)]]
+ * b43legacy: LED triggers support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ba48f7bb8062982ec916868cc8c90360aad82e53|(commit)]], RF-kill support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=93bb7f3a7bb5c95da10242d9763994a466c90b1d|(commit)]]
+ * Add ath5k wireless driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=fa1c114fdaa605496045e56c42d0c8aa4c139e57|(commit)]]
+
+ * e1000e: alternate MAC address support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=93ca161027eb6a1761fb674ad7b995aedccf5f6e|(commit)]]
+ * Add support for the RDC R6040 Fast Ethernet controller [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7a47dd7a2f178cc4e87d584b0469eef4b58b7aea|(commit)]]
+ * E1000: Secondary unicast address support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=db0ce50d3792e993a1b24f16fb70153eccf38f33|(commit)]]
+ * Add bnx2x driver for BCM57710 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a2fbb9ea235467b0be6db3cec0132b6c83c0b9fb|(commit)]]
+ * cxgb3 - Add EEH support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=91a6b50cf680cd693ee0faaab18a0b7383814d6b|(commit)]]
+ * pasemi_mac: Software-based LRO support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=28ae79f531014bb3ad95b6efa0e0603069087bc5|(commit)]], add support for changing mac address [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5cea73b0f7d4d49e276b0c4842465890d00de861|(commit)]], add support for setting MTU [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ef1ea0b424d09452b27f5cb1a0c108b645cb25e0|(commit)]]
+
+ * zd1211rw: port to mac80211 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=459c51ad6e1fc19e91a53798358433d3c08cd09d|(commit)]]
+ * b43: Changes to enable BCM4311 rev 02 with wireless core revision 13 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=013978b688d2a27af3ab55ca739e8c8ac7254870|(commit)]]
+ * libertas: implement suspend and resume [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ab25ecaea5459f2206dbae25106cff67a24d309e|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d1f7a5b8cfefdb443a05a9e3d636fe7fef57459a|(commit)]], add ethtool support for wake-on-lan configuration [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=506e9025e030c441679fb1ae77fb0d6266c34443|(commit)]]
+ * ixgb: enable sun hardware support for broadcom phy [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8b32e63d48d43f3843222ca66fecd45ff2a74147|(commit)]]
+ * iwlwifi: proper monitor support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=12342c475f5de17071eaf24ea2938ba8dfe285f2|(commit)]]
+ * sky2: support for Yukon Supreme [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ed4d41616baa404cf29576ff452ea1db12b9e03b|(commit)]]
+ * BNX2: Support multiple MSIX IRQs. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=b4b360420dcbbffb15f5749fc78225f4113cc7e2|(commit)]]
+ * ucc_geth: add support for netpoll [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=26d29ea799b200c2499a7b41920c2dbfe710bea7|(commit)]]
+ * IPoIB: Add send gather support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7143740d26098aca84ecc7376ccfe2c58fd0412e|(commit)]]
+ * IB/core: Add IP checksum offload support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e0605d9199b462454f2f2e5ca01810255a6d5cfa|(commit)]]
+ * DM9000: Add initial ethtool support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7da998591798ea52938d8482b52ae3f854f14359|(commit)]]
+ * ehea: add kdump support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=21eee2dd1b5702f15924f18f923b2a281f0e72e8|(commit)]]
+ * ipwireless: driver for PC Card 3G/UMTS modem [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=099dc4fb62653f6019d78db55fba7a18ef02d65b|(commit)]]
+ * bas_gigaset: suspend support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=024fd299ba6e933055fccf1bb1cc2e7bdc58bde6|(commit)]]
+ * usb_gigaset: suspend support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1ff0a5296ff4157e7c46861bccc8d61e168c4e2b|(commit)]]
+
+
+
+== V4L/DVB ==
+ * Add tuner-xc2028 driver. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6cb45879dca84c667996d65a12880db6705a2b0e|(commit)]]
+ * v4l2: Add support for bus-based I2C drivers. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8ffbc6559493c64d6194c92d856196fdaeb8a5fb|(commit)]]
+ * Add support for MT9V111 on sn9c102. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ddef2dcc4ead7a9412533202a42c40648e620f43|(commit)]]
+ * Add support for the DViCO FusionHDTV Dual Digital 4. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=aeb012bbf460171b75ba17dc064a543f7256521f|(commit)]]
+ * Add support for the DViCO FusionHDTV NANO2 w/ZL10353 and firmware. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5ccaf905015c83a9b28e8496b4504b9b8dc25a80|(commit)]]
+ * Add support for MT352-based DViCO FusionHDTV DVB-T NANO devices. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=702a67624e4bc9c7056418b576af928940b7dbb9|(commit)]]
+ * ivtv: Add AVerMedia EZMaker PCI Deluxe support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e08323f099b5aba28610a856fa7d21d0d86fd4f0|(commit)]]
+ * cs5345: New i2c driver. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6fb377f85cb8c2c1580ce8b134c887a7b53c7aa9|(commit)]]
+ * Add support for the Xceive xc5000 silicon tuner. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=aacb9d31ee65c0685745ca4dfc7cdd24f8b7d92b|(commit)]]
+ * Add support for the Hauppauge HVR1500Q. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d1987d55a1eda774dfbab240a432607c17241d07|(commit)]]
+ * cx23885: Add support for Hauppauge WinTV HVR-1500. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=07b4a835d42d6d59e84cbafdc8b7090f97d7b67a|(commit)]], enable EZ-QAM mode for Hauppauge WinTV HVR-1800. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3ba71d2194500d1a9fef1b8491b9e0c168e7d46e|(commit)]]
+ * tda18271: Add support for NXP TDA18271HD/C2. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=255b5113b4ed683898a24e381155c081f03411f7|(commit)]]
+ * Add Beholder TV 401/405/407/409/505/507/609/M6 support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e8018c9e78b0ff4bb0290e46f4045fb4ea589ae8|(commit)]]
+ * cx25840: Add basic CX23885 AVCore support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f234081bc564c69eb0e2cd4e957ad1cbae4a6144|(commit)]], add basic video support for the HVR1800. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7b8880140ff6aec6a5bec7929b03ce0b96a7c79a|(commit)]]
+ * V4L: Add support for Syntek DC1125 webcams. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ec16dae5453eafd1586f35c4ec1ef854e5a808e0|(commit)]]
+ * New card supported(partially): Pinnacle 800i. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=60464da8b1ed8d7c19563f58cadb0ca990448a36|(commit)]]
+ * zr364xx: add support for Creative DiVi CAM 516 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c0e0aff9779303c7e3ef7e6db4001dbc2bfdcbdd|(commit)]]
+ * Support for Twinhan Hybrid DTV-DVB 3056 PCI [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4ba243734a0363649c514353334ed3d6ca39a5fb|(commit)]]
+ * saa7134: add support for the Medion / Creatix CTX948 card [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=728b92a2301c705dc36419ab0e7163b129462696|(commit)]]
+ * Adds support for Genius TVGo A11MCE [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f0ba356c85c25c2732098885a6a089be4698da94|(commit)]]
+
+
+== I2C ==
+ * i2c-i801: Implement I2C block read support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6342064cad7a28d10504128d028bc4ba379d489d|(commit)]]
+ * i2c-viapro: Add support for the VT8237S. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0d227a7e724460bddcd603a1feb672267bcb0d6c|(commit)]]
+ * tsl2550: Add power management added. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1b3e5baa8850947b2cc15f323783ddb04dc4bffa|(commit)]]
+ * Add support for the PCF8575 chip. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5864ae03ca982fb60bedeebfd67562db37c1ee6a|(commit)]]
+ * The scheduled I2C RTC driver removal. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=eee87d3196c9a7ac3422f4298e2250ca68d791c1|(commit)]]
+ * Some overdue driver removal. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7e8b99251be8b6f992baa88e3a6ba3c4ae01660b|(commit)]]
+
+== HID ==
+ * Map MS Presenter 8000 bottom-side buttons. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3c684c8cd4d1a81004daa21f7ad3dad5119916e3|(commit)]]
+ * Add support for Apple aluminum USB keyboards. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a45d82d19a6c2a717bcc33cff243199b77fa0082|(commit)]]
+ * Add full support for Genius KB-29E. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=af9e0eacdc072ba28fd139b90de27023d9cb0598|(commit)]]
+ * Add support for Logitech Elite keyboards. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=bc3707335c9eee214e663fdd8935b649fec9bf3a|(commit)]]
+
+== Input ==
+ * Add driver for Fujitsu application buttons [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=52fe0cdb090a344cad9d95461ad06239e0c28712|(commit)]]
+ * Add Tosa keyboard driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=93e9012f40f75b8ab8a37deaf532b3c5e9b527c6|(commit)]]
+
+== USB ==
+ * Add support for 4348:5523 Winchiphead USB->RS 232 adapter [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=002e8f2c80c6be76bb312940bc278fc10b2b2487|(commit)]]
+ * Sierra - Add support for Aircard 881U [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=62aad3ab11fb4e7c43447ac655595b9cbba3f431|(commit)]]
+ * Adding YC Cable USB Serial device to pl2303 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=cc311ee7d29d96f0bf15599f4456012d6f5ea23c|(commit)]]
+ * sierra driver - add devices [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=6835b32c38d3a64669f04a3e864f6933c5fdbd73|(commit)]], add support for Onda H600/Zte MF330 datacard to USB Driver for Sierra Wireless [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e3e73c90e529fd882a402296581644062be0e46c|(commit)]]
+ * ftdi-sio: Patch to add vendor/device id for ATK_16IC CCD [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=34910434a2c5556c3b44f78c1c0347709b59a4da|(commit)]]
+ * pl2303: add support for RATOC REX-USB60F [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=57833ea6b95a3995149f1f6d1a8d8862ab7a0ba2|(commit)]]
+ * Variant of the Dell Wireless 5520 driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ab91d346c82e794e9dce29cf4fda067b4961ca64|(commit)]]
+ * add iuu_phoenix driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=60a8fc017103325db4b56e4f175f060a6aaac147|(commit)]]
+ * m66592-udc: Add support for SH7722 USBF [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8c73aff6d3b772e5f373d78bc34fd47b10b35fef|(commit)]]
+ * Add Printer Gadget Driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=25a010c8c1a5f0cc2e2794adf969e2df2ad1f0b6|(commit)]]
+ * Export suspend statistics [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1512300689426cb98bfd7e567ee9fdfaaf61b7c7|(commit)]]
+ * Add support for SuperH OHCI [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=828d55c58cba6b652fd30e00c3d940cb7c523e3c|(commit)]]
+ * usb: ohci-sm501 driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f54aab6ebcecd93e86cea34ddba5f3d454382041|(commit)]]
+ * Add support for Motorola ROKR Z6 cellphone in mass storage mode [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=cc36bdd47ae51b66780b317c1fa519221f894405|(commit)]]
+
+== FireWire ==
+ * init_ohci1394_dma: new standalone driver for remote kernel debugging via !FireWire in early kernel initialization phase [[http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=f212ec4b7b4d84290f12c9c0416cdea283bf5f40|(commit)]]
+ * A whole boatload of bug fixes for firewire-core, firewire-ohci, firewire-sbp2.  The sum of them brings huge improvements of stability and functionality of these drivers over linux 2.6.24.  See the [[http://marc.info/?l=linux1394-user&m=120920062724776|linux1394-user changelog]] for a list of fixes.
+
+== RDMA ==
+ * RDMA/nes: Add a driver for Neteffect RNICs [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3c2d774cad5bf4fad576363da77870e9e6530b7a|(commit)]]
+ * rdma: [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=377f9b2f4529e0ac702fd7b91e216afd0adc959e|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c06b540a54ad01d2fda8cfb5d8823b9b3d8d1cb2|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d21b05f101ae732d9bc322f13eea2f59c0aa60f5|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d5b31be6823320d81570e0199acd60d3a3f75d85|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ef1eac0a3fa86b06aa2d87021f157d13abc1903f|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ef7fbf59e6f780a0fa03536839e3c42e9ce40ad1|(commit)]],[[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4b8449af75fa2e2d9736ec503a818be626a4e763|(commit)]]
+
+== Hwmon ==
+ * Add support for Texas Instruments/Burr-Brown ADS7828 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5812f9283e621370a2d65282b7bcc942bf2c3f1c|(commit)]]
+ * Add support for Winbond W83L786NG/NR [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=85f03bccd6e0e2ac6ccf017d4bcd5d74bb87a671|(commit)]]
+ * lm87: Add support for the Analog Devices ADM1024 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c7fa373796ea685874ca9525eeb3d0d0951e511b|(commit)]]
+ * w83781d: Drop W83627HF support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=05663368d2138c14fa1b9aa8eeca4ca9a33d7c77|(commit)]]
+ * coretemp: Add Penryn CPU to coretemp [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ae770152c801f10a91e5e86597a39b5f9ccf2d0d|(commit)]]
+ * New driver for Analog Devices ADT7473 sensor chip [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=57df46d6d9ccd6ced95f169020f79ae637423087|(commit)]]
+
+== MTD ==
+ * Remove Photron PNC-2000 map driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=71053fb1c645e86feb48051d6a4c58b8f2b26806|(commit)]]
+ * NAND
+  * Add Blackfin BF52x support in bf5xx_nand driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a25b7fee537ab4dbc6eb301bd455ee8d01b707f6|(commit)]]
+  * pasemi_nand driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=846fc31d06e54ad94026da11da0668c050fe777e|(commit)]]
+  * Marvell Orion device bus NAND controller [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2a1dba2931dc14a2a202eef435ab24cf6bc6dbd4|(commit)]]
+  * Freescale enhanced Local Bus Controller FCM NAND support. [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=76b104671632c225ad594a50f9e26ada67bc0a74|(commit)]]
+ * NOR
+  * Add support for the SST 39VF1601 flash chip [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8547e583a1140698cab41bc3f687efe8f8b2bb41|(commit)]]
+
+
+== ACPI ==
+ * thinkpad-acpi: add X61t HKEY events [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d1edb2b5f1d016d679600cccf2716e0134fff917|(commit)]]
+ * Create /sys/firmware/acpi/interrupts [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=5229e87d59cef33539322948bd8e3b5a537f7c97|(commit)]]
+ * Enable MWAIT for C1 idle [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=bc71bec91f9875ef825d12104acf3bf4ca215fa4|(commit)]]
+ * cpuidle: Add a poll_idle method [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9a0b841586c3c6c846effdbe75885c2ebc0031b0|(commit)]], create processor.latency_factor tunable [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4963f62045b64f93c45fbcb6f8f0baf1e3e7a127|(commit)]], default processor.latency_factor=2 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=25de5718356e264820625600a9edca1df5ff26f8|(commit)]]
+ * asus_acpi: add support for F3sa [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=31e0729a85c1e8ffaf4d14b4c201c28b5d1c9585|(commit)]]
+ * sony-laptop: add Type4 model [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=3eb8749a37990b505ab94466038c067444bbd7eb|(commit)]]
+ * intel_menlo: introduce new platform specific driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=cc0573b3250214034062ddf8c64359596d8af521|(commit)]]
+
+
+
+== RTC/W1 ==
+ * ds1302 rtc support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=739d340dba45ab786a5553144bbffbee0afe15dd|(commit)]]
+ * SH-5 RTC support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9a519f62a18c258c8ba695f82b6a9542bde4ca06|(commit)]]
+ * SH-2A RTC support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ff1b7506051014cc38036401b89e426bf3d6a608|(commit)]]
+ * Platform real time clock driver for Dallas 1511 chip [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8f26795a22b12880bb07be688df72b4266f67be8|(commit)]]
+ * Add support for Epson RTC-9701JE V2 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2805b9698445e898ca6e5ffdc132e80d94664a0f|(commit)]]
+ * at91sam9 RTC support (RTT and/or RTC) [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4cdf854f7d60498bbda436068a118b95059b244b|(commit)]]
+ * Add support for Epson RTC-9701JE V4 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=75b6102257874a4ea796af686de2f72cfa0452f9|(commit)]]
+ * w1-gpio: add GPIO w1 bus master driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=ad8dc96e3b2c3e28854e0de4ab49351ed547b30c|(commit)]]
+ * Add support for the S-35390A RTC chip [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=c46288b09e1a5b5741a7e1a575d5f53f79132d39|(commit)]]
+
+
+
+== LEDs ==
+ * hw acceleration for Clevo mail LED driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=92e015cb31c0a312bf2e0e5b96aef76a8c57e645|(commit)]]
+ * Remove the now unneeded ixp4xx driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8fe217e7b6d4f186e269fda8aba73a213fad0fa0|(commit)]]
+ * Add HP Jornada 6xx driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d39a7a63eb3971b1b3cc5c181ed526bf437b1c72|(commit)]]
+ * Add clevo notebook LED driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=cec035de8265b18252742ef359b12e9694641112|(commit)]]
+ * PWM LED driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=de5c9edee7a3cfdc6dd1a31c4794dc41ef3c70f9|(commit)]]
+
+
+
+== Various ==
+ * gpiolib
+  * add drivers/gpio directory [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a9c5fff542544c8595bb12efeb278a96d99386fc|(commit)]], [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=d2876d08d86f22ce1f276fc29f6baec8b53e32c6|(commit)]],
+  * pcf857x i2c gpio expander support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=15fae37d9f5f21571a9618d8353164b6ddfea6f6|(commit)]]
+  * gpiolib support for the PXA architecture [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1c44f5f16fee880b294f8068354bfb9dddf1349b|(commit)]]
+  * pca9539 i2c gpio expander support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9e60fdcf0c2905d7a8fc4cb2b3711ea5c5acaae1|(commit)]]
+  * avr32 at32ap platform support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=b98348bdd08dc4ec11828aa98a78edde15c53cfa|(commit)]]
+  * mcp23s08 spi gpio expander support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=e58b9e2762a6ef99e20dba47aba21b911658541d|(commit)]]
+
+ * drivers-edac
+  * add Cell MC driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=48764e4143c06672fc072eb482fdc4c75ee0f968|(commit)]]
+  * add marvell mv64x60 driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=4f4aeeabc061826376c9a72b4714d062664999ea|(commit)]]
+  * add freescale mpc85xx driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a9a753d53204bf0f42841f65679c7e1711833bcf|(commit)]]
+ * Watchdog
+  * Add support for SB1 hardware watchdog [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=75c752e6c3147f596c13365b200b91d754b66f59|(commit)]]
+  * HP Proliant Watchdog driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=7f4da4745c34287938ce76b92b23409adeecb5b8|(commit)]]
+ * memstick
+  * Initial commit for Sony Memorystick support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=baf8532a147d5b76681ce040e2c8f25a3f0e718d|(commit)]]
+  * Add support for JMicron jmb38x Memorystick host controller [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=60fdd931d577fcca351930fda4cde26ce07d35af|(commit)]]
+
+ * nozomi driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=20fd1e3bea554620d489f3542496639c1babe0b3|(commit)]]
+ * pda_power: add suspend/resume support [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=8f8e9b387e07cbb96f10936cc455229d7aff4790|(commit)]]
+ * SC26XX: New serial driver for SC2681 uarts [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=eea63e0e8a60d00485b47fb6e75d9aa2566b989b|(commit)]]
+ * spi: SuperH SPI using SCI [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=37e466408796300ec935e15f01b4ca88678b96ef|(commit)]]
+ * atmel_lcdfb: backlight control [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=a9a84c37d1ee50db8f3752b117caf2b48dcd4f8a|(commit)]]
+ * ASIC3 driver [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=fa9ff4b185b8f7f124c1c6686f02e690f0625287|(commit)]]
+ * mxser driver: remove it, replace it with mxser_new [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=1c45607ad3eb7397bc2433f3c36a4ed8b315889e|(commit)]]
+ * Basic PWM driver for AVR32 and AT91 [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9a1e8eb1f0b76b5e72a2343ad881c81b08dd6410|(commit)]]
+ * The ps2esdi driver was marked as BROKEN more than two years ago due to being [[http://git.kernel.org/git/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=2af3e6017e53065ddf40bb19190a29199b7ffee3|(commit)]]

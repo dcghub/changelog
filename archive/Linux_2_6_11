@@ -1,0 +1,23 @@
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.11 development
+
+
+= 2.6.11 =
+  * Released March 2, 2005 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.11|changelog]]
+  * Conversion to 4-level page tables [[http://lwn.net/Articles/117749/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=fcbb3756afbe9a4703c45cab86f947412a0358cf|(commit)]]
+  * New Pipe implementation [[http://lwn.net/Articles/118750/|(LWN article)]]
+  * "Big Kernel Semaphore": Turns the Big Kernel Lock into a semaphore [[http://lwn.net/Articles/102253/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=deac7335cecb3c1e23a032a3f56a34c643871d3b|(commit)]]
+  * Introduces the CAP_AUDIT_WRITE and CAP_AUDIT_CONTROL capabilities [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=324689781d5d305903f86578b71596fb2a96dd05|(commit)]]
+  * Simplify readahead code [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=e8eb956c01529eccc6d7407ab9529ccc6522600f|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=af006eae66249e03d1024fb71cdfae58e7fa7b7e|(commit)]]
+  * Support for Extended Attributes in the body of large inode in ext3: saves space and improves performance in some cases [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=f0d1dbed7714ea06242c180c215641a92e655414|(commit)]]
+  * Add /proc/sys/kernel/bootloader_type [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=11e4268cffc468b60d2b756dc8eb455112b52308|(commit)]]
+  * Remove bitmaps from the buddy allocator [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=dda3a6ba68c264b2c850f2d9500b18d0c407a443|(commit)]]
+  * Enhanced I/O and memory accounting [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=c3adb238a7557416a3aa472038343d59c986d062|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=cb6850ae19e4f6bf8ccec0ca770c7b4d1c5f9669|(commit)]]
+  * AMD Dual-core support [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=7bd66939b746c4c5a69eb74e2f83f967540e4691|(commit)]]
+  * Add Fujitsu FR-V CPU architecture [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=e003366285ac6c770b59cc618f9716c2e0ac0430|(commit)]]
+  * TCP port randomization [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=97f941fb4ca03c60da6f466721cc99f576f35877|(commit)]]
+  * SATA support for Intel ICH7
+  * DebugFS [[http://lwn.net/Articles/115405/|(LWN article)]]
+  * Infiniband support [[http://lwn.net/Articles/112531/|(LWN article)]]
+  * Remove UMSDOS [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=0512a33a91dbe2241a9a39ddeb3af1c27180aabd|(commit)]]
+  * Major problems with TCP/IP BIC (the default congestion control) are resolved

@@ -1,0 +1,41 @@
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.9 development
+
+
+= 2.6.9 =
+  * Released October 19, 2004 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.9|changelog]]
+  * Token-based thrashing control [[http://lwn.net/Articles/96621|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=e6a32818710d24cc910ec4d4333f99972b3cf563|(commit)]]
+  * Concurrent O_SYNC write support: In databases it is common to have multiple threads or processes performing O_SYNC writes against different parts of the same file.[[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=96deebee4470587bc1a855c787d6919df681cdac|(commit)]]
+  * Reiserfs v3 barrier support: Add reiserfs support for flush barriers, mount with -o barrier=flush to enable them.  Barriers are triggered on fsync and for log commits [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=b736095823b073209ef38622227c64c593260b73|(commit)]]
+  * ext3 barrier support: Mount with "mount -o barrier=1" to enable barriers [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=52a75614f1f753e01a5a9610c5390b5b7f795912|(commit)]]
+  * Support of disk barriers: [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=74c50b2c1af1b3535cf6c39ce684e60fa9f5dfdb|(commit)]]
+  * m32r architecture support
+  * Scheduler statistics: adds lots of CPU scheduler stats in /proc/$PID/stat [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=34b334118622daae225ab8fd56c79f54f6e15774|(commit)]]
+  * RLIMIT_MEMLOCK semantics change: In Linux kernels before 2.6.9, only privileged processes (CAP_IPC_LOCK) could lock memory, and the RLIMIT_MEMLOCK soft resource limit placed an upper limit on the number of bytes that a privileged process can lock.  Since kernel 2.6.9: no limits are placed on the amount of memory that a privileged process can lock; and an unprivileged process is now able to lock memory up to the soft limit defined by RLIMIT_MEMLOC [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=adaeb8014406050050cf09416d1b0e3c23838fdb|(commit)]]
+  * Tunable "max sectors" limit for block I/O requests (can help latency reduction)
+  * New prctl() option allowing programs to change their name (PR_GET_NAME)
+  * AMD dual-core support
+  * Out-of-line spinlocks [[http://lwn.net/Articles/97537/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=2ea380e357f23ad37c1a06c6af509b68e9d57bb6|(commit)]]
+  * Support for POSIX's waitid() Also, now linux now supports the POSIX specification that SIGCHLD is sent to the parent when one of its children resumes as a consequence of receiving a SIGCONT signal. Also, WCONTINUED flag is added to waitpid() and waitid() [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=8e81583bfd488bb0b10aa799f7ec5f7b4a79fe73|(commit)]]. 
+  * Shared memory scalability improvements
+  * "flex mmap" user-space memory layout [[http://lwn.net/Articles/91829/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=0f7c9b1849d5365d27d4553e471a8e721c8dabb7|(commit)]]
+  * x86 PAE swapspace expansion. PAE is artificially limited in terms of swapspace to the same bitsplit as ordinary i386, a 5/24 split (32 swapfiles, 64GB max swapfile size), when a 5/27 split (32 swapfiles, 512GB max swapfile size) is feasible. This patch transparently removes that limitation by using more of the space available in PAE's wider ptes for swap ptes [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=7c1c60d14d175c41c5db03f20f44c80c4d683e52|(commit)]]
+  * Show Active/Inactive on per-node meminfo: The patch below enable to display the size of Active/Inactive pages on per-node meminfo (/sys/devices/system/node/node%d/meminfo) like /proc/meminfo [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=6d4a504b45abc756eac6374591f74c7afb722b6a|(commit)]]
+  * Change in TCP ICMP source quench behavior
+  * [[http://www.linux-usb.org/gadget/h2-otg.html|USB "on the go" support]]
+  * New USB storage driver
+  * Support for more than eight partitions on BSD-labeled disks
+  * Ethtool support in the loopback driver
+  * NETIF_F_LLTX interface [[http://lwn.net/Articles/101215/|(LWN article)]]
+  * DSCP decapsulation for IPsec [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=cac8c9f3e6cd37a3dd079e12a01fc41d2650bf39|(commit)]]
+  * Removal of the ancient "busmouse" driver
+  * Infrastructure for cluster-wide file locking
+  * DRM subsystem cleanups
+  * "fake NUMA" mode for x86-64 testing
+  * Small-footprint tmpfs implementation
+  * Support for scheduler profiling (seeing where context switches come from)
+  * Automatic TCP window scaling calculation
+  * Some VFS interface improvements
+  * Executable support in hugetlb mappings
+  * The Whirlpool digest algorithm
+  * Removal of the very last suser() call

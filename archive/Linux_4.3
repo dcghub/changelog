@@ -1,0 +1,1110 @@
+#pragma section-numbers on
+#pragma keywords Linux, kernel, operating system, changes, changelog, file system, Linus Torvalds, open source, device drivers
+#pragma description Summary of the changes and new features merged in the Linux kernel during the 4.3 development cycle
+
+Linux 4.3 [[https://lkml.org/lkml/2015/11/1/202|has been released]] on 1 Nov 2015
+
+Summary: This release removes the ext3 filesystem and leaves Ext4, which can also mount Ext3 filesystems, as the main Ext filesystem; it also adds userfaultfd(), a system call for handling page-faults in user space; membarrier(), a system call for issuing memory barriers on a set of threads; a PID controller for limiting the number of PIDs in cgroups, "ambient" capabilities for making easier to use capabilities; idle page tracking, a more precise way to track the memory being used by applications; support for IPv6 Identifier Locator Addressing; network light weight tunnels, virtual Routing and Forwarding Lite support, and many other improvements and new drivers.
+
+
+<<TableOfContents>>
+= Prominent features =
+== The Ext3 filesystem has been removed ==
+
+The Ext3 filesystem has been removed from the Linux core repository. The reason behind this removal is that Ext3 filesystems are fully support by the Ext4 filesystem, and major distros have been already using Ext4 to mount Ext3 filesystems for a long time. With the stabilization of Ext4, maintainers think that the Ext3 codebase is useless duplicated code and should disappear.
+
+Recommended LWN article: [[https://lwn.net/Articles/651645/|rm -r fs/ext3]]
+
+Code: [[https://git.kernel.org/torvalds/c/c290ea01abb7907fde602f3ba55905ef10a37477|commit]]
+
+== userfaultfd(), a system call for handling page-faults in user space ==
+
+A page fault happens when a process has something mapped in its virtual address space (eg, a file) but the memory has not been loaded in RAM, and the process tries to access that memory. The kernel usually handles that page fault (eg. it loads the corresponding part of the file in memory).
+
+This release adds support for handling page faults in userspace through a new system call, userfaultfd(). Aside from registering and unregistering virtual memory ranges, userfaultfd() provides two primary functionalities: 1) read/POLLIN protocol to notify a userland thread of the faults happening 2) various ioctls that can manage the virtual memory regions registered in the userfaultfd that allows userland to efficiently resolve the userfaults it receives via or to manage the virtual memory in the background. The real advantage of userfaults if compared to regular virtual memory management of mremap/mprotect is that the userfaults in all their operations never involve heavyweight structures.
+
+The main user of this syscall is QEMU, which can use the userfaultfd syscall to implement postcopy live migration: VMs are migrated to another host without transferring the memory, which makes the migration much faster, and QEMU uses userfaultfd() to transfer the pages as page faults happen.
+
+Recommended LWN article: [[https://lwn.net/Articles/636226/|User-space page fault handling]]
+
+Documentation: [[https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/Documentation/vm/userfaultfd.txt|Documentation/vm/userfaultfd.txt]]
+
+Code: [[https://git.kernel.org/torvalds/c/25edd8bffd0f7563f0c04c1d219eb89061ce9886|commit]], [[https://git.kernel.org/torvalds/c/51360155eccb907ff8635bd10fc7de876408c2e0|commit]], [[https://git.kernel.org/torvalds/c/1038628d80e96e3a086189172d9be8eb85ecfabf|commit]], [[https://git.kernel.org/torvalds/c/932b18e0aec65acb089f4bd8761ee85e70f8eb6a|commit]], [[https://git.kernel.org/torvalds/c/745f234be12b6191b15eae8dd415cc81a9137f47|commit]], [[https://git.kernel.org/torvalds/c/16ba6f811dfe44bc14f7946a4b257b85476fc16e|commit]], [[https://git.kernel.org/torvalds/c/6b251fc96cf2cdf1ce4b5db055547e2a5679bc77|commit]], [[https://git.kernel.org/torvalds/c/19a809afe2fe089317226bbe5c5a1ce7f53dcdca|commit]], [[https://git.kernel.org/torvalds/c/c1294d05de5df1ab8c93aa13c531782ede907e14|commit]], [[https://git.kernel.org/torvalds/c/86039bd3b4e6a1129318cbfed4e0a6e001656635|commit]], [[https://git.kernel.org/torvalds/c/3f602d2724b1f7d2d27ddcd7963a040a5890fd16|commit]], [[https://git.kernel.org/torvalds/c/a9b85f9415fd9e529d03299e5335433f614ec1fb|commit]], [[https://git.kernel.org/torvalds/c/ba85c702e4b247393ffe9e3fbc13d8aee7b02059|commit]], [[https://git.kernel.org/torvalds/c/15b726ef048b31a24b3fefb6863083a25fe34800|commit]], [[https://git.kernel.org/torvalds/c/3004ec9cabf49f43fae2b2bd1855a4720f1def7a|commit]], [[https://git.kernel.org/torvalds/c/8d2afd96c20316d112e04d935d9e09150e988397|commit]], [[https://git.kernel.org/torvalds/c/a14c151e567cb2c3e62611da808a8bdab86fdee5|commit]], [[https://git.kernel.org/torvalds/c/1380fca084743fef8d17e59b273473393944ce58|commit]], [[https://git.kernel.org/torvalds/c/1f1c6f075904c241f9e44eb37efa8777141fc938|commit]], [[https://git.kernel.org/torvalds/c/c1a4de99fada21e2e9251e52cbb51eff5aadc757|commit]], [[https://git.kernel.org/torvalds/c/b6ebaedb4cb1a18220ae626c3a9e184ee39dd248|commit]], [[https://git.kernel.org/torvalds/c/ad465cae96b456b48d26c96f27a0577ba443472a|commit]]
+
+== membarrier(), a system call for issuing memory barriers on a set of threads ==
+
+This release adds a new system call, [[http://man7.org/linux/man-pages/man2/membarrier.2.html|membarrier(2)]], which helps distributing the cost of user-space memory barriers required to order memory accesses on multi-core systems, by transforming pairs of memory barriers into pairs consisting of membarrier(2) and a compiler barrier. For synchronization primitives that distinguish between read-side and write-side (e.g.  [[http://urcu.so/|userspace RCU]], rwlocks), the read-side can be accelerated significantly with this syscall by moving the bulk of the memory barrier overhead to the write-side. [[https://lwn.net/Articles/370522/|The idea]] is to make CPUs execute memory barriers only when synchronization is required by the updater thread, as opposed to executing them each time before and after accessing it from a reader thread.
+
+Recommended LWN article: [[https://lwn.net/Articles/369567/|sys_membarrier()]]
+
+Code: [[https://git.kernel.org/torvalds/c/5b25b13ab08f616efd566347d809b4ece54570d1|commit]]
+
+== New PID controller for limiting the number of PIDs in cgroups ==
+
+This release adds a new PIDs controller to limit the number of tasks that can be forked inside a cgroup. PIDs are fundamentally a global resource because it fairly trivial to reach PID exhaustion before you reach other resource limits. As a result, it is possible to grind a system to halt without being limited by other cgroup policies. The PIDs cgroup controller is designed to stop this from happening.
+
+Essentially, this is an implementation of RLIMIT_NPROC that applies to a cgroup rather than a process tree. However, it should be noted that organisational operations (adding and removing tasks from a PIDs hierarchy) will not be prevented. Rather, the number of tasks in the hierarchy cannot exceed the limit through forking.
+
+In order to use the `pids` controller, set the maximum number of tasks in pids.max (this is not available in the root cgroup for obvious reasons). The number of processes currently in the cgroup is given by pids.current. To set a cgroup to have no limit, set pids.max to "max". This is the default for all new cgroups.
+    
+Documentation: [[https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/Documentation/cgroup-v1/pids.txt|Documentation/cgroup-v1/pids.txt]]
+
+Code: [[https://git.kernel.org/torvalds/c/7e47682ea555e7c1edef1d8fd96e2aa4c12abe59|commit]], [[https://git.kernel.org/torvalds/c/49b786ea146f69c371df18e81ce0a2d5839f865c|commit]], [[https://git.kernel.org/torvalds/c/917d8e2d10f40e28aa9e0d824b2e5b8197d79fc2|commit]], [[https://git.kernel.org/torvalds/c/917d8e2d10f40e28aa9e0d824b2e5b8197d79fc2|commit]]
+
+
+== Ambient capabilities ==
+
+On Linux, there are a number of capabilities defined by the kernel. To perform various privileged tasks, processes can wield capabilities that they hold. Each task has four capability masks: "effective", "permitted", "inheritable", and a "bounding set".  When the kernel checks for a capability, it checks the effective mask. The other capability masks serve to modify what capabilities can be in "effective".
+
+Due to the shortcomings of the Linux capabilities implementation, capability inheritance is not very useful. To solve these problems,
+this release adds a fifth capability mask called the "ambient" mask. The ambient mask does what most people expect "inheritable" to do. No capabilities bit can ever be set in "ambient" if it is not set in both "inheritable" and "permitted". Dropping a bit from "permitted" or "inheritable" drops that bit from "ambient". This ensures that existing programs that try to drop capabilities still do so, with a complication. Because capability inheritance is so broken, setting prctl(PR_SET_KEEPCAPS,...), using setresuid() to switch to nonroot uids, and then calling execve() effectively drops capabilities. Therefore, setresuid() from root to nonroot conditionally clears "ambient" unless SECBIT_NO_SETUID_FIXUP is set.
+
+If you are nonroot but you have a capability, you can add it to "ambient". If you do so, your children get that capability in "ambient", "permitted", and "effective". For example, you can set CAP_NET_BIND_SERVICE in "ambient", and your children can automatically bind low-numbered ports. Unprivileged users can create user namespaces, map themselves to a nonzero uid, and create both privileged (relative to their namespace) and unprivileged process trees.
+
+Recommended LWN article: [[https://lwn.net/Articles/632520/|Inheriting capabilities]]
+
+Code: [[https://git.kernel.org/torvalds/c/58319057b7847667f0c9585b9de0e8932b0fdb08|commit]], [[https://git.kernel.org/torvalds/c/746bf6d64275be0c65b0631d8a72b16f1454cfa1|commit]]
+
+== Introduce idle page tracking, a more precise way to track the memory being used by applications ==
+
+Knowing which memory pages are being accessed by a workload and which are idle can be useful for estimating the workload's working set size, which, in turn, can be taken into account when configuring the workload parameters, setting memory cgroup limits, or deciding where to place the workload within a compute cluster. Currently, the only means to estimate the amount of idle memory provided  by the kernel is /proc/PID/clear_refs and /proc/PID/smaps: the user can clear the access bit for all pages mapped to a particular process by writing 1 to clear_refs, wait for some time, and then count smaps:Referenced. However, this method has two serious shortcomings: 1) it does not count unmapped file pages, 2) it affects the reclaimer logic.
+
+To overcome these drawbacks, this release introduces the idle page tracking feature
+
+
+In order to estimate the amount of pages that are not used by a workload one should:
+ * Mark all the workload's pages as idle by setting corresponding bits in /sys/kernel/mm/page_idle/bitmap (this file implements a bitmap where each bit corresponds to a memory page. The bitmap is represented by an array of 8-byte integers, and the page at PFN #i is mapped to bit #i%64 of array element #i/64, byte order is native). The pages to be marked idle can be found by reading /proc/pid/pagemap if the workload is represented by a process, or by filtering out alien pages using /proc/kpagecgroup (a newly added file) in case the workload is placed in a memory cgroup.
+ * Wait until the workload accesses its working set
+ * Read /sys/kernel/mm/page_idle/bitmap and count the number of bits set. If one wants to ignore certain types of pages, e.g. mlocked pages since they are not reclaimable, he can filter them out using /proc/kpageflags.
+
+Recommended lWN article: [[https://lwn.net/Articles/642202/|Tracking actual memory utilization]]
+
+Documentation: [[https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/vm/idle_page_tracking.txt?id=33c3fc71c8cfa3cc3a98beaa901c069c177dc295|Documentation/vm/idle_page_tracking.txt]]
+
+Code: [[https://git.kernel.org/torvalds/c/2fc045247089ad4ed611ec20cc3a736c0212bf1a|commit]], [[https://git.kernel.org/torvalds/c/94a59fb36ee91b3f977a9b914ec701efe40041de|commit]], [[https://git.kernel.org/torvalds/c/e993d905c81e2c0f669f2f8e8327df86738baebe|commit]], [[https://git.kernel.org/torvalds/c/80ae2fdceba8313b0433f899bdd9c6c463291a17|commit]], [[https://git.kernel.org/torvalds/c/1d7715c676a1566c2e4c3e77d16b1f9bb4909025|commit]], [[https://git.kernel.org/torvalds/c/f074a8f49eb87cde95ac9d040ad5e7ea4f029738|commit]], [[https://git.kernel.org/torvalds/c/33c3fc71c8cfa3cc3a98beaa901c069c177dc295|commit]], [[https://git.kernel.org/torvalds/c/d3691d2c6d3e72624c987bbef6f322631bbb2d5d|commit]]
+
+== Support for IPv6 Identifier Locator Addressing ==
+
+This release adds support for Identifier Locator Addressing, a mechanism meant to implement tunnels or network virtualization without encapsulation. The basic concept of ILA is that a IPv6 address is split into a 64 bit locator and 64 bit identifier. The identifier is the identity of an entity in communication ("who") and the locator expresses the location of the entity ("where"). Applications use externally visible address that contains the identifier. When a packet is actually sent, a translation is done that overwrites the first 64 bits of the address with a locator. The packet can then be forwarded over the network to the host where the addressed entity is located. At the receiver, the reverse translation is done so the that the application sees the original, untranslated address.
+
+This feature is configured by the "ip -6 route" command using the "encap ila <locator>" option, where <locator> is the value to set in destination locator of the packet. e.g. {{{ip -6 route add 3333:0:0:1:5555:0:1:0/128 encap ila 2001:0:0:1 via 2401:db00:20:911a:face:0:25:0}}} will set a route where {{{3333:0:0:1}}} will be overwritten by {{{2001:0:0:1}}} on output.
+
+Recommended LWN article: [[https://lwn.net/Articles/657012/|Identifier locator addressing]]
+
+RFC draft: [[https://tools.ietf.org/html/draft-herbert-nvo3-ila-00|draft-herbert-nvo3-ila-00]]
+
+Slides from netconf: [[http://vger.kernel.org/netconf2015Herbert-ILA.pdf|netconf2015Herbert-ILA.pdf]]
+    
+Slides from presentation at IETF: [[https://www.ietf.org/proceedings/92/slides/slides-92-nvo3-1.pdf|slides-92-nvo3-1.pdf]]
+
+Code: [[https://git.kernel.org/torvalds/c/65d7ab8de582bc668e3dabb6ff48f750098a6e78|commit]]
+
+
+== Network light weight tunnels ==
+
+This release provides an infrastructure to support light weight tunnels like mpls ip tunnels. It allows for scalable flow based encapsulation without bearing the overhead of a full blown netdevice.
+
+iproute2 is extended with a new use cases:
+{{{VXLAN: ip route add 40.1.1.1/32 encap vxlan id 10 dst 50.1.1.2 dev vxlan0
+
+MPLS: ip route add 10.1.1.0/30 encap mpls 200 via inet 10.1.1.1 dev swp1}}}
+ 
+Code: [[https://git.kernel.org/torvalds/c/a0d9a8604f29ee3340126ec3f90c9421f930aa50|commit]], [[https://git.kernel.org/torvalds/c/499a24256862714539e902c0499b67da2bb3ab72|commit]], [[https://git.kernel.org/torvalds/c/571e722676fe386bb66f72a75b64a6ebf535c077|commit]], [[https://git.kernel.org/torvalds/c/19e42e45150672124b6a4341e2bc7982d247f0ac|commit]], [[https://git.kernel.org/torvalds/c/ffce41962ef64b8e685e5b621caf24bf381addd9|commit]], [[https://git.kernel.org/torvalds/c/8602a625024737602630fe0dee423b3096d31524|commit]], [[https://git.kernel.org/torvalds/c/74a0f2fe8ed51e3adbb1c882be04672fe7bb6996|commit]], [[https://git.kernel.org/torvalds/c/face0188e31b3cfc598d8dc3470e28e00fb3b07c|commit]], [[https://git.kernel.org/torvalds/c/e3e4712ec0961ed586a8db340bd994c4ad7f5dba|commit]], [[https://git.kernel.org/torvalds/c/1d8fff907342d2339796dbd27ea47d0e76a6a2d0|commit]], [[https://git.kernel.org/torvalds/c/f38a9eb1f77b296ff07e000823884a0f64d67b2a|commit]], [[https://git.kernel.org/torvalds/c/0accfc268f4d3345693d3af3d5780aae3ad93d8d|commit]], [[https://git.kernel.org/torvalds/c/ee122c79d4227f6ec642157834b6a90fcffa4382|commit]], [[https://git.kernel.org/torvalds/c/1b7179d3adff0ab71f85ee24d7de28ccb7734b89|commit]], [[https://git.kernel.org/torvalds/c/32a2b002ce615eadd3bfaddabde290f70a1dd17b|commit]], [[https://git.kernel.org/torvalds/c/e7030878fc8448492b6e5cecd574043f63271298|commit]], [[https://git.kernel.org/torvalds/c/0dfbdf4102b9303d3ddf2177c0220098ff99f6de|commit]], [[https://git.kernel.org/torvalds/c/34ae932a40369be6bd6ea97d66b6686361b4370d|commit]], [[https://git.kernel.org/torvalds/c/be4ace6e6b1bc12e18b25fe764917e09a1f96d7b|commit]], [[https://git.kernel.org/torvalds/c/c9db965c524ea27451e60d5ddcd242f6c33a70fd|commit]], [[https://git.kernel.org/torvalds/c/614732eaa12dd462c0ab274700bed14f36afea5e|commit]], [[https://git.kernel.org/torvalds/c/b2acd1dc3949cd60c571844d495594f05f0351f4|commit]], [[https://git.kernel.org/torvalds/c/ac1cf3990c99802eae3aa735b35c94a2131eb9fe|commit]], [[https://git.kernel.org/torvalds/c/6b8847c5a2bafbbf92f4b779f87165093457ea68|commit]], [[https://git.kernel.org/torvalds/c/376534a3d17002d608985bd67c3b0880eacadd14|commit]], [[https://git.kernel.org/torvalds/c/c1ea5d672aaff08da337dee735dbb548e3415585|commit]], [[https://git.kernel.org/torvalds/c/7c383fb2254c44e096427470da6a36380169b548|commit]], [[https://git.kernel.org/torvalds/c/61adedf3e3f1d3f032c5a6a299978d91eff6d555|commit]], [[https://git.kernel.org/torvalds/c/06e9d040ba08b0f645783ff958384d5837b3fa3a|commit]], [[https://git.kernel.org/torvalds/c/ab450605b35caa768ca33e86db9403229bf42be4|commit]], [[https://git.kernel.org/torvalds/c/705cc62f6728c5a23e3c82465aa94e652e0b50e4|commit]], [[https://git.kernel.org/torvalds/c/6f264e47d4dbbe590ac1131587933bb87ded296d|commit]], [[https://git.kernel.org/torvalds/c/a725e514dbb444f2a39c2bc5de72eb5efbeb7d5e|commit]]
+
+== Virtual Routing and Forwarding (Lite) support ==
+
+This release adds a Virtual Routing and Forwarding (VRF) device that, combined with ip rules, provides the ability to create virtual routing and forwarding domains (aka VRFs, [[https://en.wikipedia.org/wiki/Virtual_routing_and_forwarding#Simple_implementation|VRF-lite]] to be specific) in the Linux network stack. One use case is the multi-tenancy problem where each tenant has their own unique routing tables and in the very least need different default gateways.  It is a cross between functionality that the IPVLAN driver and the Team drivers provide, where a device is created and packets into/out of the routing domain are shuttled through this VRF device. The device is then used as a handle to identify the applicable rules. The VRF device is thus the layer3 equivalent of a vlan device.
+
+
+Processes can be "VRF aware" by binding a socket to the VRF device. Packets through the socket then use the routing table associated with the VRF device. An important feature of the VRF device implementation is that it impacts only Layer 3 and above so L2 tools (e.g., LLDP) are not affected (ie., they do not need to be run in each VRF). The design also allows the use of higher priority ip rules (Policy Based Routing) to take precedence over the VRF device rules directing specific traffic as desired. In addition, VRF devices allow VRFs to be nested within namespaces. For example network namespaces provide separation of network interfaces at L1 (Layer 1 separation), VLANs on the interfaces within a namespace provide L2 separation and then VRF devices provide L3 separation.
+
+Documentation: [[https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/Documentation/networking/vrf.txt?id=562d897d15a6e2bab3cc9b4c172286b612834fe8|Documentation/networking/vrf.txt]]
+
+Code: [[https://git.kernel.org/torvalds/c/4e3c89920cd3a6cfce22c6f537690747c26128dd|commit]], [[https://git.kernel.org/torvalds/c/cd2fbe1b6b517ca7c0e80b103c674fdf5bd50f76|commit]], [[https://git.kernel.org/torvalds/c/613d09b30f8b589d5a9b49775054c8865db95d1c|commit]], [[https://git.kernel.org/torvalds/c/9a24abfa42613fefc68963a98c2b7ab7fd7e374c|commit]], [[https://git.kernel.org/torvalds/c/15be405eb2ea943ac5fa2aab7d0ba282e9ef1301|commit]], [[https://git.kernel.org/torvalds/c/30bbaa19500559d7625c65632195413f639b3b97|commit]], [[https://git.kernel.org/torvalds/c/021dd3b8a142d482cb65a27bf6644e3764001460|commit]], [[https://git.kernel.org/torvalds/c/3bfd847203c6d89532f836ad3f5b4ff4ced26dd9|commit]], [[https://git.kernel.org/torvalds/c/f7ba868b71bc858cf06de11fc8150c4552cfad81|commit]], [[https://git.kernel.org/torvalds/c/9972f134a273d6dc52d912a3513fa06b426de9b4|commit]], [[https://git.kernel.org/torvalds/c/193125dbd8eb292d88feb201f030889b488b0a02|commit]], [[https://git.kernel.org/torvalds/c/562d897d15a6e2bab3cc9b4c172286b612834fe8|commit]]
+
+= Core (various) =
+ * task scheduler: Rewrite of the main SMP load balancing metric: the CPU load/utilization. The main goal was to make the metric more precise and more representative. It significantly reduces complexity of the code  and the performance testing results are encouraging. Nevertheless, it potentially affects every SMP workload in existence so regressions are possible. For more details, see the commit [[https://git.kernel.org/torvalds/c/9d89c257dfb9c51a532d69397f6eed75e5168c35|commit]]
+ * Make sync() on suspend-to-RAM build-time optional [[https://git.kernel.org/torvalds/c/2fd77fff4b440c29b48c31db0ce2aec7d319959f|commit]]
+ * Core dump:
+  * Don't dump core if the corefile would become world-readable. [[https://git.kernel.org/torvalds/c/40f705a736eac10e7dca7ab5dd5ed675a6df031d|commit]]
+  * If a coredump already exists, unlink and recreate with O_EXCL [[https://git.kernel.org/torvalds/c/fbb1816942c04429e85dbf4c1a080accc534299e|commit]]
+ * seccomp: adds a new ptrace option, PTRACE_O_SUSPEND_SECCOMP, that enables a task from the init user namespace which has CAP_SYS_ADMIN and no seccomp filters to disable (and re-enable) seccomp filters for another task so that they can be successfully dumped (and restored). This is needed for software like CRIU [[https://git.kernel.org/torvalds/c/13c4a90119d28cfcb6b5bdd820c233b86c2b0237|commit]]
+
+
+= File systems =
+ * EXT2
+  * Use DAX to provide Huge page fault support [[https://git.kernel.org/torvalds/c/e7b1ea2ad6581b83f63246db48aa2c2c9bf2ec8d|commit]]
+ * EXT4
+  * Use DAX to provide huge page fault support [[https://git.kernel.org/torvalds/c/11bd1a9ecdd687b8a4b9b360b7e4b74a1a5e2bd5|commit]]
+  * Implement cgroup writeback support [[https://git.kernel.org/torvalds/c/001e4a8775f6e8ad52a89e0072f09aee47d5d252|commit]]
+ * F2FS
+  * Add new ioctl F2FS_IOC_GARBAGE_COLLECT, which triggers a cleaning job explicitly by users [[https://git.kernel.org/torvalds/c/c1c1b58359d45e1a9f236ce5a40d50720c07c70e|commit]]
+  * Add noextent_cache mount option to disable an extent cache based on rb-tree explicitly [[https://git.kernel.org/torvalds/c/7daaea256de42da112805703e3c77f08973156b3|commit]]
+  * Enhance multithread performance [[https://git.kernel.org/torvalds/c/bb96a8d51e523c162b436c4545eb1a4e9f9f530e|commit]]
+  * Increase the number of max hard links [[https://git.kernel.org/torvalds/c/a6db67f06fd9f6b1ddb11bcf4d7e8e8a86908d01|commit]]
+  * Introduce a shrinker that allows to reclaim memory consumed by a number of in-memory f2fs data structures [[https://git.kernel.org/torvalds/c/2658e50de61429f57d9496bfe371f232e2d039a1|commit]]
+ * HPFS
+  * Support hotfixes [[https://git.kernel.org/torvalds/c/a64eefaac1c5cc8dbc6995228fe08a61b8e1d26b|commit]]
+  * Update ctime and mtime on directory modification [[https://git.kernel.org/torvalds/c/f49a26e7718dd30b49e3541e3e25aecf5e7294e2|commit]]
+
+ * CIFS
+  * Add ioctl to allow userspace (e.g. smb3util) to display information about the share and underlying device under an SMB3 export, including its attributes and capabilities [[https://git.kernel.org/torvalds/c/0de1f4c6f6c028249579d8d80fa0a4f6322b2227|commit]]
+
+ * OCFS2
+  * Add errors=continue [[https://git.kernel.org/torvalds/c/7d0fb9148ab6f52006de7cce18860227594ba872|commit]]
+ * XFS
+  * Huge page fault support [[https://git.kernel.org/torvalds/c/acd76e74d80f961553861d9cf49a62cbcf496d28|commit]]
+  * Add a new superblock field, sb_meta_uuid. If set, along with a new incompat flag, the code will use that field on a V5 filesystem to compare to metadata UUIDs, which allows to change the user-visible UUID at will.  Userspace handles the setting and clearing of the incompat flag as appropriate, as the UUID gets changed; i.e. setting the user-visible UUID back to the original UUID (as stored in the new field) will remove the incompatible feature flag [[https://git.kernel.org/torvalds/c/ce748eaa65f2e9392ba82726503c8d994ffd6393|commit]]
+
+
+
+= Memory management =
+ * Allow DAX-enabled filesystems to provide huge pages in response to faults [[https://git.kernel.org/torvalds/c/844f35db1088dd1a9de37b53d4d823626232bd19|commit]]
+ * Always expose /proc/<pid>/map_files/ and make it readable [[https://git.kernel.org/torvalds/c/bdb4d100afe9818aebd1d98ced575c5ef143456c|commit]]
+ * Make pagemap useable again in the safe way (after row hammer bug it was made CAP_SYS_ADMIN-only). Also it adds bit 'map-exlusive' which is set if page is mapped only here: it helps in estimation of working set without exposing pfns and allows to distinguish CoWed and non-CoWed private anonymous pages [[https://git.kernel.org/torvalds/c/a06db751c321546e5563041956a57613259c6720|commit]], [[https://git.kernel.org/torvalds/c/deb945441b9408d6cd15751f5232eeca9f50a5a1|commit]], [[https://git.kernel.org/torvalds/c/356515e7b64c2629f686109d426baaf868cdf7e8|commit]], [[https://git.kernel.org/torvalds/c/1c90308e7a77af6742a97d1021cca923b23b7f0d|commit]], [[https://git.kernel.org/torvalds/c/77bb499bb60f4b79cca7d139c8041662860fcf87|commit]], [[https://git.kernel.org/torvalds/c/83b4b0bb635eee2b8e075062e4e008d1bc110ed7|commit]]
+ * Compaction cleanups and performance optimizations [[https://git.kernel.org/torvalds/c/f2849aa09d4fbc4145ebb5dc96187c9ab967f5cf|commit]], [[https://git.kernel.org/torvalds/c/f5f61a320bf6275f37fcabf6645b4ac8e683c007|commit]], [[https://git.kernel.org/torvalds/c/02333641e2cf4ac9f23eeeb01183ed8318d346ca|commit]], [[https://git.kernel.org/torvalds/c/29c0dde830f8c08ceacf2d3edf6dc8ddd9a9c3c4|commit]], [[https://git.kernel.org/torvalds/c/9fcd6d2e052eef525e94a9ae58dbe7ed4df4f5a7|commit]]
+ * /proc/pid/smaps: if there are lots of shared anonymous pages, it's really hard to figure out exactly how many each process consumes memory(ie, rss + wap) if the system has lots of shared anonymous memory(e.g, android). This release introduces SwapPss field on /proc/<pid>/smaps so users can get more exact workingset size per process [[https://git.kernel.org/torvalds/c/8334b96221ff0dcbde4873d31eb4d84774ed8ed4|commit]]
+ * zsmalloc: account the number of compacted pages [[https://git.kernel.org/torvalds/c/860c707dca155a56dfa115ddd6c00959296144a6|commit]]
+ * zsmalloc: Perform automatic pool compaction by a shrinker when system is getting tight on memory [[https://git.kernel.org/torvalds/c/ab9d306d9c3bf64b1dbad127aa13252cc550f839|commit]]
+ * zswap: Allow to change zpool/compressor at runtime. When changed, a new pool is created with the requested zpool/compressor, and added as the current pool at the front of the pool list. Previous pools remain in the list only to remove existing compressed pages from. The old pool(s) are removed once they become empty [[https://git.kernel.org/torvalds/c/f1c54846ee4504d89b59b04d870831db4046b478|commit]], [[https://git.kernel.org/torvalds/c/90b0fc26d5dbe21c7a21668320b276af9b2281d7|commit]], [[https://git.kernel.org/torvalds/c/9c4c5ef3760470cbf8bf408a173d1b2fdba065b1|commit]]
+
+ * Allow have using madvise() MADV_REMOVE operation in hugetlbfs [[https://git.kernel.org/torvalds/c/72079ba0dfefc1444b4ef98a2fa3d040838a775f|commit]]
+
+ * slab: bulk object allocation and freeing [[https://git.kernel.org/torvalds/c/484748f0b65a1950b2b93f444a2287e8dd2cedd6|commit]], [[https://git.kernel.org/torvalds/c/994eb764ec5ad57c9b7c5e72b892205039a84b69|commit]], [[https://git.kernel.org/torvalds/c/3eed034d045ce93a40e232a6bd5f86127342053a|commit]], [[https://git.kernel.org/torvalds/c/ebe909e0fdb34b980c5cf636c495e4f0bb0dfda8|commit]], [[https://git.kernel.org/torvalds/c/fbd02630c6e3c60feecc4688f5f98b015d264516|commit]]
+
+ * Add NVMEM framework [[https://git.kernel.org/torvalds/c/69aba7948cbe53f2f1827e84e9dd0ae470a5072e|commit]], [[https://git.kernel.org/torvalds/c/eace75cfdcf7d9937d8c1fb226780123c64d72c4|commit]]
+
+
+
+= Block layer =
+ * blkcg: implement interface for the unified hierarchy [[https://git.kernel.org/torvalds/c/2ee867dcfa2eaef1063b686da55c35878b2da4a2|commit]]
+ * Make /sys/block/<dev>/queue/discard_max_bytes writeable [[https://git.kernel.org/torvalds/c/0034af036554c39eefd14d835a8ec3496ac46712|commit]]
+ * libnvdimm
+  * Add DSM support for Address Range Scrub commands [[https://git.kernel.org/torvalds/c/39c686b862cdb2049b90e095b6c6c727b2a7ab60|commit]]
+  * Allow to map persistent memory, i.e. advertise it to the memory management sub-system. By default persistent memory does not support direct I/O, RDMA, or any other usage that requires a 'struct page' to mediate an I/O request. This driver allocates and initializes the  infrastructure needed to support those use cases [[https://git.kernel.org/torvalds/c/e1455744b27c9e6115c3508a7b2902157c2c4347|commit]]
+ * NVMe: Add nvme subsystem reset support [[https://git.kernel.org/torvalds/c/dfbac8c7ac5f58448b2216fe42ff52aaf175421d|commit]], [[https://git.kernel.org/torvalds/c/81f03fedcce7ee7e83c37237ecaa2f68aad236fd|commit]]
+ * nbd: Add debugfs entries [[https://git.kernel.org/torvalds/c/30d53d9c11b6c2f71253a2be582969d7e6fa7f10|commit]]
+
+
+
+= Cryptography =
+ * Smack: IPv6 host labeling [[https://git.kernel.org/torvalds/c/21abb1ec414c75abe32c3854848ff30e2b4a6113|commit]]
+
+= Security =
+ * audit: Implement "audit by executable" functionality which allows admins to set an audit watch based on the executable on disk. Prior to this, admins could only track an application by PID [[https://git.kernel.org/torvalds/c/34d99af52ad40bd498ba66970579a5bc1fb1a3bc|commit]]
+ * Add information about ioctl calls to the LSM audit data. Log the file path and command number [[https://git.kernel.org/torvalds/c/671a2781ff01abf4fdc8904881fc3abd3a8279af|commit]]
+ * selinux: Extend the generic ioctl permission check to use the extended permissions for per-command filtering. Source/target/class sets including the ioctl permission may additionally include a set of commands [[https://git.kernel.org/torvalds/c/fa1aa143ac4a682c7f5fd52a3cf05f5a6fe44a0a|commit]]
+ * smack: allow mount opts setting over filesystems with binary mount data [[https://git.kernel.org/torvalds/c/3bf2789cad9e6573dc19a6c3d123c2c049f2d90f|commit]]
+
+
+ * Kernel module signing
+  * Allot to use PKCS#7 signatures for modules [[https://git.kernel.org/torvalds/c/bc1c373dd2a5113800360f7152be729c9da996cc|commit]], [[https://git.kernel.org/torvalds/c/3f1e1bea34740069f70c6bc92d0f712345d5c28e|commit]]
+  * Add explicit CONFIG_SYSTEM_TRUSTED_KEYS option to let the user explicitly provide a file containing trusted keys, instead of just automatically finding files matching *.x509 in the build tree [[https://git.kernel.org/torvalds/c/99d27b1b52bd5cdf9bd9f7661ca8641e9a1b55e6|commit]]
+  * Allow external signing key to be specified [[https://git.kernel.org/torvalds/c/19e91b69d77bab16405cc284b451378e89a4110c|commit]]
+  * Allow password to be specified for signing key [[https://git.kernel.org/torvalds/c/af1eb2913275c3ab1598b0c24c893499092df08a|commit]]
+  * Allow signing key to be PKCS#11 [[https://git.kernel.org/torvalds/c/6e3e281f39af78bd680b82d9762bf6c4f8f3f5f4|commit]]
+
+ * PKCS#7: Add OIDs for sha224, sha284 and sha512 hash algos and use them [[https://git.kernel.org/torvalds/c/07f081fb5057b2ea98baeca3a47bf0eb33e94aa1|commit]], support CMS messages also (RFC5652) [[https://git.kernel.org/torvalds/c/60d65cacd7c2d84a6dcad69bcb57bbf0220c8643|commit]]
+ * X.509: Support X.509 lookup by Issuer+Serial form AuthorityKeyIdentifier [[https://git.kernel.org/torvalds/c/4573b64a31cd8cb4cfeb1d1b95536cfe71980cf4|commit]]
+
+
+
+= Tracing and perf tool =
+ * Support BPF programs attached to uprobes and first steps for BPF tooling support [[https://git.kernel.org/torvalds/c/f1d800bf615b84ca253af372d2dac8cdef743a20|(merge)]]
+ * Support Intel PT in several tools, enabling the use of the processor trace feature introduced in Intel Broadwell processors [[https://git.kernel.org/torvalds/c/dd2281be03a7f4d3f249a733913a9ebb36e721f4|(merge)]]
+ * Add support for using several Intel PT features (CYC, MTC packets), the relevant documentation was updated in: tools/perf/Documentation/intel-pt.txt
+ * Introduce support for probing at an absolute address, for user and kernel 'perf probe's, useful when one have the symbol maps on a developer machine but not on an embedded system [[https://git.kernel.org/torvalds/c/d1ee8bc195ffedbf91af0245a2406d6ebd2578f8|(merge)]]
+ * Add Intel BTS support, with a call-graph script to show it and PT in use in a GUI using 'perf script' python scripting with postgresql and Qt [[https://git.kernel.org/torvalds/c/0e53909a1cf0153736fb52c216558a65530d8c40|(merge)]]
+ * Allow selecting the type of callchains per event, including disabling callchains in all but one entry in an event list, to save space, and also to ask for the callchains collected in one event to be used in other events [[https://git.kernel.org/torvalds/c/a897b5f0393a8a05d230c9248dc5324fb30720a0|(merge)]]
+ * Introduce 'srcfile' sort key. It can be combined with other fields [[https://git.kernel.org/torvalds/c/5f1230c9b80b89f404938ff88dfa64a963f74f2c|(merge)]]
+ * Support per-event 'freq' term [[https://git.kernel.org/torvalds/c/5f1230c9b80b89f404938ff88dfa64a963f74f2c|(merge)]]
+ * Allow filtering out of perf's PID via 'perf record --exclude-perf' [[https://git.kernel.org/torvalds/c/a11c51acc52822754d66a11c15f6f6edd4d23c55|(merge)]]
+ * perf trace now supports syscall groups, like strace, i.e: "trace -e file touch file" will expand 'file' into multiple, file related, syscalls [[https://git.kernel.org/torvalds/c/a11c51acc52822754d66a11c15f6f6edd4d23c55|(merge)]]
+ * Let user have timestamps with per-thread recording in 'perf record' [[https://git.kernel.org/torvalds/c/60cd37eb100c4880b28078a47f3062fac7572095|(merge)]]
+ * perf record: Add ability to name registers to record [[https://git.kernel.org/torvalds/c/bcc84ec65ad1bd9f777a1fade6f8e5e0c5808fa5|commit]]
+ * perf script: Enable printing of interrupted machine state [[https://git.kernel.org/torvalds/c/fc36f9485aee3a62b22be1f561543a31bce6d48e|commit]]
+ * tracing: Allow triggers to filter for CPU ids and process names [[https://git.kernel.org/torvalds/c/9f61668073a8d80650622e792aff876db9ca23c6|commit]]
+
+
+= Virtualization =
+ * KVM: dynamic halt-polling [[https://git.kernel.org/torvalds/c/aca6ff29c4063a8d467cdee241e6b3bf7dc4a171|commit]]
+
+ * VMware balloon: Add support for balloon capabilities. [[https://git.kernel.org/torvalds/c/eb79100fe6a696bfbad21aaf8e373d72763c7462|commit]]
+ * Hyper-V
+  * balloon: Enable dynamic memory protocol negotiation with Windows 10 hosts [[https://git.kernel.org/torvalds/c/b6ddeae1603dfa55e857ba1520f5acea83f8cf1c|commit]]
+  * vmbus: add a sysfs attr to show the binding of channel/VP [[https://git.kernel.org/torvalds/c/042ab0313bbb7e776e9510da3f07fb300d08a8ba|commit]]
+  * vmbus: add special crash handler [[https://git.kernel.org/torvalds/c/b4370df2b1f5158de028e167974263c5757b34a6|commit]]
+  * hv_netvsc: Add support to set MTU reservation from guest side [[https://git.kernel.org/torvalds/c/f9cbce34c34bcc05ea0dd78c8999bfe88b5b6b86|commit]]
+  * hv_netvsc: Implement set_channels ethtool op [[https://git.kernel.org/torvalds/c/b5960e6e2b5c52520cec5888c3feb71b71ba1980|commit]]
+
+ * virtio_mmio: add ACPI probing [[https://git.kernel.org/torvalds/c/38c4ab8e48ab153dee461e10e81256720b70a0b3|commit]]
+
+ * XEN
+  * xen-blkfront: convert to blk-mq APIs [[https://git.kernel.org/torvalds/c/907c3eb18e0bd86ca12a9de80befe8e3647bac3e|commit]]
+  * xen-netback: add support for multicast control [[https://git.kernel.org/torvalds/c/210c34dcd8d912dcc740f1f17625a7293af5cb56|commit]]
+  * PMU support for PV dom0 (limited support for using perf with Xen and other guests) [[https://git.kernel.org/torvalds/c/5f141548824cebbff2e838ff401c34e667797467|commit]], [[https://git.kernel.org/torvalds/c/65d0cf0be79feebeb19e7626fd3ed41ae73f642d|commit]], [[https://git.kernel.org/torvalds/c/e27b72df01109c689062caeba1defa013b759e0e|commit]], [[https://git.kernel.org/torvalds/c/6b08cd6328c58a2ae190c5ee03a2ffcab5ef828e|commit]], [[https://git.kernel.org/torvalds/c/bf6dfb154d935725c9a2005033ca33017b9df439|commit]]
+  * Allow more than 512 GB of RAM for 64 bit pv-domains [[https://git.kernel.org/torvalds/c/c70727a5bc18a5a233fddc6056d1de9144d7a293|commit]]
+  * xensyms support [[https://git.kernel.org/torvalds/c/a11f4f0a4e18b4bdc7d5e36438711e038b7a1f74|commit]]
+
+
+
+= Networking =
+ * IGMP: Inhibit reports for local multicast groups; add sysctl {{{/proc/sys/net/ipv4/igmp_link_local_mcast_reports}}} [[https://git.kernel.org/torvalds/c/df2cf4a78e488d26728590cb3c6b4fe4c4862c77|commit]]
+ * bridge
+  * mdb: add vlan support for user entries [[https://git.kernel.org/torvalds/c/74fe61f17e999a458d5f64ca2aa9a0282ca32198|commit]]
+  * Add netlink support for vlan_protocol attribute [[https://git.kernel.org/torvalds/c/d2d427b3927bd7a0348fc7f323d0e291f79a2779|commit]]
+  * Add support for vlan_filtering attribute [[https://git.kernel.org/torvalds/c/a7854037da006a7472c48773e3190db55217ec9b|commit]]
+ * bonding: add netlink support for the sysfs attribute tlb_dynamic_lb [[https://git.kernel.org/torvalds/c/0f7bffd9e512b77279bbce704fad3cb1d6887958|commit]]
+ * geneve
+  * Add support to collect tunnel metadata. [[https://git.kernel.org/torvalds/c/e305ac6cf5a1e1386aedce7ef9cb773635d5845c|commit]]
+  * Add netlink interface to configure Geneve UDP port number [[https://git.kernel.org/torvalds/c/cd7918b35f0ee0106bbe2ce4a14b5a8c9763deb8|commit]]
+  * Use GRO cells infrastructure. [[https://git.kernel.org/torvalds/c/8e816df87997bb0c40122d5df621423b445c4fe6|commit]]
+ * ipv6
+  * Make IPv6 support be enabled into kernel by default [[https://git.kernel.org/torvalds/c/de551f2eb22a77a498cea9686f39e79f25329109|commit]]
+  * Identifier Locator Addressing module [[https://git.kernel.org/torvalds/c/65d7ab8de582bc668e3dabb6ff48f750098a6e78|commit]]
+  * Add support to allow non-local binds similar to how this was done for IPv4. Non-local binds are very useful in emulating the Internet in a box, etc. This adds the ip_nonlocal_bind sysctl under ipv6 [[https://git.kernel.org/torvalds/c/35a256fee52c7c207796302681fa95189c85b408|commit]]
+  * Add sysctl (use_oif_addrs_only) to restrict candidate source addresses [[https://git.kernel.org/torvalds/c/3985e8a3611a93bb36789f65db862e5700aab65e|commit]]
+  * Add sysctl option accept_ra_min_hop_limit to let user choose the minimum hop limit value they can accept from RA [[https://git.kernel.org/torvalds/c/8013d1d7eafb0589ca766db6b74026f76b7f5cb4|commit]]
+  * Disable flowlabel state ranges by default [[https://git.kernel.org/torvalds/c/be26849bfb6fcee4123c687fc39bd6da1b3be328|commit]]
+  * Enable auto flow labels by default [[https://git.kernel.org/torvalds/c/b56774163f994efce3f5603f35aa4e677c3e725a|commit]]
+  * Implement different admin modes for automatic flow labels [[https://git.kernel.org/torvalds/c/42240901f7c438636715b9cb6ed93f4441ffc091|commit]]
+  * sysctl option to ignore routes when nexthop link is down [[https://git.kernel.org/torvalds/c/35103d11173b8fea874183f8aa508ae71234d299|commit]]
+  * 6lowpan: remove multiple lowpan per wpan support [[https://git.kernel.org/torvalds/c/51e0e5d8124ece158927a4c2288c0929d3b53aa3|commit]]
+ * ipvs
+  * Add the weighted overflow scheduling algorithm, which directs network connections to the server with the highest weight that is currently available and overflows to the next when active connections exceed the node's weight [[https://git.kernel.org/torvalds/c/eefa32d3f3c54bc7f9704968bc78adf0439c6c2a|commit]]
+  * add more mcast parameters for the sync daemon [[https://git.kernel.org/torvalds/c/d33288172e72c4729e8b9f2243fb40601afabc8f|commit]]
+  * add sync_maxlen parameter for the sync daemon [[https://git.kernel.org/torvalds/c/e4ff67513096e6e196ca58043fce04d0f87babbe|commit]]
+ * Introduces the proto_down flag that can be used by user space applications to notify switch drivers that errors have been detected on the device [[https://git.kernel.org/torvalds/c/d746d707a8b1421a4ba46b497cb5d59e20161645|commit]], [[https://git.kernel.org/torvalds/c/88d6378bd6c096cb8440face3ae3f33d55a2e6e4|commit]]
+ * netfilter
+  * Factor out packet duplication for IPv4/IPv6 [[https://git.kernel.org/torvalds/c/bbde9fc1824aab58bc78c084163007dd6c03fe5b|commit]]
+  * nf_conntrack: add direction support for zones [[https://git.kernel.org/torvalds/c/deedb59039f111c41aa5a54ee384c8e7c08bc78a|commit]]
+  * nf_ct_sctp: minimal multihoming support [[https://git.kernel.org/torvalds/c/d7ee3519042798be6224e97f259ed47a63da4620|commit]]
+  * nf_tables: add nft_dup expression [[https://git.kernel.org/torvalds/c/d877f07112f1e5a247c6b585c971a93895c9f738|commit]]
+  * nft_limit: add burst parameter [[https://git.kernel.org/torvalds/c/3e87baafa4f476017b2453e52a1ca7308b4e6ad5|commit]]
+  * nft_limit: add per-byte limiting [[https://git.kernel.org/torvalds/c/d2168e849ebf617b2b7feae44c0c0baf739cb610|commit]]
+ * vxlan : GRO support at tunnel layer [[https://git.kernel.org/torvalds/c/58ce31cca1ffe057f4744c3f671e3e84606d3d4a|commit]]
+
+
+ * netlink: add NETLINK_CAP_ACK socket option that trims off the payload of the original netlink message [[https://git.kernel.org/torvalds/c/0a6a3a23ea6efde079a5b77688541a98bf202721|commit]]
+ * wireless: Allow setting multicast rate on OCB interfaces [[https://git.kernel.org/torvalds/c/876dc9308e8b8a8fb57059234e57f4145c870c3c|commit]]
+ * openvswitch: Allow attaching helpers to ct action [[https://git.kernel.org/torvalds/c/cae3a2627520c3795b54533c5328b77af3405dbe|commit]]
+ * openvswitch: Allow matching on conntrack label [[https://git.kernel.org/torvalds/c/c2ac667358708d7cce64c78f58af6adf4c1e848b|commit]]
+ * packet: Add fanout mode PACKET_FANOUT_CBPF that accepts a classic BPF program to select a socket [[https://git.kernel.org/torvalds/c/47dceb8ecdc1c3ad1818dfea3d659a05b74c3fc2|commit]]
+ * packet:  Add fanout mode PACKET_FANOUT_EBPF that accepts an en extended BPF program to select a socket [[https://git.kernel.org/torvalds/c/f2e520956a1ab636698f8160194c9b8ac0989aab|commit]]
+ * Bluetooth: Make A2MP module configurable [[https://git.kernel.org/torvalds/c/244bc377591c3882f454882357bc730c90cbedb5|commit]]
+ * RDS-TCP: Support multiple RDS-TCP listen endpoints, one per netns. [[https://git.kernel.org/torvalds/c/467fa15356acfb7b2efa38839c3e76caa4e6e0ea|commit]]
+ * tools/net/bpf_jit_disasm: support reading jit dump from file [[https://git.kernel.org/torvalds/c/a6ed38361b1e0f08d630bd491051c254d1fc71b9|commit]]
+ * ip_gre: Add support to collect tunnel metadata. [[https://git.kernel.org/torvalds/c/2e15ea390e6f4466655066d97e22ec66870a042c|commit]]
+ * mac802154: add support for suspend and resume [[https://git.kernel.org/torvalds/c/3cf24cf8c3c06f9a6cacc8fc2cad94661b6096b6|commit]]
+ * rocker: add change MTU support [[https://git.kernel.org/torvalds/c/77a58c741df1b91258cc4df3e6893ff61e8293a4|commit]]
+ * route: introduces a new IP tunnel lightweight tunnel type which allows to specify IP tunnel instructions per route. Only IPv4 is supported at this point [[https://git.kernel.org/torvalds/c/3093fbe7ff4bc7d1571fc217dade1cf80330a714|commit]]
+
+
+
+
+= Architectures =
+ * ARM
+  * Device tree sources
+   * Add minimal dm814x support [[https://git.kernel.org/torvalds/c/f3d953ea37210d654777df758a5c52a94bb5d6c7|commit]]
+   * Add minimal dts support for dm8148-evm [[https://git.kernel.org/torvalds/c/73db9e0141b5e27348a11effa7e36296603df439|commit]]
+   * Add minimal support for HP T410 [[https://git.kernel.org/torvalds/c/285f3690cd14eb3e7f82c98ad4b294f204438ffa|commit]]
+   * Add phyBOARD-WEGA-AM335x rdk [[https://git.kernel.org/torvalds/c/36bd1683559e23d4032defadbfbd3ccd5601b8c8|commit]]
+   * Add support for phyCORE-AM335x SoM [[https://git.kernel.org/torvalds/c/52b0dcb1d160f9ac839acd6b44b0687e82e23e98|commit]]
+   * Add buffalo linkstation ls-wvl/vl [[https://git.kernel.org/torvalds/c/c43379e150aa335b447f14e55cefd8f1c405cb5f|commit]]
+   * Add buffalo linkstation ls-wxl/wsxl [[https://git.kernel.org/torvalds/c/e54e4b1b622e534381b422b8a80a21453dd6f644|commit]]
+   * imx: add fec1 and fec2 nodes for SOC i.MX6UL [[https://git.kernel.org/torvalds/c/01f3dc7de3293a7ef3839b8173d348cfed2b7252|commit]]
+   * imx: add imx6ul and imx6ul evk board support [[https://git.kernel.org/torvalds/c/a5fcccbc6ef8a6a0e015f3b72a2d8fcac8210425|commit]]
+   * mediatek: add mt6580 basic support [[https://git.kernel.org/torvalds/c/7d4938c14d239768a2e0bdd94457f405e6d35555|commit]]
+   * orion5x: add buffalo linkstation ls-wtgl [[https://git.kernel.org/torvalds/c/dc57844a736f10bf3799d63d7c0d0efc29b1ad7d|commit]]
+   * rockchip: Add veyron-speedy board [[https://git.kernel.org/torvalds/c/13517157d16f98564b91658940ccd720724da62f|commit]]
+   * rockchip: add Netxeon R89 board [[https://git.kernel.org/torvalds/c/cde669fa71cfb6fdbd579c409b08a5cfa1863584|commit]]
+   * rockchip: add veyron-jerry board [[https://git.kernel.org/torvalds/c/f3ee390e4ef23a557b3519f6fb314a9e80d337c1|commit]]
+   * rockchip: add veyron-minnie board [[https://git.kernel.org/torvalds/c/378abcdf3297613f6712343ce3a79b7d6abdf955|commit]]
+   * rockchip: add veyron-pinky board [[https://git.kernel.org/torvalds/c/05ffc630627003c7bf275eec05b0eae81e0016b1|commit]]
+   * socfpga: Add support of Terasic DE0 Atlas board [[https://git.kernel.org/torvalds/c/57c0f8c9c45365d167f8606dad7fde9565432b7a|commit]]
+   * sun4i: Add Iteaduino Plus A10 [[https://git.kernel.org/torvalds/c/79ae3e66f8d7ba51c02773897a8f1a37b496d9a3|commit]]
+   * uniphier: add PH1-Pro5 SoC support [[https://git.kernel.org/torvalds/c/474e5ac6247f10924ef4c349c32b2cf303d51210|commit]]
+   * uniphier: add ProXstream2 and PH1-LD6b SoC/board support [[https://git.kernel.org/torvalds/c/a5e921b4771fbdaad97171184725ff60d8e8a7b0|commit]]
+   * shmobile: add r8a7793 minimal SoC device tree [[https://git.kernel.org/torvalds/c/0e03e8aed92ce4757a9dbfbf2b7f4edce6380f92|commit]]
+   * shmobile: silk: initial device tree [[https://git.kernel.org/torvalds/c/a42fc57a9e9d1dbb1d8cc0c3ccf2d7ea1a939559|commit]]
+   * at91: add basic dtsi for sama5d2 SoC [[https://git.kernel.org/torvalds/c/c268a743103aebba8d81d3365107f7170653099e|commit]], [[https://git.kernel.org/torvalds/c/e30cf8d3221ab6162420df460b4e96b959e96001|commit]], add isi & ov2640 dt nodes for at91sam9m10g45ek board [[https://git.kernel.org/torvalds/c/917cdc5f7305c753ed6e58d7e87d25ba023f18b4|commit]], add minimal sama5d2 Xplained board [[https://git.kernel.org/torvalds/c/22b5a0f7bc07ac4b4e4aab9a7f8cf2521819c1c4|commit]]
+   * sun8i: dts: Add Ippo-q8h v1.2 with A33 [[https://git.kernel.org/torvalds/c/88651aebd276f272f34f2459d1eb2a86413aaabc|commit]]
+  * Add software-based implementation of the priviledged-no-access support found in ARMv8.1. This allows to trap non-intended kernel accesses to userspace, eg, caused by an inadvertent dereference of the LIST_POISON* values, which, with appropriate user mappings setup, can be made to succeed. This in turn can allow use-after-free bugs to be further exploited than would otherwise be possible [[https://git.kernel.org/torvalds/c/a5e090acbf545c0a3b04080f8a488b17ec41fe02|commit]]
+  * imx: add i.mx6ul msl support [[https://git.kernel.org/torvalds/c/022d0716bb7e8e0f11eff4ee65fb1e62ffe8f6e1|commit]]
+  * dove: create a proper PMU driver for power domains, PMU IRQs and resets [[https://git.kernel.org/torvalds/c/44e259ac909f3b41786cf732a44b5cf8444e098a|commit]]
+  * mvebu: Add standby support [[https://git.kernel.org/torvalds/c/3cbd6a6ca81c9e8438b592099495a7c2b72de9e3|commit]]
+  * Add support for ARM JIT generation of several BPF instructions [[https://git.kernel.org/torvalds/c/5bf705b43b7243c68e831ed3072db2ed00edc7fa|commit]], [[https://git.kernel.org/torvalds/c/303249ab168f58ee52c502389b9a8046af78d142|commit]], [[https://git.kernel.org/torvalds/c/1447f93f22add339ee63d1a7015309d9fbfa47e8|commit]]
+  * DRA752: Add ID detect for ES2.0 [[https://git.kernel.org/torvalds/c/81032e34e184a8d63598d215a6d4a3352018ffea|commit]]
+  * qcom: Add coincell charger driver [[https://git.kernel.org/torvalds/c/1f26d1c1053ac179b0ee1edea7809cef07fe728e|commit]]
+  * shmobile: Basic r8a7793 SoC support [[https://git.kernel.org/torvalds/c/ec60d95b4faccd61c7ce10316ebc9333f2d7674a|commit]]
+  * shmobile: Remove legacy code for R-Mobile A1 [[https://git.kernel.org/torvalds/c/44d88c754e57a6d9d7ae6ac7540b9596f9b61902|commit]], SH-Mobile AG5 [[https://git.kernel.org/torvalds/c/9a9863987bf7307f619f1dbba678a3e6d65c901a|commit]], Armadillo-800 EVA [[https://git.kernel.org/torvalds/c/1fa59bda21c7fa3644e374be0547395975286599|commit]], KZM-A9-GT [[https://git.kernel.org/torvalds/c/30f8925a57d8ad4990fca14bcf454abd91228afd|commit]], remove obsolete zboot support [[https://git.kernel.org/torvalds/c/11e386719b08606502477cddf10c832b6658bb55|commit]]
+  * shmobile: marzen: Remove legacy board code [[https://git.kernel.org/torvalds/c/b97fdb836a36df53de5685278c0126a222903c5e|commit]],[[https://git.kernel.org/torvalds/c/26f9e03fb1c8b8b5dd2f1ad34da775cc129df98a|commit]]
+  * OMAP2: Add minimal dm814x hwmod support [[https://git.kernel.org/torvalds/c/0f3ccb24c0347cd80160810df79bfa233749074e|commit]]
+  * OMAP2+: Remove legacy booting support for LogicPD Torpedo [[https://git.kernel.org/torvalds/c/d0796c4cd91dc9a329e48d2ff804532ed0b4c676|commit]] and Pandora [[https://git.kernel.org/torvalds/c/7fcf7e061edd368fac7fe4841a7f9e54c83b3ec8|commit]]
+  * KVM: guest debug, add stub KVM_SET_GUEST_DEBUG ioctl [[https://git.kernel.org/torvalds/c/0e6f07f29cfb8d79dbbdb12560a73f7121ba324e|commit]]
+  * coresight-etm3x: Add Qualcomm PTM v1.1 peripheral ID [[https://git.kernel.org/torvalds/c/27d3fd3d0d89030798121718637d6b0ed59e0ca5|commit]]
+  * md/raid6: delta syndrome for ARM NEON [[https://git.kernel.org/torvalds/c/0e833e697bcf4c2f3f7fb9fce39d08cd4439e5d7|commit]]
+
+
+ * ARM64
+  * Device Tree Sources
+   * Add dts files for Marvell Berlin4CT SoC [[https://git.kernel.org/torvalds/c/d93ac74ad150c89f2d0a3b90754cbccdc6ab102c|commit]]
+   * Add Rockchip rk3368 core dtsi and board dts for the r88 board [[https://git.kernel.org/torvalds/c/b790c2cab5ca641804c2e48c7506e166fff5a442|commit]]
+   * mediatek: add mt6795 support [[https://git.kernel.org/torvalds/c/e26945245e414eff42ee1ffeaedf198911bf1d77|commit]]
+  * Add support for hardware updates of the access and dirty pte bits, a feature available in ARMv8.1 [[https://git.kernel.org/torvalds/c/2f4b829c625ec36c2d80bef6395c7b74cea8aac0|commit]]
+  * Add Rockchip architecture entry [[https://git.kernel.org/torvalds/c/fbac1c81e2591c5d1e5abd9a4477002f2afd0ab4|commit]]
+  * Add support for Large System Extension for building scalable atomics and locks [[https://git.kernel.org/torvalds/c/c09d6a04d17d730b0463207a26ece082772b59ee|commit]], [[https://git.kernel.org/torvalds/c/084f903727e1c3a61d6bcdaeeed30bddc6d7f65a|commit]], [[https://git.kernel.org/torvalds/c/c342f78217e822d2178265b0b1de232eeb717149|commit]], [[https://git.kernel.org/torvalds/c/81bb5c6420635dfd058c210bd342c29c95ccd145|commit]], [[https://git.kernel.org/torvalds/c/c8366ba0fb65063b6b4f69c7af1ea74152435590|commit]], [[https://git.kernel.org/torvalds/c/c0385b24af15020a1e505f2c984db0d7c0d017e1|commit]]
+  * Enable more compressed Image formats [[https://git.kernel.org/torvalds/c/0723c05fb75e4428b79b5cd657af7496b2604422|commit]]
+  * Add support for Privileged Access Never (PAN; part of the ARMv8.1 Extensions) prevents the kernel or hypervisor from accessing user-space (EL0) memory directly [[https://git.kernel.org/torvalds/c/338d4f49d6f7114a017d294ccf7374df4f998edc|commit]]
+  * KVM: Add generic v8 KVM target [[https://git.kernel.org/torvalds/c/bca556ac468ab4744692926b67cb525cdce850c9|commit]]
+  * KVM: Add KVM_CAP_SET_GUEST_DEBUG support [[https://git.kernel.org/torvalds/c/4bd611ca60afa155bca25b40312ed61c4d46237f|commit]], [[https://git.kernel.org/torvalds/c/337b99bf7edfb2044781447e7ca386edb1fdba9d|commit]], [[https://git.kernel.org/torvalds/c/5540546bc93b49f98a0466fe3f96615286c76574|commit]], [[https://git.kernel.org/torvalds/c/834bf88726f0f11ddc7ff9679fc9458654c01a12|commit]]
+  * memory: Add ARM PL172 MultiPort Memory Controller driver [[https://git.kernel.org/torvalds/c/17c50b700c3b46fe85e96caa1d0fc5940cc276d4|commit]]
+  * memory: tegra: Add Tegra210 support [[https://git.kernel.org/torvalds/c/588c43a7bd5a53ae523b318e1db16bdd59963a3c|commit]]
+
+
+ * x86
+  * kvm
+   * Add sending hyper-v crash notification to user space [[https://git.kernel.org/torvalds/c/2ce7918990641b07e70e1b25752d666369e2016e|commit]]
+   * Add support for MONITOR_TRAP_FLAG [[https://git.kernel.org/torvalds/c/5f3d45e7f2827f48e60eb821efd909713b43ac63|commit]]
+  * asus-laptop: Add key found on Asus F3M [[https://git.kernel.org/torvalds/c/97ade7697bb104523417d0f9b5e38a8bf55ed7f1|commit]]
+  * surface pro 3: Add support driver for Surface Pro 3 buttons [[https://git.kernel.org/torvalds/c/2508a45a924dfa4a5f6e60675aa4732d888134a7|commit]]
+  * iommu/vt-d: Report domain usage in sysfs [[https://git.kernel.org/torvalds/c/2238c0827a9bfa8d517e3175110ed603fb7b9537|commit]]
+  * perf: Add PEBS frontend profiling for Skylake [[https://git.kernel.org/torvalds/c/d0dc8494cd6904f8ad035d9ad97f313948f35d0c|commit]]
+  * powercap / RAPL: Add support for Broadwell-H [[https://git.kernel.org/torvalds/c/4e0bec9e833a6884dc2e242e45e0ebd99f46624e|commit]] and for Skylake H/S [[https://git.kernel.org/torvalds/c/2cac1f700c2c6baf836f24c778a73a847a48f484|commit]]
+  * toshiba_acpi: Adapt /proc/acpi/toshiba/keys to TOS1900 devices [[https://git.kernel.org/torvalds/c/7deef550f3a7d44c1d52a6d54f824e7e180c08ae|commit]]
+  * toshiba_acpi: Add /dev/toshiba_acpi device [[https://git.kernel.org/torvalds/c/fc5462f8525b47fa219452289ecb22c921c16823|commit]]
+  * Add MONITORX/MWAITX instruction support. This new instruction (available in AMD Carrizo processors) controls a configurable timer which causes the core to exit wait state on timer expiration, in addition to "normal" MWAIT condition of reading from a monitored VA [[https://git.kernel.org/torvalds/c/f96756746c7909de37db3d03ac5fd5cfb2757f38|commit]]
+
+
+
+ * MIPS
+  * Add MIPS I6400 probe support [[https://git.kernel.org/torvalds/c/e57f9a2dcedc7f4847799e13a9987874a161d308|commit]]
+  * Add uprobes support. [[https://git.kernel.org/torvalds/c/40e084a506eba78310cd5e8ab700fd1226c6130a|commit]]
+  * CM: Add support for reporting CM cache errors [[https://git.kernel.org/torvalds/c/3885c2b463f6a236e47df22ef13d13433006b951|commit]]
+  * Octeon: Support additional interfaces on CN68XX [[https://git.kernel.org/torvalds/c/2c8c3f0201333f430b632c6b62a5b81456284884|commit]]
+  * Octeon: Support all PIP input ports on CN68XX [[https://git.kernel.org/torvalds/c/fce0af1dc34e2765357dfbd21dd923c89254bcdb|commit]]
+  * math-emu: Add support for the CMP.condn.fmt R6 instruction [[https://git.kernel.org/torvalds/c/f8c3c6717a7128f9601b20f890d658283d59561a|commit]], for MIPS R6 CLASS FPU instruction [[https://git.kernel.org/torvalds/c/38db37ba069f9d801ef56b820cfc7c247a7ffc02|commit]], support for the MIPS R6 MADDF FPU instruction [[https://git.kernel.org/torvalds/c/e24c3bec3e8e254a3784b3e4c97bd3a76fbcc807|commit]], for the MIPS R6 MAX{, A} FPU instruction [[https://git.kernel.org/torvalds/c/a79f5f9ba5088f157482feaa6ae2bacc9da0f5db|commit]], for the MIPS R6 MIN{, A} FPU instruction [[https://git.kernel.org/torvalds/c/4e9561b20e2f5c1170704a81ec7e1ac961ba5e68|commit]], for the MIPS R6 MSUBF FPU instruction [[https://git.kernel.org/torvalds/c/83d43305a1df2aa2976e3ccf012e4cf0dc29673d|commit]], for the MIPS R6 RINT FPU instruction [[https://git.kernel.org/torvalds/c/400bd2e41393a783e0532321fdb369d2cc15ea26|commit]], for the MIPS R6 SELEQZ FPU instruction [[https://git.kernel.org/torvalds/c/67613f02788d73541c7c9b1c851061b8c223057b|commit]], for the MIPS R6 SELNEZ FPU instruction [[https://git.kernel.org/torvalds/c/130fe357ee895421a4aefef7b1285bf52f295afe|commit]]
+
+ * S390
+  * cio: Implement proper Link Incident Record handling [[https://git.kernel.org/torvalds/c/1d2334cb7da37e4b0005ca1d194d4e10ca7119f4|commit]]
+  * Lazy restore fpu registers [[https://git.kernel.org/torvalds/c/9977e886cbbc758b4b601a160b5825ba573b5ca8|commit]]
+  * Enable generic CPU feature modalias using s390 ELF hwcaps [[https://git.kernel.org/torvalds/c/8f00b3e28f73e712a2f82a15f66acd852f60e3ba|commit]]
+  * numa: add core infrastructure [[https://git.kernel.org/torvalds/c/3a368f742da13955bed4a2efed85ed7c1d826bcc|commit]]
+  * numa: add emulation support [[https://git.kernel.org/torvalds/c/c29a7baf091fc6b2c9e40561030f8c62e6145a19|commit]]
+  * numa: add topology tree infrastructure [[https://git.kernel.org/torvalds/c/e8054b654bf5d4f549f4f24b708acce6d2718b1b|commit]]
+  * numa: enable support in s390 configs [[https://git.kernel.org/torvalds/c/a763bc8b656d11b7424cd2696e19efca301d8aa4|commit]]
+  * sclp_vt220: support magic sysrequests [[https://git.kernel.org/torvalds/c/1d3f9094c6fdb5680fd3b19a5b153308d53a70ee|commit]]
+
+
+ * XTENSA
+  * implement counting and sampling perf events [[https://git.kernel.org/torvalds/c/9bd46da45edd9701bcb2a221d58afe7d01febd1d|commit]]
+  * implement fake NMI [[https://git.kernel.org/torvalds/c/38fef73c21d117cf992fb5ec6e30630e54e13f4f|commit]]
+
+ * PPC
+  * Enable seccomp filter [[https://git.kernel.org/torvalds/c/2449acc5348b94325e9374056b2cc3ed55816e96|commit]]
+  * KVM: Book3S HV: Implement dynamic micro-threading on POWER8 [[https://git.kernel.org/torvalds/c/b4deba5c41e9f6d3239606c9e060853d9decfee1|commit]]; make use of unused threads when running guests [[https://git.kernel.org/torvalds/c/ec257165082616841a354dd915801ed43e3553be|commit]]
+  * Add led driver for PowerNV platform [[https://git.kernel.org/torvalds/c/84ad6e5cd3e8b365c893f31787864cae5500610b|commit]]
+  * fsl-booke: Add T1040D4RDB/T1042D4RDB board support [[https://git.kernel.org/torvalds/c/0d748ec5eaedfa0802e02df6b5912d32c752f88e|commit]]
+  * powernv: Add poweroff (EPOW, DPO) events support for PowerNV platform [[https://git.kernel.org/torvalds/c/3b476aadbc1409fef6be85f601117f2c6a331faa|commit]]
+
+
+ * ARCv2
+  * Enable HAVE_FUTEX_CMPXCHG [[https://git.kernel.org/torvalds/c/5e0574292ad48dcdf48ef90a47da862c21d649a6|commit]]
+  * perf support for ARCv2 based cores (sampling interrupt, SMP) [[https://git.kernel.org/torvalds/c/9b28829d6da391f67a76dbba07a167e2b554bd10|commit]], [[https://git.kernel.org/torvalds/c/e525c37f8413b19130d0499c7467fed45a94579b|commit]], [[https://git.kernel.org/torvalds/c/36481cf7fbcc666699d54cb267088d2b415ff164|commit]], [[https://git.kernel.org/torvalds/c/1fe8bfa5ff3b2e97f26add89b20768fb7c4188c0|commit]], [[https://git.kernel.org/torvalds/c/e6b1d126bb748103824087189e30febc88c4db73|commit]]
+  * Support IO Coherency and permutations involving L1 and L2 caches [[https://git.kernel.org/torvalds/c/f2b0b25a37a6db12580dcdfdf00f020e5e0e3a43|commit]]
+
+
+ * CRIS
+  * Add STACKTRACE_SUPPORT [[https://git.kernel.org/torvalds/c/aa6f4d2b6547a9949d87c9b09a872a7015366588|commit]]
+  * Enable LOCKDEP_SUPPORT [[https://git.kernel.org/torvalds/c/94c5c115c1f7d347d5ec7f32a090f8643dd42525|commit]]
+
+ * PARISC
+  * Enable 64-bit bus addresses on PA-RISC [[https://git.kernel.org/torvalds/c/e02a653e15d8d32e9e768fd99a3271aafe5c5d77|commit]]
+
+ * ALPHA
+  * Select CONFIG_ARCH_USE_CMPXCHG_LOCKREF. [[https://git.kernel.org/torvalds/c/8f8dcb3f7fe4febbfa96e64d4ad47de958c5cc34|commit]]
+
+ * NIOS2
+  * Add Max10 device tree [[https://git.kernel.org/torvalds/c/61c610ec61bb334ba97cddaf352c95b9371d2a23|commit]]
+
+ * TILE
+  * Enable full SECCOMP support [[https://git.kernel.org/torvalds/c/a0ddef81f4aeeeec3326f6b6a255d8ea13b41908|commit]]
+
+= Drivers =
+== Graphics ==
+ * Disable some dri1 interfaces on kms drivers [[https://git.kernel.org/torvalds/c/da168d81b44898404d281d5dbe70154ab5f117c1|commit]]
+ * Drop switching back to fb console on panic [[https://git.kernel.org/torvalds/c/6066677cfd9d73734ab678b9d14013c860f0f732|commit]]
+ * layerscape: Add Freescale DCU DRM driver [[https://git.kernel.org/torvalds/c/109eee2f2a181a89a26f6b59b83b50ebab281d4d|commit]]
+
+ * i915    
+  * Skylake support enabled by default [[https://git.kernel.org/torvalds/c/4b0c8bb016e7f36e2d6ec230f9177f88def690d5|commit]]
+  * Legacy modesetting using atomic infrastructure [[https://git.kernel.org/torvalds/c/f60de9767490a73b54c2754e1de83fc68eb7d9a0|(merge)]]
+  * Enable DDI-E [[https://git.kernel.org/torvalds/c/2800e4c228b8961c4da1a4925cc20c16e623851b|commit]], [[https://git.kernel.org/torvalds/c/26951caf55d73ceb1967b0bf12f6d0b96853508e|commit]], [[https://git.kernel.org/torvalds/c/11c1b657c42f65c43f866b611956ef0a10bedafc|commit]]
+  * Add GuC-related module parameters [[https://git.kernel.org/torvalds/c/63dc04498ace9cb657174e77373d6fcc85d6c492|commit]]
+ * amdgpu
+  * Fiji support [[https://git.kernel.org/torvalds/c/48299f95f75b695329c53a33dd6673ccf1b5a03f|commit]], [[https://git.kernel.org/torvalds/c/d1c4dcfb76a0053ca7bcc90608b3699ac1e1b39d|commit]], [[https://git.kernel.org/torvalds/c/aa8a3b5395f61ee2418ea33c6f2d95b432a13f35|commit]], [[https://git.kernel.org/torvalds/c/8e711e1a1ad3a95883ae15deead593d22e57c3f1|commit]], [[https://git.kernel.org/torvalds/c/843908604d72a1988d94936d9c34768eb8de97a6|commit]], [[https://git.kernel.org/torvalds/c/af15a2d51dba75498b7802fd67399a093961ddc4|commit]], [[https://git.kernel.org/torvalds/c/127a262853a4ca8a9284f58241c733ff074f8327|commit]], [[https://git.kernel.org/torvalds/c/974ee3db0ff88e5413b734e634119d1e8a10a77f|commit]], [[https://git.kernel.org/torvalds/c/2da78e21d153d333778d6566f159be06548418f9|commit]], [[https://git.kernel.org/torvalds/c/188a9bcd6cbe55c6fea23309548741d8e34bb590|commit]]
+  * CGS (Common Graphics Services) support for amdgpu [[https://git.kernel.org/torvalds/c/d03846af92750f83d36ff2110a0cee444979b2a2|commit]], [[https://git.kernel.org/torvalds/c/0cf3be21782f8d5b74cce98a2b934e14ef418ef3|commit]], [[https://git.kernel.org/torvalds/c/aba684d87a4d6805feddc7c4bc77c3c24f913ed1|commit]], [[https://git.kernel.org/torvalds/c/97cb7f6e6c4d7d78de7e174d8776a95ef7fd1e8a|commit]], [[https://git.kernel.org/torvalds/c/25da442779041e5fac7ceba552264fda55106e3f|commit]], [[https://git.kernel.org/torvalds/c/bf3911b06fa9c551b852af563fed393a02e48a7a|commit]], [[https://git.kernel.org/torvalds/c/404b2fa3385565b1c472a0482f6564a1550fc8d1|commit]], [[https://git.kernel.org/torvalds/c/57ff96cf471a30104c1ffdc49d237942d4908608|commit]]
+  * Initial GPU scheduler - off by default (can be enabled with module option enable_scheduler) [[https://git.kernel.org/torvalds/c/a72ce6f84109c1dec1ab236d65979d3250668af3|commit]], [[https://git.kernel.org/torvalds/c/c1b69ed0c62f9d86599600f4c1a3bd82db1b7362|commit]], [[https://git.kernel.org/torvalds/c/02b9f0bfd49da01629eef6d250c477490047acd6|commit]], [[https://git.kernel.org/torvalds/c/e0d8f3c34e54b7f7563360131e89be0d9405d436|commit]], [[https://git.kernel.org/torvalds/c/b80d8475c1fdf5f4bcabb65168b2e8a9c3d77731|commit]], [[https://git.kernel.org/torvalds/c/4afcb30383bef8bf972c6aae47995ef314e5f8a1|commit]], [[https://git.kernel.org/torvalds/c/1333f723fb6f1356a54135586f1ede44dcaa9652|commit]], [[https://git.kernel.org/torvalds/c/f556cb0caeec1ba9b8e5e2aa85b47e76277f5d4b|commit]]
+  * amdkfd: Add Carrizo support for amdkfd using amdgpu [[https://git.kernel.org/torvalds/c/130e0371b7d454bb4a861253c822b9f911ad5d19|commit]], [[https://git.kernel.org/torvalds/c/ff758a12b45b0513dbe9905deba2a29b20412138|commit]], [[https://git.kernel.org/torvalds/c/32c22e994f44e7e5cc54b52375012311d1693b0d|commit]], [[https://git.kernel.org/torvalds/c/123576d1440df7bfa6e2188784e8cd9dc01eea6b|commit]]
+ * nouveau
+  * Add GM20B support [[https://git.kernel.org/torvalds/c/a032fb9da665ed6e6a36fa6788eff1db43ba2703|commit]]
+  * Use NVIDIA-provided external firmwares [[https://git.kernel.org/torvalds/c/8539b37acef73949861a16808b60cb8b5b9b3bab|commit]]
+ * vmwgfx
+  * New DX device support, supports OpenGL 3.3 [[https://git.kernel.org/torvalds/c/8ce75f8ab9044fe11caaaf2b2c82471023212f9f|commit]], [[https://git.kernel.org/torvalds/c/d80efd5cb3dec16a8d1aea9b8a4a7921972dba65|commit]], [[https://git.kernel.org/torvalds/c/2f633e5e40798d5c8db512118b5e464b62f7ff06|commit]], [[https://git.kernel.org/torvalds/c/0fca749e9a085ac4623a807ab12c37fc09851e3c|commit]], [[https://git.kernel.org/torvalds/c/fd11a3c0bd39162547e8abe44e1aaa11059c15f5|commit]]
+  * Add support for the Screen target device interface [[https://git.kernel.org/torvalds/c/35c051258e8fd7cb97222f4aa887bcd404c156d0|commit]]
+  * Implement fbdev on kms [[https://git.kernel.org/torvalds/c/a278724aa23c544c2087cb7537db6b950877c291|commit]]
+  * Add command buffer support [[https://git.kernel.org/torvalds/c/3eab3d9eef65041952fd7b15a2eba13cb308968d|commit]]
+commit]
+ * mgag200
+  * Add support for a new G200eW3 chipset [[https://git.kernel.org/torvalds/c/6d857c18aefdec782ba1db578a390fbac5145107|commit]]
+  * Add support for a new rev of G200e [[https://git.kernel.org/torvalds/c/e829d7ef9f17d7b84d4c3d110ecd4b7b2bcba865|commit]]
+ * msm
+  * dragonboard 410c support, msm8x94 support, msm8x74v1 support [[https://git.kernel.org/torvalds/c/dcefc117cc192f215d04c4e7cbae6b76a9bafcf4|commit]], [[https://git.kernel.org/torvalds/c/3a84f8469e2687b9fdcf83d615b8001a2443566a|commit]], [[https://git.kernel.org/torvalds/c/8a94b0aa372ebf7375c8ea861cb9bbf84b39d2df|commit]]
+  * Add more YUV formats for MDP5 [[https://git.kernel.org/torvalds/c/bef799fb77dc30d32362b6850e997f1c29fc99eb|commit]]
+  * Add rotation (hflip/vflip) support to MDP5 planes (v2) [[https://git.kernel.org/torvalds/c/8089082fae1975ad9d5abbd37c0ee8f688be28a0|commit]]
+  * Add hdmi hdcp support [[https://git.kernel.org/torvalds/c/c6a57a50ad562a2e6fc6ac3218b710caea73a58b|commit]]
+  * Add plane blending operation support for MDP5 [[https://git.kernel.org/torvalds/c/129877819c0a5f8d419fe67ae08a8a7c811afa5e|commit]]
+  * Add DMA plane support [[https://git.kernel.org/torvalds/c/8155ad4ce67d2f3418a4a72144c10114d21f0ece|commit]]
+    
+ * sti
+  * Atomic support [[https://git.kernel.org/torvalds/c/29d1dc62e1618192a25bd2eae9617529b9930cfc|commit]]
+ * tegra
+  * Allow VBLANK to be disabled [[https://git.kernel.org/torvalds/c/cdc630b6c677b6d981b368baf44c8b4297adbb09|commit]]
+  * Add Tegra210 support [[https://git.kernel.org/torvalds/c/5b4f516f5c6a2d3ac6edf750a40041842f928198|commit]]
+  * Implement atomic DPMS [[https://git.kernel.org/torvalds/c/003fc848774fcc7b7f14a2b4f3e6411764f43fc0|commit]]
+  * sor: Add HDMI support [[https://git.kernel.org/torvalds/c/459cc2c6800b545a482e428a631d99bca8da7790|commit]], add Tegra210 eDP support [[https://git.kernel.org/torvalds/c/3309ac836229d8bc3db7618e04a51334bef13b0a|commit]]
+ * atmel
+  * Add PRIME support [[https://git.kernel.org/torvalds/c/e14c71c849f838a4618fe46f5b6a0414c07891d1|commit]]
+  * Add RGB565 and RGB444 output support [[https://git.kernel.org/torvalds/c/923f869846014ac56937690a7cc968414a1e92d0|commit]]
+  * Add support for at91sam9n12 SoC [[https://git.kernel.org/torvalds/c/6b22cadce2175c997435d93cd3ef9b0389c45ad7|commit]]
+  * Add support for at91sam9x5 SoCs [[https://git.kernel.org/torvalds/c/348ef85f6216c1a11726a165a7f32b8516aa8014|commit]]
+  * Add support for sama5d4 SoCs [[https://git.kernel.org/torvalds/c/5b9fb5e6c6c74666f88f34bd0db183b9c4269d97|commit]]
+ * rockchip
+  * vop: Add yuv plane support [[https://git.kernel.org/torvalds/c/84c7f8ca43000ee97e556bddbbc4543e2514239d|commit]]
+  * vop: support plane scale [[https://git.kernel.org/torvalds/c/4c156c21c7948a0be854cbe5914af3181303e529|commit]]
+ * exynos
+  * Enable atomic modesetting feature [[https://git.kernel.org/torvalds/c/c8c38ccff9308a706b5314ca1cf157713a40f6b5|commit]]
+  * Add atomic asynchronous commit [[https://git.kernel.org/torvalds/c/a379df19356de97afdca37c4e8f5e8729215d6ea|commit]]
+  * Add render node support [[https://git.kernel.org/torvalds/c/74f230d2a7e36c27fde38db20ebfb7ddb9c4a116|commit]]
+ * panel
+  * Add display timing for Okaya RS800480T-7X0GP [[https://git.kernel.org/torvalds/c/a99fb6269d1af432c051ed552aaea807f9f906c9|commit]]
+  * Add support for LG LG4573 480x800 4.3" panel [[https://git.kernel.org/torvalds/c/58c467ece486e9bd1e26b4fd68e8cdef8501952d|commit]]
+  * simple: Add support for AUO B080UAN01 [[https://git.kernel.org/torvalds/c/d718d79e57039ccf59f638efe7c9ede2bfabc6f1|commit]]
+  * simple: Add support for NEC NL4827HC19-05B 480x272 panel [[https://git.kernel.org/torvalds/c/c6e87f91f0445e80656eddae84429ad7d687dc3f|commit]]
+ * host1x
+  * mipi: Add Tegra132 support [[https://git.kernel.org/torvalds/c/7fd3ecad3f768fd2b39fc4db12044437fbf5d735|commit]]
+  * mipi: Add Tegra210 support [[https://git.kernel.org/torvalds/c/5e7752436e10427ba598de4f2f6b7889daf586cc|commit]]
+
+
+== Storage ==
+ * SCSI
+  * cxlflash: Base error recovery support [[https://git.kernel.org/torvalds/c/5cdac81a870f3bb65c50d3f5566a86fb086118d2|commit]]
+  * cxlflash: Base support for IBM CXL Flash Adapter [[https://git.kernel.org/torvalds/c/c21e0bbfc48509a776ec4a39bd9a0fb45a9c315b|commit]]
+  * cxlflash: Superpipe support [[https://git.kernel.org/torvalds/c/65be2c79acc3aa0f9c0e8d4871f5a451d854465a|commit]]
+  * cxlflash: Virtual LUN support [[https://git.kernel.org/torvalds/c/2cb79266d6b229dbebd31fe114af1bdab25c8076|commit]]
+  * hpsa: add in new controllers [[https://git.kernel.org/torvalds/c/cbb47dcbb405d4a694801e6ad6d63c2992f83bb4|commit]]
+  * hpsa: add in new offline mode [[https://git.kernel.org/torvalds/c/5ca0120447ae8d485e2ee5100f25b6645e3e320f|commit]]
+  * hpsa: add sysfs entry path_info to show box and bay information [[https://git.kernel.org/torvalds/c/8270b8624365887a716615294d0ac28af07c9287|commit]]
+  * hptiop: Support HighPoint RR36xx HBAs and Support SAS tape and SAS media changer [[https://git.kernel.org/torvalds/c/a93429c300483fa2509ae949a7915a01bd0acd20|commit]]
+  * ipr: Enable SIS pipe commands for SIS-32 devices. [[https://git.kernel.org/torvalds/c/e35d7f27fbd51a09a41a5439e39f22a3d102c00b|commit]]
+  * pm80xx: Added pm8006 controller support [[https://git.kernel.org/torvalds/c/d8571b1ecbd497d78923e046262872e3206b2deb|commit]]
+  * mpt3sas: Added Combined Reply Queue feature to extend up-to 96 MSIX vector support [[https://git.kernel.org/torvalds/c/fb77bb5376a55f4e6c8d9243249e82831a276ee5|commit]]
+  * mpt3sas: Provides the physical location of sas drives [[https://git.kernel.org/torvalds/c/e6d45e3e7e6582fa206ef84631639ce70d50e5c5|commit]]
+  * qla2xxx: Add pci device id 0x2261. [[https://git.kernel.org/torvalds/c/2b48992f656e109b9d7357cedc0406b50ec82c22|commit]]
+  * target: add support for START_STOP_UNIT SCSI opcode [[https://git.kernel.org/torvalds/c/45182ed576898b846a98ac3bff2ddcb9d35a0181|commit]]
+
+
+
+== Staging ==
+ * Add hfi1 driver to staging/rdma [[https://git.kernel.org/torvalds/c/7724105686e718ac476a6ad3304fea2fbcfcffde|commit]]
+ * fbtft: Add support for the Ultrachip UC1611 LCD controller [[https://git.kernel.org/torvalds/c/a1560f9bec8b9275a751bd39a1db791d2c73d6e5|commit]]
+ * most: add MOST driver's aim-cdev module [[https://git.kernel.org/torvalds/c/9bc79bbcd0c526e3ec7b98e08c5d34648bb3c158|commit]]
+ * most: add MOST driver's aim-network module [[https://git.kernel.org/torvalds/c/d4a8ce7f57fc6333e4e5a23980f5265e00ed44ef|commit]]
+ * most: add MOST driver's aim-sound module [[https://git.kernel.org/torvalds/c/54b4856fb3624609dd5d9ed013bfec7d67083622|commit]]
+ * most: add MOST driver's aim-v4l2 module [[https://git.kernel.org/torvalds/c/3d31c0cb6c127b1d943b610065a05decf821998c|commit]]
+ * most: add MOST driver's core module [[https://git.kernel.org/torvalds/c/57562a72414ca35b2e614cfe0a1b1a7b7e7813dd|commit]]
+ * most: add MOST driver's documentation [[https://git.kernel.org/torvalds/c/59cc3399efd61fabb7f4aa23d4498bd9b01e5f6d|commit]]
+ * most: add MOST driver's hdm-dim2 module [[https://git.kernel.org/torvalds/c/ba3d7ddfb5c6a2529155ac24d7964adba8777419|commit]]
+ * most: add MOST driver's hdm-i2c module [[https://git.kernel.org/torvalds/c/91a450ada852f8cb5fc8b9c7242a856cc7b31643|commit]]
+ * most: add MOST driver's hdm-usb module [[https://git.kernel.org/torvalds/c/a4198cdf0c3460d767d0d36979cd633021c127a2|commit]]
+ * ozwpan: Remove from tree [[https://git.kernel.org/torvalds/c/a73e99cb67e7438e5ab0c524ae63a8a27616c839|commit]]
+
+== Networking ==
+ * fjes: Introduce FUJITSU Extended Socket Network Device driver [[https://git.kernel.org/torvalds/c/658d439b22924796d00f03282135a356f47cc64e|commit]]
+ * 3c59x: Add BQL support for 3c59x ethernet driver. [[https://git.kernel.org/torvalds/c/4a89ba04ecc6377696e4e26c1abc1cb5764decb9|commit]]
+ * Microchip's LAN7800 family USB 2/3 to 10/100/1000 Ethernet device driver [[https://git.kernel.org/torvalds/c/55d7de9de6c30adce8d675c7ce513e283829c2ff|commit]]
+ * add microchip LAN88xx phy driver [[https://git.kernel.org/torvalds/c/792aec47d59d951865cc617a97b6e6be53d4b977|commit]]
+ * ath10k: Add hw register/values for QCA99X0 chip [[https://git.kernel.org/torvalds/c/8bd4702103dca2b06446f85c04222faa8eb553b5|commit]]
+ * ath10k: add QCA99X0 to supported device list [[https://git.kernel.org/torvalds/c/8a055a8adc875768223be2dfc33de5dc70212756|commit]]
+ * ath10k: add TCP/UDP Checksum offload support for QCA99x0 [[https://git.kernel.org/torvalds/c/b963519509644f52eaaddcc1fa484e28ac74c750|commit]]
+ * ath10k: add qca6164 support [[https://git.kernel.org/torvalds/c/36582e5d4daeccf68a8a3cef9bc37b60fb7d45b9|commit]]
+ * ath10k: enable VHT for IBSS [[https://git.kernel.org/torvalds/c/c702534a23d61deaa0565ef0495ab866c06c4325|commit]]
+ * ath9k: add fast-xmit support [[https://git.kernel.org/torvalds/c/f419c5f1d8d28391a025618dee7e1a4fdc7a5654|commit]]
+ * bgmac: support up to 3 cores (devices) on a bus [[https://git.kernel.org/torvalds/c/538e4563198cd3d1a8e74c47fee3e49dc93e4a95|commit]]
+ * bnx2x: Add MFW dump support [[https://git.kernel.org/torvalds/c/c48f350ff5e75abae2627c2531780264f9e49130|commit]]
+ * bnx2x: Add new device ids under the Qlogic vendor [[https://git.kernel.org/torvalds/c/9c9a6524b5fdf6cb57c9ff627b7f242a6a4e0b00|commit]]
+ * bnx2x: Add vxlan RSS support [[https://git.kernel.org/torvalds/c/f34fa14cc033239037622dbe84faf53923bb7e74|commit]]
+ * bnx2x: add vlan filtering offload [[https://git.kernel.org/torvalds/c/05cc5a39ddb74dd81a716a45e67b938d8ebed463|commit]]
+ * bnx2x: new Multi-function mode - BD [[https://git.kernel.org/torvalds/c/230d00eb4bfe0ddc88b848fd953f7b871ee2ecd7|commit]]
+ * brcmfmac: Add support for host platform NVRAM loading. [[https://git.kernel.org/torvalds/c/4e70f2144db01f7214ed5846e47abf128fbfb5af|commit]]
+ * be2net: Support vxlan offload stats in the driver [[https://git.kernel.org/torvalds/c/8670f2a5acec2f79839785efdfb3626dfada7ed4|commit]]
+ * cxgb4: Add MPS tracing support [[https://git.kernel.org/torvalds/c/8e3d04fd7d70679eed631ba5889f81b2d9415404|commit]]
+ * cxgb4: Add PCI device ids for few more T5 and T6 adapters [[https://git.kernel.org/torvalds/c/81aa507981bd785da84ac8bbed942495257dcaa3|commit]]
+ * cxgb4: Add support to dump edc bist status [[https://git.kernel.org/torvalds/c/bf8ebb67dae0a07db7aebe7a65c178ff24d90842|commit]]
+ * cxgb4: add device ID for few T5 adapters [[https://git.kernel.org/torvalds/c/d828755eae637c6ca39e30702e98abaf34cac146|commit]]
+ * i40e/i40evf: Add support for X722 [[https://git.kernel.org/torvalds/c/52eb95ef3286f10c4584c3dcb25d4be7d8e1faeb|commit]], [[https://git.kernel.org/torvalds/c/527274c78ea7e0cad8b44ea25509c42aa605634e|commit]], [[https://git.kernel.org/torvalds/c/87e6c1d78706b97018de3169d0edd661f640a425|commit]], [[https://git.kernel.org/torvalds/c/d502ce01d21bf4092f282cae5817e7d140e21816|commit]], [[https://git.kernel.org/torvalds/c/8e0764b4d6be42459b6f517e199b8c7df43cc15c|commit]], [[https://git.kernel.org/torvalds/c/e25d00b87b26f96f91434e6608dc4b05f5ef5498|commit]], [[https://git.kernel.org/torvalds/c/e50c8d6d3d3f5807aaaeaaec42774cd02fd5076f|commit]], [[https://git.kernel.org/torvalds/c/da48c9a2aa3a93b4f19e3a37b8fa1cd7fe7005bb|commit]], [[https://git.kernel.org/torvalds/c/7073f46e443ecb5a48221160aa39773ccb520b0f|commit]], [[https://git.kernel.org/torvalds/c/0d8e14392f7697e5ee241d49fce3355f22406d3e|commit]]
+ * i40e/i40evf: Add stats to track FD ATR and SB dynamic enable state [[https://git.kernel.org/torvalds/c/d0389e51fc9b3c74e7935ded5d22eab4ea004589|commit]]
+ * i40e: add VF capabilities to virtual channel interface [[https://git.kernel.org/torvalds/c/1b53c2fb43a0f03f7bb8a179d910e98a2fe68674|commit]]
+ * i40e: support virtual channel API 1.1 [[https://git.kernel.org/torvalds/c/f4ca1a229535f1e7eb8253504c66e01e4623c278|commit]]
+ * i40evf: handle big resets [[https://git.kernel.org/torvalds/c/e6d038de13c82f8446d9db5b3d9bb7788344b2bd|commit]]
+ * i40evf: support virtual channel API version 1.1 [[https://git.kernel.org/torvalds/c/ee1693e5a5ad6cfd701381a1d04cc1878bb90724|commit]]
+ * ibmveth: add support for TSO6 [[https://git.kernel.org/torvalds/c/07e6a97da1eba064bb35cfd5c121e90865393a60|commit]]
+ * iwlwifi: add new TLV capability flag for gscan support [[https://git.kernel.org/torvalds/c/17564dde6024fcfe74cc0512e7837175aa5283d9|commit]]
+ * iwlwifi: add wide firmware command infrastructure for TX [[https://git.kernel.org/torvalds/c/ab02165ccec4c78162501acedeef1a768acdb811|commit]]
+ * iwlwifi: add wide firmware command support for notifications [[https://git.kernel.org/torvalds/c/6eb031d2fe2d9a3d7eaaba151c64e20bd0220fc9|commit]]
+ * iwlwifi: mvm: Enable Rx Checksum hw [[https://git.kernel.org/torvalds/c/93190fb0589f97bd603bd545459122a8f5532080|commit]]
+ * iwlwifi: mvm: add basic Time of Flight (802.11mc FTM) support [[https://git.kernel.org/torvalds/c/ce7929186a390b8630953be6d8225a9ae88030af|commit]]
+ * iwlwifi: mvm: add wide firmware command infrastructure for RX [[https://git.kernel.org/torvalds/c/1230b16b448acfdfe7d0cac940311c9363861c03|commit]]
+ * iwlwifi: mvm: add wide firmware command support for debug triggers [[https://git.kernel.org/torvalds/c/0ab66e6d28f52677067a905ff2aac3367f8118ee|commit]]
+ * iwlwifi: mvm: support TDLS wider-bandwidth [[https://git.kernel.org/torvalds/c/7c4f084372ed35aef3e8c6e6b1f1b1dc3235987a|commit]]
+ * ixgbe: Add support for UDP-encapsulated tx checksum offload [[https://git.kernel.org/torvalds/c/f467bc06022d4d37de459f9498ff4fbc7e9b0fca|commit]]
+ * ixgbe: Add support for VXLAN RX offloads [[https://git.kernel.org/torvalds/c/67359c3c9fc8e9fbed991bbe0cfeda55c7e0a64c|commit]]
+ * ixgbe: Add support for entering low power link up state [[https://git.kernel.org/torvalds/c/6ac7439459606a57265800e60b14d58365ab19eb|commit]]
+ * ixgbe: Add support for reporting 2.5G link speed [[https://git.kernel.org/torvalds/c/454adb008d78e4ecdfec3f2e5e9eb08ee5a60f1a|commit]]
+ * ixgbe: support for ethtool set_rxfh [[https://git.kernel.org/torvalds/c/1c7cf0784e4d448ed8a07c5fc1e3aac1528272f1|commit]]
+ * ixgbevf: add support for reporting RSS key and hash table for X550 [[https://git.kernel.org/torvalds/c/9cba434f630a972b47327ae3d014445033166206|commit]]
+ * rtlwifi: rtl8192cu: Add new device ID [[https://git.kernel.org/torvalds/c/1642d09fb9b128e8e538b2a4179962a34f38dff9|commit]]
+ * wlcore: add p2p device support [[https://git.kernel.org/torvalds/c/7845af35e0deeb7537de759ebc69d6395d4123bf|commit]]
+ * qlcnic: Add new VF device ID 0x8C30 [[https://git.kernel.org/torvalds/c/da286a6fd1e6913779c0a479f428ec3763dfc16c|commit]]
+ * qmi_wwan: Add support for Dell Wireless 5809e 4G Modem [[https://git.kernel.org/torvalds/c/2070c48cf2b78af89ba529c00992eaaa18df8ef7|commit]]
+ * qmi_wwan: add Sierra Wireless MC74xx/EM74xx [[https://git.kernel.org/torvalds/c/0db65fcfcded76fe4f74e3ca9f4e2baf67b683ef|commit]]
+ * r8152: support the new RTL8153 chip [[https://git.kernel.org/torvalds/c/fb02eb4a29303295f2fed8a69d9aa703792c834b|commit]]
+ * r8169: Add software counter for multicast packages [[https://git.kernel.org/torvalds/c/d7d2d89d4b0afa8f4c2b169475a0c6e43553c146|commit]]
+ * wil6210: TSO implementation [[https://git.kernel.org/torvalds/c/3d4bde15315605d2490eafe9f763897e69f9125e|commit]]
+ * wil6210: support boot loader struct v0 & v1 [[https://git.kernel.org/torvalds/c/f1ad8c9346de80c91d7f35d4a1b0d1f2b93b3661|commit]]
+ * wil6210: support future boot loaders [[https://git.kernel.org/torvalds/c/19c871ce3ac5f99d4354b0345c7560f6d0f760bd|commit]]
+ * wil6210: system power management [[https://git.kernel.org/torvalds/c/93cb679a768bb526a60a9c4ce30beb45465334be|commit]]
+ * RDMA/amso1100: Deprecate the amso1100 driver and move to staging [[https://git.kernel.org/torvalds/c/072bf1f7e4b5963034df35460f5f311396347a36|commit]]
+ * thunder, bgx: Add support to get MAC address from ACPI. [[https://git.kernel.org/torvalds/c/46b903a01c053d0c94975ea7a6819618f121d3d6|commit]]
+ * thunderx: Add receive error stats reporting via ethtool [[https://git.kernel.org/torvalds/c/a2dc5dedbbb32d082a9b6edf8793734dbfd59315|commit]]
+ * thunderx: Receive hashing HW offload support [[https://git.kernel.org/torvalds/c/38bb5d4f4f988c98035fca003138dd84471432f2|commit]]
+ * thunderx: Support for HW VLAN stripping [[https://git.kernel.org/torvalds/c/aa2e259b474a4f52ecc9f6e0d444547de0aac4b2|commit]]
+ * thunderx: Support for internal loopback mode [[https://git.kernel.org/torvalds/c/d77a2384988fd397cf4f71417b9d971aa435758d|commit]]
+ * thunderx: Support for upto 96 queues for a VF [[https://git.kernel.org/torvalds/c/92dc87697e6a71675a9e9eec04ebecd8cf4837a3|commit]]
+ * nfc: s3fwrn5: Add driver for Samsung S3FWRN5 NFC Chip [[https://git.kernel.org/torvalds/c/c04c674fadeb4a8e6522fc838d4620f7cfd4c621|commit]]
+ * nfc: st-nci: Add spi phy support for st21nfcb [[https://git.kernel.org/torvalds/c/2bc4d4f8c8f3ce863e3644736d1790b0684c7eb0|commit]]
+ * mlx4_en: Add support for hardware accelerated 802.1ad vlan [[https://git.kernel.org/torvalds/c/e38af4faf01d0b35df6995fb395e5fa4a4898289|commit]]
+ * mlx5e: Add ethtool RSS configuration options [[https://git.kernel.org/torvalds/c/2d75b2bc8a8c0ce5567a6ecef52e194d117efe3f|commit]]
+ * mlx5e: Support ETH_RSS_HASH_XOR [[https://git.kernel.org/torvalds/c/2be6967cdbc95a9960b620defedbf5e02e2af619|commit]]
+ * mlx5e: Support TX packet copy into WQE [[https://git.kernel.org/torvalds/c/58d522912ac7d25b63f468fa4a4e8bb059c5144e|commit]]
+ * mlx5e: Support ethtool get/set_pauseparam [[https://git.kernel.org/torvalds/c/3c2d18ef22df1bdccfb11a5b85b29e4e61b9d9c6|commit]]
+ * mlx5e: Support smaller RX/TX ring sizes [[https://git.kernel.org/torvalds/c/e842b1001dc9b90cc62b489b07ff18e123c8c858|commit]]
+ * asix: add support for the Billionton GUSB2AM-1G-B USB adapter [[https://git.kernel.org/torvalds/c/80083a3c02ef4451edeef31a6f9afe130078f2bf|commit]]
+ * mwifiex: add firmware dump support for SD8997 [[https://git.kernel.org/torvalds/c/eee7f1961b9d85d1fbd1febf73c90d421cc75536|commit]]
+ * mwifiex: add support for 8997 chipset [[https://git.kernel.org/torvalds/c/6d85ef00d9dfe3bb61b021476465fa4e371ed076|commit]]
+ * mwifiex: add tdls channel switch status [[https://git.kernel.org/torvalds/c/ba101ad50a5024978f3f5007b4a6c20b304cdcbe|commit]]
+ * mwifiex: add tdls config command [[https://git.kernel.org/torvalds/c/449b8bbf45e636a684c287f3008d13939aeac58b|commit]]
+ * mwifiex: advertise multichannel support to cfg80211 [[https://git.kernel.org/torvalds/c/de9e9932b76d5458edabd2692d8ad6504501edf1|commit]]
+ * mwifiex: handle multichannel event [[https://git.kernel.org/torvalds/c/8d6b538a5eac1fec259d22ffa5b47ac585582432|commit]]
+ * atl1c: add BQL support [[https://git.kernel.org/torvalds/c/47b344b27a003fcdaccbdc07b3d558a7ccdfec04|commit]]
+ * bcmgenet: Add netconsole support [[https://git.kernel.org/torvalds/c/4d2e88828f25eb587b78a430e18071a5bc8d18c2|commit]]
+ * dsa: Add netconsole support [[https://git.kernel.org/torvalds/c/04ff53f96a931751a70c2bb3926770900b5fbebe|commit]]
+ * dsa: mv88e6171: add hardware 802.1Q support [[https://git.kernel.org/torvalds/c/585e7e1a544c5b13b2a0014c23f3cb6622e8c995|commit]]
+ * dsa: mv88e6xxx: add VLAN Get Next support [[https://git.kernel.org/torvalds/c/b8fee95710639f1075534178701b64b66a180617|commit]]
+ * dsa: mv88e6xxx: add VLAN Load support [[https://git.kernel.org/torvalds/c/0d3b33e60206f40c802581fa35316a6ccdb00caa|commit]]
+ * dsa: mv88e6xxx: add VLAN Purge support [[https://git.kernel.org/torvalds/c/7dad08d738222e998bc27f67f73be713d64cecb8|commit]]
+ * dsa: mv88e6xxx: add VLAN support to FDB dump [[https://git.kernel.org/torvalds/c/02512b6fccecb4cfac9a253686712e790b01ff91|commit]]
+ * netcp: Adds missing statistics for K2L and K2E [[https://git.kernel.org/torvalds/c/5be4001eccb954da7f8ae68248167d3dbb6e7177|commit]]
+ * phy: Support setting polarity in marvell phy driver [[https://git.kernel.org/torvalds/c/239aa55b9496144f89670b545b5698e6c989f710|commit]]
+ * phy: add RealTek RTL8211DN phy id [[https://git.kernel.org/torvalds/c/0024f8920045c6a57d98b44290bbaebb0e3c6c00|commit]]
+ * phy: add driver for aquantia phy [[https://git.kernel.org/torvalds/c/bee8259dd31f419a883174556b11edc6f9a153d1|commit]]
+ * phy: dp83848: Add TI DP83848 Ethernet PHY [[https://git.kernel.org/torvalds/c/34e45ad9378c31ef2b59e8bd63d62f0ca8e719a3|commit]]
+ * qmi_wwan: Sierra Wireless MC73xx -> Sierra Wireless MC7304/MC7354 [[https://git.kernel.org/torvalds/c/e704059272aae2aaa5e5ce7a76e4c27c492e947e|commit]]
+ * rfkill: gpio: Remove BCM2E39 support [[https://git.kernel.org/torvalds/c/9e6080936c3e507da60492a8a606bdd1164baa81|commit]]
+ * systemport: Add netconsole support [[https://git.kernel.org/torvalds/c/6cec4f5e00a34a1c7407af302470246dd4f8be28|commit]]
+ * xgene: Adding support for TSO [[https://git.kernel.org/torvalds/c/9b00eb494dc7c19ee69afef46e864f842cc1824f|commit]]
+ * dsa: Support multiple MDIO busses [[https://git.kernel.org/torvalds/c/6bc6d0a88179b732b9a5e40e05099dc219d1b3cb|commit]]
+ * dsa: mv88e6352/mv88e6xxx: Add support for Marvell 88E6320 and 88E6321 [[https://git.kernel.org/torvalds/c/7c3d0d67d5ddb2aeb3fdae540a567a56c2831d2a|commit]]
+ * dwc_eth_qos: Add support for Synopsys DWC Ethernet QoS [[https://git.kernel.org/torvalds/c/077742dac2c7098ebf932ef02637c2a3b1397046|commit]]
+ * enic: add devcmd2 [[https://git.kernel.org/torvalds/c/373fb0873d4325a7afa04aec29ced0c122d1f8a9|commit]]
+ * ifb: add multiqueue operation [[https://git.kernel.org/torvalds/c/9e29e21a9bbfb2204bab875f0ef6dbaed66592e7|commit]]
+ * igb: add support for 1512 PHY [[https://git.kernel.org/torvalds/c/51045ecff09e33dcf4027f4aa6e6a05a840899d3|commit]]
+ * mlxsw: Add PCI bus implementation [[https://git.kernel.org/torvalds/c/eda6500a987a027b78a275c11db6454404a626aa|commit]]
+ * mlxsw: Introduce Mellanox SwitchX-2 ASIC support [[https://git.kernel.org/torvalds/c/31557f0f9755696530d08465cf9940404f2d48e2|commit]]
+ * mlxsw: Introduce Mellanox switch driver core [[https://git.kernel.org/torvalds/c/93c1edb27f9e7ef7f276b91763c93242bbda71cb|commit]]
+ * rt2800usb: add usb ID 1b75:3070 for Airlive WT-2000USB [[https://git.kernel.org/torvalds/c/910367e374b97fad6ae31f74198ca537e2f3cfe5|commit]]
+
+ * Bluetooth
+  * btbcm: Add BCM4330B1 UART device [[https://git.kernel.org/torvalds/c/4a546ec364633fcbe5709811230d7e0580c9dc1d|commit]]
+  * btintel: Create common Intel Secure Send function [[https://git.kernel.org/torvalds/c/09df123d2d128c52987f11c85397cdbc9ffc89c6|commit]]
+  * btqca: Introduce generic QCA ROME support [[https://git.kernel.org/torvalds/c/83e81961ff7ef75f97756f316caea5aa6bcc19cc|commit]]
+  * hci_intel: Add Intel baudrate configuration support [[https://git.kernel.org/torvalds/c/ff2895592f0fccc59332d5c7d4917ccbecd7468e|commit]]
+  * hci_uart: Add basic support for Intel Lightning Peak devices [[https://git.kernel.org/torvalds/c/ca93cee5a56e5199622bea8bff24c0a96e70c8f1|commit]]
+ * Infiniband
+  * Add RoCE GID table management [[https://git.kernel.org/torvalds/c/03db3a2d81e6e84f3ed3cb9e087cae17d762642b|commit]]
+  * Add RoCE table bonding support [[https://git.kernel.org/torvalds/c/238fdf48f2b54a01cedb5774c3a1e81c94e1a3a0|commit]]
+  * Deprecate ipath driver and move to staging. [[https://git.kernel.org/torvalds/c/6f9b38903c06c159d167344821cd7b4bae864380|commit]]
+  * iser: Support up to 8MB data transfer in a single command [[https://git.kernel.org/torvalds/c/df749cdc45d9f97cb0a5e6ceab80e2e00ee9bf85|commit]]
+  * mlx4_ib: Disassociate support [[https://git.kernel.org/torvalds/c/ae184ddeca5db6d60ba9067ba1c9e940fa01d400|commit]]
+  * sa: Route SA pathrecord query through netlink [[https://git.kernel.org/torvalds/c/2ca546b92a024d07adedd15b4c262b1c2c0786ec|commit]]
+  * ucma: HW Device hot-removal support [[https://git.kernel.org/torvalds/c/e1c30298ccab87151a0c4241fc5985c591598361|commit]]
+  * iw_cxgb4: Add support for clip [[https://git.kernel.org/torvalds/c/84cc6ac62d4386f5b6d9ccf2900686b5648e230f|commit]]
+
+
+== Audio ==
+ * hda: Add dock support for ThinkPad T550 [[https://git.kernel.org/torvalds/c/d05ea7da0e8f6df3c62cfee75538f347cb3d89ef|commit]]
+ * ASoC
+  * Add gtm601 codec driver [[https://git.kernel.org/torvalds/c/efc4720dfbf737903ca4c1366bc45ca780d13412|commit]]
+  * Initial driver support for Intel Skylake devices [[https://git.kernel.org/torvalds/c/abebcdfb64f1b39eeeb14282d9cd4aad1ed86f8d|(merge)]]
+  * add rt298 codec driver [[https://git.kernel.org/torvalds/c/6adcafae6ed20fe380addc8e7c628e529751ade3|commit]]
+  * cs4349: Add support for Cirrus Logic CS4349 [[https://git.kernel.org/torvalds/c/e40da86a37f64c73b810bc7a63d77c44dc61accb|commit]]
+  * fsl-asoc-card: add wm8960 support [[https://git.kernel.org/torvalds/c/50e0ee01382b8e08289d3db209738c5856fd25cf|commit]]
+  * ics43432: Add codec driver for InvenSense ICS-43432 [[https://git.kernel.org/torvalds/c/3b7ce99748f0d006f9d1aa85709872e7b46787f7|commit]]
+  * rockchip: Add machine driver for max98090 codec [[https://git.kernel.org/torvalds/c/49bdb0440541ad1144ad08d5613f9a28bcd2a8dc|commit]]
+  * rockchip: Add machine driver for rt5645/rt5650 codec [[https://git.kernel.org/torvalds/c/86059653ea7ca7b30ed25d6bec5807ba59a4f2e6|commit]]
+  * rsnd: add CTU (Channel Transfer Unit) prototype support [[https://git.kernel.org/torvalds/c/9269e3c3cfac277a49b485e27ac6850f9a11a259|commit]]
+  * rsnd: add MIX (Mixer) support [[https://git.kernel.org/torvalds/c/70fb10529f61c31c26397a02091177bedd23217d|commit]]
+  * ssm4567: Add sense support [[https://git.kernel.org/torvalds/c/dbe71b9d86ee77cf58a92657c43b0e48954dc62b|commit]]
+  * sti-sas: Add sti platform codec [[https://git.kernel.org/torvalds/c/32a726b2e089ec1851965290a610c4ae9cab3303|commit]]
+  * sti: Add support for ST STI controllers [[https://git.kernel.org/torvalds/c/1e6babb417f76bd6d1a4d1d633e5c46435acbfe7|commit]]
+
+
+== Tablets, touch screens, keyboards, mouses ==
+ * Add touchscreen support for Colibri VF50 [[https://git.kernel.org/torvalds/c/48ead50c1dd8e5cdb7ead067558a834c1e895e6e|commit]]
+ * Remove the max77843 haptic driver [[https://git.kernel.org/torvalds/c/38a986c0750db23aeb5968f8b6d37298b9be4b11|commit]]
+ * cap11xx - add LED support [[https://git.kernel.org/torvalds/c/efe3b616f88caa95dbe8636f4d0b3dcefca962bb|commit]]
+ * cyapa - add ACPI HID CYAP0002 for Gen6 devices [[https://git.kernel.org/torvalds/c/ce2ae9e3e6a152866a33972c966f8315aab2cb1d|commit]]
+ * cyapa - add gen6 device module support [[https://git.kernel.org/torvalds/c/c2c06c41f700b544c9331caf71c67edb5d131257|commit]]
+ * cyapa - add proximity support for gen5 and gen6 modules [[https://git.kernel.org/torvalds/c/945525ee607471630d07c309e036ae4a53abe37f|commit]]
+ * cyapa - add regulator vcc support [[https://git.kernel.org/torvalds/c/36e9615bd70dc8cd5d7d4831943f788f5231350f|commit]]
+ * cyapa - fully support runtime suspend power management [[https://git.kernel.org/torvalds/c/757cae5a6f0ac1c61ce149a066377a15d1ed881f|commit]]
+ * elan_i2c - enable ELAN0100 acpi panels [[https://git.kernel.org/torvalds/c/534fcb3bdaab801636d2146079462f7fdf52be0a|commit]]
+ * i8042 - add unmask_kbd_data option [[https://git.kernel.org/torvalds/c/e1443d2849b146be4ed8d4ef89ae7e215aafaa5b|commit]]
+ * max77693: Add support for Maxim 77843 [[https://git.kernel.org/torvalds/c/56bbc99e6914eb183fb083f737178a1757083d41|commit]]
+ * touchscreen - add imx6ul_tsc driver support [[https://git.kernel.org/torvalds/c/9a436d524d3533cd15ed5a189d2237ff1e4e5343|commit]]
+ * imx: add snvs power key driver [[https://git.kernel.org/torvalds/c/d3dc6e2322155087c19a1d6a71818be534de0602|commit]]
+ * HID
+  * chicony: Add support for Acer Aspire Switch 12 [[https://git.kernel.org/torvalds/c/9a1d78a3780e0e37eeff11b377fc5fbb01446a36|commit]]
+  * gembird: add new driver to fix Gembird JPD-DualForce 2 [[https://git.kernel.org/torvalds/c/931830aa5c251e0803523213428f777a48bde254|commit]]
+  * hid-lg: Add USBID for Logitech G29 Wheel [[https://git.kernel.org/torvalds/c/c873d9aba7c9782b4dc74488ab964ed6cf54678f|commit]]
+  * microsoft: Add Surface 3 type cover [[https://git.kernel.org/torvalds/c/0439de75d32c249bd9f5824ffd5e40c4c2109d77|commit]]
+  * multitouch: Add support for CJTouch MultiTouch [[https://git.kernel.org/torvalds/c/070f63b46ac893a5debf68c5751101b6f5f77230|commit]]
+  * wacom: Add support for Express Key Remote. [[https://git.kernel.org/torvalds/c/72b236d60218fe211a8e1210be31c31e81684b86|commit]]
+
+
+== TV tuners, webcams, video capturers ==
+ * Driver for Toshiba TC358743 HDMI to CSI-2 bridge [[https://git.kernel.org/torvalds/c/d32d98642de66048f9534a05f3641558e811bbc9|commit]]
+ * SMI PCIe IR driver for DVBSky cards [[https://git.kernel.org/torvalds/c/8783b9c50400c6279d7c3b716637b98e83d3c933|commit]]
+ * adv7604: Add support for control event notifications [[https://git.kernel.org/torvalds/c/0975626d08b623ad42c89a6294b7c2f8391c69af|commit]]
+ * ascot2e: Sony Ascot2e DVB-C/T/T2 tuner driver [[https://git.kernel.org/torvalds/c/dacf9ce80b41667abb51a2a751a2dfe30e1f9a2b|commit]]
+ * bdisp: composing support [[https://git.kernel.org/torvalds/c/3d8bffe88316c0c8b5edad633fc8a25cae644bb4|commit]]
+ * c8sectpfe: Add Kconfig and Makefile for the driver [[https://git.kernel.org/torvalds/c/850a3f7d5911bbbdf3eedf2db9083546d49ea806|commit]]
+ * coda: add macroblock tiling support [[https://git.kernel.org/torvalds/c/a269e53b1aa87157311e53e5b69699ba8f3ba4d0|commit]]
+ * coda: implement VBV delay and buffer size controls [[https://git.kernel.org/torvalds/c/da2b3b3e115d2793b5475039ca4d7f364135fcf4|commit]]
+ * cxd2841er: Sony CXD2841ER DVB-S/S2/T/T2/C demodulator driver [[https://git.kernel.org/torvalds/c/a6dc60ff1209df29ee4668024e93d31f31421932|commit]]
+ * horus3a: Sony Horus3A DVB-S/S2 tuner driver [[https://git.kernel.org/torvalds/c/a5d32b358254ff90f5dcd7ae2798b5d40503013a|commit]]
+ * lnbh25: LNBH25 SEC controller driver [[https://git.kernel.org/torvalds/c/e025273b86fb4a6440192b809e05332777c3faa5|commit]]
+ * media: adv7604: chip info and formats for ADV7612 [[https://git.kernel.org/torvalds/c/8331d30bf0ccf179c3d03d968c9ae1c8f06eafc4|commit]]
+ * media: soc_camera: rcar_vin: Add BT.709 24-bit RGB888 input support [[https://git.kernel.org/torvalds/c/920a1bf30a361fc2c6d713a26deb3a488639def3|commit]]
+ * netup_unidvb: NetUP Universal DVB-S/S2/T/T2/C PCI-E card driver [[https://git.kernel.org/torvalds/c/52b1eaf4c59a3bbd07afbb4ab4f43418a807d02e|commit]]
+ * rc-core: remove the LIRC "protocol" [[https://git.kernel.org/torvalds/c/275ddb40bcf686d210d86c6718e42425a6a0bc76|commit]]
+ * stk1160: Add frame scaling support [[https://git.kernel.org/torvalds/c/d3194520e2790591b5fabeb913dd74af908ca160|commit]]
+ * tda10071: implement DVBv5 statistics [[https://git.kernel.org/torvalds/c/267897a4708fd7a0592333f33a4a7c393c999ab7|commit]]
+ * vivid: support cvt, gtf timings for video out [[https://git.kernel.org/torvalds/c/b1304f9bdc3df8f213550b15cdfd7262420ef328|commit]]
+
+== USB ==
+ * add sysfs support to xHCI usb3 hardware LPM [[https://git.kernel.org/torvalds/c/655fe4effe0f1f40e4f6ca6b3cc64a7fe0032183|commit]]
+ * bcma: add bcm53xx support [[https://git.kernel.org/torvalds/c/10bc04b744c69f253dfe47bc143325349ce8becc|commit]], add support for controlling bus power through GPIO [[https://git.kernel.org/torvalds/c/eb4861c3cef7f745df0d2a26b0f4287da0190424|commit]]
+ * ftdi_sio: Added custom PID for CustomWare products [[https://git.kernel.org/torvalds/c/1fb8dc36384ae1140ee6ccc470de74397606a9d5|commit]]
+ * option: add ZTE PIDs [[https://git.kernel.org/torvalds/c/19ab6bc5674a30fdb6a2436b068d19a3c17dc73e|commit]]
+ * qcserial: add HP lt4111 LTE/EV-DO/HSPA+ Gobi 4G Module [[https://git.kernel.org/torvalds/c/44840dec6127e4d7c5074f75d2dd96bc4ab85fe3|commit]]
+ * chipidea: add tx/rx burst size configuration interface [[https://git.kernel.org/torvalds/c/96625eadca1bb8832fb502f0899a543695f1ba35|commit]]
+ * gadget: nokia: Add mass storage driver to g_nokia [[https://git.kernel.org/torvalds/c/5ea75095fe6d683900ccc674fcac375e7df68005|commit]]
+ * musb: sunxi: Add support for musb controller in A31 SoC [[https://git.kernel.org/torvalds/c/132e23775779cc895c37f7883c33a60a1a8a7cdd|commit]], add support for musb controller in A33 SoC [[https://git.kernel.org/torvalds/c/d91de093d94eca6e280e50c24b172ed598bb5724|commit]], add support for the Allwinner sunxi musb controller [[https://git.kernel.org/torvalds/c/744543c599c420bcddca08cd2e2713b82a008328|commit]]
+ * phy: qcom: New APQ8016/MSM8916 USB transceiver driver [[https://git.kernel.org/torvalds/c/351169933ea22592fb42b97c76c4c130fe287cca|commit]]
+ * renesas_usbhs: Add support for R-Car H3 [[https://git.kernel.org/torvalds/c/f5f6afa85aa82a8ee59072f2d09f2b381f24c871|commit]]
+ * usbnet: New driver for QinHeng CH9200 devices [[https://git.kernel.org/torvalds/c/4a476bd6d1d923922ec950ddc4c27b279f6901eb|commit]]
+ * xhci: xHCI 1.1: Contiguous Frame ID Capability (CFC) [[https://git.kernel.org/torvalds/c/79b8094f60d8ce54ee76e631ab665c5e3012e6ba|commit]]
+ * xhci: xHCI 1.1: Stopped - Short Packet Capability (SPC) [[https://git.kernel.org/torvalds/c/40a3b775f49c2784c96b19170fd2478e5e5511a1|commit]]
+
+
+== Serial Peripheral Interface (SPI) ==
+ * xlp: SPI controller driver for Netlogic XLP SoCs [[https://git.kernel.org/torvalds/c/d8c80d49cfa08b83841a3e315fa13dd310bec006|commit]]
+ * mediatek: Add spi bus for Mediatek MT8173 [[https://git.kernel.org/torvalds/c/a568231f463225eb31593f71446a267a03ae0528|commit]]
+ * mpc512x-psc: add support for Freescale MPC5125 [[https://git.kernel.org/torvalds/c/8bf960985dfc9fcb231a07dc3102ed828f66fe81|commit]]
+ * pxa2xx: Add support for Intel Sunrisepoint [[https://git.kernel.org/torvalds/c/34cadd9c1bcbd5ad5a1f379b013526a8046d4aed|commit]]
+ * bcm63xx-hsspi: add support for dual spi read/write [[https://git.kernel.org/torvalds/c/f4d86223771533c68f1a6692d499f7ef0025f733|commit]]
+
+
+== Watchdog ==
+ * nv_tco: add support for MCP79 [[https://git.kernel.org/torvalds/c/64307b48f79f35d28ed6b44e20b773bc00a0152e|commit]]
+ * NXP LPC18xx Watchdog Timer Driver [[https://git.kernel.org/torvalds/c/7c25f8c9f67708e6464d2221bc311cbd99e950dc|commit]]
+ * add a driver to support SAMA5D4 watchdog timer [[https://git.kernel.org/torvalds/c/76534860f108b812926a4fbfbdadbfa9cdec89d0|commit]]
+ * iTCO_wdt: Add support for TCO on Intel Sunrisepoint [[https://git.kernel.org/torvalds/c/2a7a0e9bf7b32e838d873226808ab8a6c00148f7|commit]]
+
+== Serial ==
+ * 8250_fintek: Support for any io address. [[https://git.kernel.org/torvalds/c/29d58642f1a090ad574d14872b610b365b2d023b|commit]]
+ * 8250_fintek: Support for chip_ip 0x0501 [[https://git.kernel.org/torvalds/c/dae77f757950c273500cc72262a094f290578bef|commit]]
+ * uuc_uart: Support higher bitrates than 115200 Bit/s [[https://git.kernel.org/torvalds/c/e5eb517dd80e4da3055895f8aa3547c2bfd5e675|commit]]
+ * 8250_pci: Add support for Pericom PI7C9X795[1248] [[https://git.kernel.org/torvalds/c/89c043a6cb2d4525d48a38ed78d5f0f5672338b3|commit]]
+ * sc16is7xx: support multiple devices [[https://git.kernel.org/torvalds/c/c64349722d141712d8500b5ad377d3117be46ba8|commit]]
+ * serial: at91: add support to FIFOs [[https://git.kernel.org/torvalds/c/b5199d46817766c95ef759684658cd8e359c6d27|commit]]
+
+
+== SOC (System On Chip) specific Drivers ==
+ * tegra: Add Tegra132 support [[https://git.kernel.org/torvalds/c/ad09c8c23e372182fe1454b3c10bef1c44df5cea|commit]]
+ * tegra: Add Tegra210 support [[https://git.kernel.org/torvalds/c/3a369982b88e5f162fc48b968ad989529db58401|commit]]
+ * tegra: fuse: Add Tegra210 support [[https://git.kernel.org/torvalds/c/0dc5a0d836751099f2e08deec28f56ec881925dd|commit]]
+ * tegra: pmc: Add Tegra210 support [[https://git.kernel.org/torvalds/c/c2fe4694d8ac0f997f6d7088437b710fc4e4a185|commit]]
+ * Mediatek: Add SCPSYS power domain driver [[https://git.kernel.org/torvalds/c/c84e358718a66f76ac0de1681d15d8d0c68fcdab|commit]]
+ * mediatek: Add infracfg misc driver support [[https://git.kernel.org/torvalds/c/16a624a9c81814cc2f1353eff2e502430c3fa79a|commit]]
+ * qcom: Add Shared Memory Driver [[https://git.kernel.org/torvalds/c/f2ab3298fb4932358d27fc4c7ea1a1891ad7e042|commit]]
+ * qcom: Add Shared Memory Manager driver [[https://git.kernel.org/torvalds/c/4b638df4c9d556a6d947d6dbac364bee37b68b8e|commit]]
+ * qcom: Driver for the Qualcomm RPM over SMD [[https://git.kernel.org/torvalds/c/936f14cf4e67168fcd37f10cebf5a475f490fb6e|commit]]
+
+
+== ACPI, EFI, cpufreq, thermal, Power Management ==
+ * thermal/powerclamp: add cpu id for Skylake u/y [[https://git.kernel.org/torvalds/c/35676de2164ff37209431e7e0e49a7466720d9be|commit]]
+ * thermal/powerclamp: add cpu id for denlow platform [[https://git.kernel.org/torvalds/c/1f22dc4494e203d6987fc708f414b4adf8614036|commit]]
+ * thermal/powerclamp: add cpu id for skylake h/s [[https://git.kernel.org/torvalds/c/286272137f66199f87ea254397181b9bab5e5467|commit]]
+ * thermal: Add Intel PCH thermal driver [[https://git.kernel.org/torvalds/c/d0a12625d2ff2c63321b3cf48c48184748ab577a|commit]]
+ * thermal: add available policies sysfs attribute [[https://git.kernel.org/torvalds/c/25a0a5ce16ecd7e60c4cf1436892433873e9d99d|commit]]
+ * tools/power/acpi: Enable build for EC userspace tool [[https://git.kernel.org/torvalds/c/4305cd02436dbe0b61b1930f93053a699af40e6a|commit]]
+
+
+ * intel_idle: Skylake Client Support [[https://git.kernel.org/torvalds/c/493f133f47750aa5566fafa9403617e3f0506f8c|commit]], [[https://git.kernel.org/torvalds/c/135919a3a80565070b9645009e65f73e72c661c0|commit]]
+ * intel_pstate: Add SKY-S support [[https://git.kernel.org/torvalds/c/1c9391238753ffb370f02743b5f43bac6dea304b|commit]]
+
+== Real Time Clock (RTC) ==
+ * add rtc-lpc24xx driver [[https://git.kernel.org/torvalds/c/c28b42e3aee03fe869a3f73039cf92686ccbc8fb|commit]]
+ * add xilinx zynqmp rtc driver [[https://git.kernel.org/torvalds/c/11143c19eb57a8aee4335e57b21f2897b9fff294|commit]]
+ * da9063: Add DA9062 RTC capability to DA9063 RTC driver [[https://git.kernel.org/torvalds/c/80ca3277bc7f398e3315af996443464dac5d4b88|commit]]
+
+
+== Voltage, current regulators, power capping, power supply ==
+ * devfreq: exynos-ppmu: Add the support of PPMUv2 for Exynos5433 [[https://git.kernel.org/torvalds/c/3d87b02281a2ec977108ad90ce502e721b447301|commit]]
+ * cpufreq
+  * Add cpufreq driver for Tegra124 [[https://git.kernel.org/torvalds/c/9eb15dbbfa1a23b5e65efaf1d5d6c47798e7264b|commit]]
+  * exynos: remove Exynos4x12 specific cpufreq driver support [[https://git.kernel.org/torvalds/c/966f2a71a92d1e7adafb5c62d1634beb451b1500|commit]]
+  * exynos: remove exynos5250 specific cpufreq driver support [[https://git.kernel.org/torvalds/c/ac4c90c82e4d38cee613f68d2fabd714338ecca7|commit]]
+  * mediatek: Add MT8173 cpufreq driver [[https://git.kernel.org/torvalds/c/1453863fb02a18900c9079fa2e4f02710bf46507|commit]]
+ * regulator
+  * Add over current protection (OCP) support [[https://git.kernel.org/torvalds/c/3a003baeec246f604ed1d2e0087560d7f15edcc6|commit]]
+  * Regulator driver for the Qualcomm RPM [[https://git.kernel.org/torvalds/c/da65e367b67e15fc41cbf646c506c802dd5213b7|commit]]
+  * Remove the max77843 driver [[https://git.kernel.org/torvalds/c/2a32b401a11fc48193e58b0a5af6ea82de0272de|commit]]
+  * da9211: support da9215 [[https://git.kernel.org/torvalds/c/7bd393543287b921f964a350166bf2866527a1b5|commit]]
+  * max77693: Add support for MAX77843 device [[https://git.kernel.org/torvalds/c/9e9a08e86733d994fe08876de7878148411d6bb5|commit]]
+  * max8973: add support to configure ETR based on rail load [[https://git.kernel.org/torvalds/c/ffaab99184a2c8b592bba85d8e4da708c65b4cc1|commit]]
+  * mt6311: Add support for mt6311 regulator [[https://git.kernel.org/torvalds/c/8766018b6ef73ca124d13b0d0a06dec906726cc8|commit]]
+  * pwm-regulator: Add support for continuous-voltage [[https://git.kernel.org/torvalds/c/4773be185a0f7c1c09d8966e100c76f4fa9a3227|commit]]
+
+
+== Pin Controllers (pinctrl) ==
+ * UniPhier: add UniPhier PH1-LD4 pinctrl driver [[https://git.kernel.org/torvalds/c/edd95a4a95f32c701e291e06016c6ca110ef65b7|commit]]
+ * UniPhier: add UniPhier PH1-LD6b pinctrl driver [[https://git.kernel.org/torvalds/c/b3b6616378a4dcf1e903c8ad70fabfe4c2ad529b|commit]]
+ * UniPhier: add UniPhier PH1-Pro4 pinctrl driver [[https://git.kernel.org/torvalds/c/b5cf4161ca8a54c79a05beaaf5d18c2c67193105|commit]]
+ * UniPhier: add UniPhier PH1-Pro5 pinctrl driver [[https://git.kernel.org/torvalds/c/1950b0488780d0d93481e17c56bc7a97a6037459|commit]]
+ * UniPhier: add UniPhier PH1-sLD8 pinctrl driver [[https://git.kernel.org/torvalds/c/95372f9dc892a79bce1e81b8862bb4ad15cf4f76|commit]]
+ * UniPhier: add UniPhier ProXstream2 pinctrl driver [[https://git.kernel.org/torvalds/c/3c0fd8e3de93fc12b35cf5be585a5d8dc68b7162|commit]]
+ * UniPhier: add UniPhier pinctrl core support [[https://git.kernel.org/torvalds/c/6e908892025885b07e804dc6c05aab6ce1e06832|commit]]
+ * add support for Qualcomm Technologies QDF2xxx ARM64 SoCs [[https://git.kernel.org/torvalds/c/8f1338cd80648adf5434798f5393ad7c55d10848|commit]]
+ * driver for Conexant Digicolor CX92755 pin mapping [[https://git.kernel.org/torvalds/c/38b0e5071eca4db618e796a2f1dbad3b20c01358|commit]]
+ * imx: add i.mx6ul subdriver [[https://git.kernel.org/torvalds/c/9612327c1ffcdacc863b3baf0a3c8c9b0837ffd2|commit]]
+ * lpc18xx: add support for usb1 pinconf [[https://git.kernel.org/torvalds/c/bd6eab90073814a3211fc9688c2d59ce369ccff2|commit]]
+ * qcom: spmi-mpp: Add support for setting analog output level [[https://git.kernel.org/torvalds/c/099f3e4adddc8fe9899fb879053887a95e9aed7d|commit]]
+ * qcom: spmi-mpp: Implement support for sink mode [[https://git.kernel.org/torvalds/c/0e948042c4203b97e44370993ef042c945308282|commit]]
+ * qcom: ssbi: Family A gpio & mpp drivers [[https://git.kernel.org/torvalds/c/b4c45fe974bc5fa6240a729ea1f77db8b56d132a|commit]]
+ * sirf: add power management support for atlas7 [[https://git.kernel.org/torvalds/c/48356aa79ccb3df36f654d8f622256052bb2bb65|commit]]
+
+== Memory Technology Devices (MTD) ==
+ * nand: add Toshiba TC58NVG0S3E to nand_ids table [[https://git.kernel.org/torvalds/c/0cb850486048ba4f64482a9d3e33dff47df34c79|commit]]
+ * spi-nor: Add support for Micron n25q064a serial flash [[https://git.kernel.org/torvalds/c/2a06c7b1fd2389aed2a308db8de803603d592444|commit]]
+ * spi-nor: Add support for sst25wf020a [[https://git.kernel.org/torvalds/c/a1d97ef96e3899ad9d4ec0024f9b4927e0490689|commit]]
+ * spi-nor: add Spansion S25FL204K support [[https://git.kernel.org/torvalds/c/b4d97f022ac07c26d8f41f105b6c9c9a699875a2|commit]]
+ * spi-nor: add driver for NXP SPI Flash Interface (SPIFI) [[https://git.kernel.org/torvalds/c/f617b9587c1662a2352b90cb64ad8bcf0ff4d0af|commit]]
+ * spi-nor: allow dual/quad reads on S25FL129P [[https://git.kernel.org/torvalds/c/c1752086796bafaf0c933240642ed1cf21ddab4f|commit]]
+ * spi-nor: fsl-quadspi: add i.mx6ul support [[https://git.kernel.org/torvalds/c/74a081d14f579d0a1de845ba63e8ee5f0c511258|commit]]
+ * spi-nor: fsl-quadspi: add imx7d support [[https://git.kernel.org/torvalds/c/d371cbfc151c6a7229150da0954d1f74ea4dcd39|commit]]
+ * nand: davinci: add support for 4K page size nand devices [[https://git.kernel.org/torvalds/c/a11244c0b25b79d2a3b07df429268d66736e5b45|commit]]
+
+== Multi Media Card ==
+ * sdhci-esdhc-imx: add imx7d support and support HS400 [[https://git.kernel.org/torvalds/c/28b07674f287092f3b63a7d5e5c7e68bdeed0247|commit]]
+ * sdhci-esdhc-imx: add tuning-step setting support [[https://git.kernel.org/torvalds/c/d407e30ba614b1542c8ac032f8fb2332b8071efe|commit]]
+ * sdhci-of-arasan: Add the support for sdhci-5.1 [[https://git.kernel.org/torvalds/c/da795ec26e2542f1e306598a1d7a31c0762f2bd7|commit]]
+ * sdhci-of-at91: introduce driver for the Atmel SDMMC [[https://git.kernel.org/torvalds/c/bb5f8ea4d5149f3dec6f7cd24c040c52bfc0cdbd|commit]]
+
+== Industrial I/O (iio) ==
+ * accel: Add buffer mode for Sensortek STK8312 [[https://git.kernel.org/torvalds/c/95c12bba51c37359073b34f1a56fe396bd33d3cf|commit]]
+ * accel: Add sampling rate support for STK8312 [[https://git.kernel.org/torvalds/c/5e913d27f91aa15e1311399385579bef5238e2cd|commit]]
+ * accel: Add sampling rate support for STK8BA50 [[https://git.kernel.org/torvalds/c/eb2c9ce2cc938d7d39fc06430519bf0fc5004566|commit]]
+ * accel: Add trigger support for STK8BA50 [[https://git.kernel.org/torvalds/c/db6a19b8251f089afcd40ed116ffdc2326f704a8|commit]]
+ * adc: mcp320x: Add support for mcp3301 [[https://git.kernel.org/torvalds/c/f686a36b4b79782a94f07769fb1c0187d24ea8a8|commit]]
+ * adis16136: Add ADIS16137 support [[https://git.kernel.org/torvalds/c/5450c360d4608b70ebd85f4ae2f2ce779a296a93|commit]]
+ * adis16260: Add ADIS16266 support [[https://git.kernel.org/torvalds/c/f1afda124badf1cf4b013722d55934536ff0892c|commit]]
+ * adis16400: Add ADIS16305 support [[https://git.kernel.org/torvalds/c/3c386760790e3d3d5cb3ac2f0e09f3710eab7f99|commit]]
+ * adis16400: Add ADIS16367 support [[https://git.kernel.org/torvalds/c/dc8615ce34cf72955f098750eef81a5501c107d1|commit]]
+ * adis16400: Add ADIS16445 support [[https://git.kernel.org/torvalds/c/72d9c9869df3149316af6cd70585eee15f643f40|commit]]
+ * light: Add support for ROHM RPR0521 sensor [[https://git.kernel.org/torvalds/c/efa86e9fa82eaeee76903f131bc326af48a7cbcf|commit]]
+ * light: Add support for TXC PA12 als and proximity sensor [[https://git.kernel.org/torvalds/c/8ab6abfca09c1800dccb753775f6ce8ee82f50dd|commit]]
+ * light: add support for TI's opt3001 light sensor [[https://git.kernel.org/torvalds/c/94a9b7b1809f56cfaa080e70ec49b6979563a237|commit]]
+ * magn: bmc150: add support for bmc156 [[https://git.kernel.org/torvalds/c/da8ef4e77d9dfe91d69033cfa05d9f3036fb8dfd|commit]]
+ * pressure: ms5611: add support for MS5607 temperature and pressure sensor [[https://git.kernel.org/torvalds/c/9690d81a02dc4eea78de1686c3bf23a8dd4c0f28|commit]]
+ * st-accel: add support for lsm303agr accelerometer [[https://git.kernel.org/torvalds/c/ddc05fa286068a2d0cf87a47739b155806d46670|commit]]
+ * st-magn: add support for lsm303agr magnetometer [[https://git.kernel.org/torvalds/c/1e9676a8474b657b6a793f0abff2205783a1ce6f|commit]]
+
+== Multi Function Devices (MFD) ==
+ * Add support for Intel Sunrisepoint LPSS devices [[https://git.kernel.org/torvalds/c/4b45efe8526359a11ca60a299bef3aebf413fd77|commit]]
+ * arizona: Add support for WM8998 and WM1814 [[https://git.kernel.org/torvalds/c/6887b042c52ee05a405bae859f410c2f63b45339|commit]]
+ * axp20x: Add axp152 support [[https://git.kernel.org/torvalds/c/d8d79f8f60c4363a0fa490ff1626be4bd5e003a3|commit]]
+ * da9062: Supply core driver [[https://git.kernel.org/torvalds/c/9b40b030c4ad685732dd3ad5b57249db52a74e71|commit]]
+ * da9062: Support for the DA9063 OnKey in the DA9062 core [[https://git.kernel.org/torvalds/c/68b6fd02e6a62d6bdb62e7e74e7c62a8ec54346e|commit]]
+ * da9062: Support for the DA9063 RTC in the DA9062 core [[https://git.kernel.org/torvalds/c/ca1ce176af986213bfdc86ce73c05ab0d2aa3578|commit]]
+ * kempld-core: Add support for COMe-bBL6 and COMe-cBW6 to Kontron PLD driver [[https://git.kernel.org/torvalds/c/18ca2ba5995d950619589355c3bc760b2a91e2bf|commit]]
+ * wm5110: Add register patch for rev E and above [[https://git.kernel.org/torvalds/c/81207880cef207cd89db863f9aa1d65f22b4f2a2|commit]]
+
+== Inter-Integrated Circuit (I2C) ==
+ * emev2: add driver [[https://git.kernel.org/torvalds/c/5faf6e1f58b4488a8b24a722ccf317ed67a8e8d8|commit]]
+ * lpc2k: add driver [[https://git.kernel.org/torvalds/c/3f9c37a0c9a59db97ca5712eca7838b842949047|commit]]
+ * parport: Add VCT-jig adapter [[https://git.kernel.org/torvalds/c/82cd5d041c8c2cdceaa6833d2f73905279d1c94f|commit]]
+ * support 10 bit and slave addresses in sysfs 'new_device' [[https://git.kernel.org/torvalds/c/cfa0327b0d03091e0c47249c080e50e287be762d|commit]]
+ * tegra: add support for fast plus (FM+) mode clock rate [[https://git.kernel.org/torvalds/c/d57f5dedde18253d5c72a823c0a7ff3b20b57560|commit]]
+
+== Hardware monitoring  (hwmon) ==
+ * adm1275: Add support for ADM1293 and ADM1294 [[https://git.kernel.org/torvalds/c/68a403823600fc9d8277f930981d3a013353b2fe|commit]]
+ * adm1275: Introduce new feature flags [[https://git.kernel.org/torvalds/c/9048539b7cd6ca99e03e6d9745779473349426f7|commit]]
+ * f71882fg: Add support for F81866 and F71868 [[https://git.kernel.org/torvalds/c/2725fe2b74e264a649af72beaaf6cc2c2e1f3495|commit]]
+ * f71882fg: Add support for f81768d [[https://git.kernel.org/torvalds/c/d8363bb5ad4ff3986c03c6895cc74e2a30041aee|commit]]
+ * fam15h_power: Add support for AMD Carrizo [[https://git.kernel.org/torvalds/c/5dc087254acf12bf6908a924539fb624891e8b24|commit]]
+ * it87: Add support for IT8732F [[https://git.kernel.org/torvalds/c/ead8080351c988b9c4bb5ec261d7b4c97ebb2773|commit]]
+ * ltc2978: Add additional chip IDs for LTM4676 and LTM4676A [[https://git.kernel.org/torvalds/c/e8047a2686d32854e4b82bd5d328da61025fb01a|commit]]
+ * ltc2978: Add missing chip IDs for LTC2978 and LTC3882 [[https://git.kernel.org/torvalds/c/acb092cdf9a285fd4706bc6ffd5f99840d53bba5|commit]]
+ * ltc2978: Add support for LTC2975 [[https://git.kernel.org/torvalds/c/649ca820dab3d76e12408b74af3e8e97abb07ae0|commit]]
+ * ltc2978: Add support for LTC2980 and LTM2987 [[https://git.kernel.org/torvalds/c/52aae6af71e0e78e25c64e13266917bb323984d5|commit]]
+ * ltc2978: Add support for LTC3882 [[https://git.kernel.org/torvalds/c/bf89386f166b18c21b2b7a2c5b6e496726c4f25f|commit]]
+ * ltc2978: Add support for LTC3886 [[https://git.kernel.org/torvalds/c/228b687d9e20f367e4d5ea8723e3abbf0892db61|commit]]
+ * ltc2978: Add support for LTC3887 [[https://git.kernel.org/torvalds/c/15398566f0ea95c66d202b8705dba4f59b9ba01c|commit]]
+ * ltc2978: Add support for LTM4675 [[https://git.kernel.org/torvalds/c/ccf2dc51bc4a715670641aa5af0d4636acd8e0cd|commit]]
+ * nct6775: Add support for NCT6793D [[https://git.kernel.org/torvalds/c/cd1faefa66425c3fa338777773c5c017edea3439|commit]]
+ * nct7802: Add pwm control [[https://git.kernel.org/torvalds/c/ea33597c6f9862d7b926bdb9c3ac25012f307dd5|commit]]
+ * nct7802: Add pwm mode attributes [[https://git.kernel.org/torvalds/c/876420e05a0fda4801c0a0de67e9bbe9831dffee|commit]]
+ * nct7802: Add pwmX_enable attribute [[https://git.kernel.org/torvalds/c/5102f022688ccd59b1fe4efc8a46ec3aca02dfc5|commit]]
+ * nct7802: add temperature sensor type attribute [[https://git.kernel.org/torvalds/c/fcdc5739dce03d8050ebfa7153412c2efcdee94f|commit]]
+ * pmbus: Add device IDs for TPS544{B,C}2{0,5} [[https://git.kernel.org/torvalds/c/cfca3789e0678c57e09dfb1a09fdfce427b7c92e|commit]]
+ * pmbus: Add support for MAX20751 [[https://git.kernel.org/torvalds/c/1f61cab8a729e00af77b51b44c3a8dc8ef3b3eb9|commit]]
+ * pmbus: Add support for VR12 [[https://git.kernel.org/torvalds/c/068c227056b9223fea1a759e08db2558d5cbb5ad|commit]]
+ * pmbus: Add support for lowest power value attributes [[https://git.kernel.org/torvalds/c/48065a138acb8435c60739ffa62622d69f61b712|commit]]
+
+== General Purpose I/O (gpio) ==
+ * brcmstb: Add interrupt and wakeup source support [[https://git.kernel.org/torvalds/c/19a7b6940b781256ea8821e803d1e5f2933224b1|commit]]
+ * brcmstb: support wakeup from S5 cold boot [[https://git.kernel.org/torvalds/c/3afa129a9de0957d72165cf08a54e5c69938011c|commit]]
+ * etraxfs: add interrupt support [[https://git.kernel.org/torvalds/c/29b5357d25ba1528531ef9532b5743a32fdf8cd2|commit]]
+ * etraxfs: add support for ARTPEC-3 [[https://git.kernel.org/torvalds/c/d705073cdafa75286970dd30f722d0df584bae54|commit]]
+ * mpc8xxx: add support for MPC5125 [[https://git.kernel.org/torvalds/c/0ba69e089827c24f5a4b21124185914f9de4f466|commit]]
+ * rcar: Add r8a7795 (R-Car H3) support [[https://git.kernel.org/torvalds/c/8cd14702be9bcb2ec45e1ec30af04aea9b965708|commit]]
+ * zx: Add ZTE zx296702 GPIO support [[https://git.kernel.org/torvalds/c/e7aa6d8c1ba2429deef75fb24d029e00ab71bebf|commit]]
+
+
+== Clocks ==
+ * Add Pistachio clocksource-only driver [[https://git.kernel.org/torvalds/c/84583983c31983068429d82e6f9262009d584549|commit]]
+ * Hi6220: add stub clock driver [[https://git.kernel.org/torvalds/c/c1628a2c416da947f5afac615d53189250fa49cb|commit]]
+ * mediatek: Add MT8173 MMPLL change rate support [[https://git.kernel.org/torvalds/c/75ce0cdb6243d42daca6130e5feb71f536bb136e|commit]]
+ * qcom: Add support for SR2 PLLs [[https://git.kernel.org/torvalds/c/d4f76de37458bc613f9465d8fafc2b5fea0cdea1|commit]]
+ * rockchip: add rk3368 clock controller [[https://git.kernel.org/torvalds/c/3536c97a52db2848d13512878c65affd98fd29db|commit]]
+ * rockchip: add support for phase inverters [[https://git.kernel.org/torvalds/c/8a76f443a9ea6f7f72ede9f95fe0ca5b90f09a43|commit]]
+ * sunxi: Add a simple gates driver [[https://git.kernel.org/torvalds/c/ee38b2698ae234c03f65ccafa1811d4dda3c316d|commit]]
+ * tegra: Add library for the DFLL clock source (open-loop mode) [[https://git.kernel.org/torvalds/c/d8d7a08fa82ff7c241c74c2461f342c5685dda27|commit]]
+
+== PCI ==
+ * dra7xx: Add PM support [[https://git.kernel.org/torvalds/c/e52eb445ea1d97bf7fb92d2297e487a305392136|commit]]
+ * rcar: Add R8A7794 support [[https://git.kernel.org/torvalds/c/de24c18c0faca5ebd618e1cb87f5489745e40475|commit]]
+
+== DMA Engines ==
+ * Add support for the Analog Devices AXI-DMAC DMA controller [[https://git.kernel.org/torvalds/c/0e3b67b348b838d519b5d9ff30261f471d6371f2|commit]]
+ * Add a driver for Intel integrated DMA 64-bit [[https://git.kernel.org/torvalds/c/667dfed98615ae1fc4cc05b0763078435598c0f5|commit]]
+ * Add driver for lpc18xx dmamux [[https://git.kernel.org/torvalds/c/e5f4ae84be7421010780984bdc121eac15997327|commit]]
+ * imx-sdma: Add device to device support [[https://git.kernel.org/torvalds/c/8391ecf465ec5c8ccef547267df6d40beb8999a4|commit]]
+ * imx-sdma: Add imx6sx platform support [[https://git.kernel.org/torvalds/c/d078cd1b4185134fe861e2b16a40ba14efb307b7|commit]]
+ * ioatdma: add Broadwell EP ioatdma PCI dev IDs [[https://git.kernel.org/torvalds/c/ab98193dace971f4742eebb5103212e23bb392f5|commit]]
+ * sun4i: Add support for the DMA engine on sun[457]i SoCs [[https://git.kernel.org/torvalds/c/b096c1377d1e50cea91d1db13bca8e7802199a67|commit]]
+ * ti-dma-crossbar: Add support for eDMA [[https://git.kernel.org/torvalds/c/1eb995bbf7a85e18f54fb162eade381320a3fcea|commit]]
+ * xgene-dma: Add ACPI support for X-Gene DMA engine driver [[https://git.kernel.org/torvalds/c/89079493437701551938652003eb75b328425c66|commit]]
+ * zxdma: Support ZTE ZX296702 dma [[https://git.kernel.org/torvalds/c/e3fa9841d309ae7992b658eba0f973543b97ed1f|commit]]
+ * zxdma: Support cyclic dma [[https://git.kernel.org/torvalds/c/2f2560e348a875104a0d5394c938da2a41e47228|commit]]
+
+
+== Various ==
+ * NTB: Add PCI Device IDs for Broadwell Xeon [[https://git.kernel.org/torvalds/c/0a5d19d9f046d770776508fdde959d2a42bce9f7|commit]]
+ * cxl: Allow the kernel to trust that an image won't change on PERST. [[https://git.kernel.org/torvalds/c/13e68d8bd05c998cae452a4f3400af1e8edd852e|commit]]
+ * cxl: EEH support [[https://git.kernel.org/torvalds/c/9e8df8a219635c5af36a49d78c1f69009b780339|commit]]
+ * ipmi:ssif: Add a module parm to specify that SMBus alerts don't work [[https://git.kernel.org/torvalds/c/bf2d087749d91e1fa2826edde1e2fd650d3053ca|commit]]
+ * irqchip/imx-gpcv2: IMX GPCv2 driver for wakeup sources [[https://git.kernel.org/torvalds/c/e324c4dc4a5991d5b1171f434884a4026345e4b4|commit]]
+ * irqchip: Add bcm2836 interrupt controller for Raspberry Pi 2 [[https://git.kernel.org/torvalds/c/1a15aaa998dc3b51f7f8b9a820bc7a192a0c2f76|commit]]
+ * mei: add async event notification ioctls [[https://git.kernel.org/torvalds/c/3c7c8468e5d993dfe377a67e41cbb23cda93af9e|commit]]
+ * mei: implement fasync for event notification [[https://git.kernel.org/torvalds/c/237092bf034a648611f61eb1f0965e9ba1b08871|commit]]
+ * mei: me: add sunrise point device ids [[https://git.kernel.org/torvalds/c/1625c7ec96942b87eee1463aed6ec0595698b931|commit]]
+ * mei: support for dynamic clients [[https://git.kernel.org/torvalds/c/70ef835c84b3b88e274a53bf80a70940ae178a91|commit]]
+ * mei: support polling for event notification [[https://git.kernel.org/torvalds/c/2c84c2970c1acf83827aa97ab0e6addc3d2aa960|commit]]
+ * nvmem: qfprom: Add Qualcomm QFPROM support. [[https://git.kernel.org/torvalds/c/4ab11996b489ad65092216315484824ed32018f8|commit]]
+ * phy-sun4i-usb: Add extcon support for the otg phy (phy0) [[https://git.kernel.org/torvalds/c/1a52abe6821da728b41187c6676b6ab7294e6e2c|commit]]
+ * phy-sun4i-usb: Add id and vbus detection support for the otg phy (phy0) [[https://git.kernel.org/torvalds/c/d2332303efc00d35af7f3d8b025663965862b0e3|commit]]
+ * phy-sun4i-usb: Add support for boards with broken Vusb-detection [[https://git.kernel.org/torvalds/c/1aedf3a7a47b8bbd38c147eeb0c83816c5590215|commit]]
+ * phy-sun4i-usb: Add support for monitoring vbus via a power-supply [[https://git.kernel.org/torvalds/c/8665c18bece7965c3690ac3824bef2f97bae3d71|commit]]
+ * phy-sun4i-usb: Add support for the usb-phys on the sun8i-a23 SoC [[https://git.kernel.org/torvalds/c/123dfdbcfaf5eb8753cd6293ab50c41e9b8e9ebf|commit]]
+ * phy-sun4i-usb: Add support for the usb-phys on the sun8i-a33 SoC [[https://git.kernel.org/torvalds/c/fc1f45ed3043da3aa901e88a9ef0995bbd320698|commit]]
+ * phy: add lpc18xx usb otg phy driver [[https://git.kernel.org/torvalds/c/cbf919bd32d9424be8b77dac06fd90cd0a297562|commit]]
+ * phylib: add driver for Teranetics TN2020 [[https://git.kernel.org/torvalds/c/f61687c01917946d2274dd8736bb8f9e2691ee5b|commit]]
+ * pwm-pca9685: Support changing the output frequency [[https://git.kernel.org/torvalds/c/01ec8472009c973413d4dc6fb198f0cc40abb9b4|commit]]
+ * pwm: NXP LPC18xx PWM/SCT driver [[https://git.kernel.org/torvalds/c/841e6f90bb789a1372087b22c39f3a9ef2e02758|commit]]
+ * pwm: crc: Add Crystalcove (CRC) PWM driver [[https://git.kernel.org/torvalds/c/a3f37a104bc42f19ceb74e3e06752b6e3a269745|commit]]
+ * reset: Add a driver for the reset controller on the AR71XX/AR9XXX [[https://git.kernel.org/torvalds/c/ff591a91225d3621a503bb18faa0f0d747a06e50|commit]]
+ * reset: add driver for lpc18xx rgu [[https://git.kernel.org/torvalds/c/c392b65ba853f653cff3d1c7de2138bd6906d536|commit]]
+ * twl4030_charger: add ac/mode to match usb/mode [[https://git.kernel.org/torvalds/c/b04b908d8a2901c2cc59db87defd9c08bd4293cc|commit]]
+ * twl4030_charger: add software controlled linear charging mode. [[https://git.kernel.org/torvalds/c/7f4a633d21331155ee06c5ee44749ed35a3a3cc5|commit]]
+ * twl4030_charger: allow max_current to be managed via sysfs. [[https://git.kernel.org/torvalds/c/aca3c3546396b305fff79f09883cff48a908aac0|commit]]
+ * twl4030_charger: enable manual enable/disable of usb charging. [[https://git.kernel.org/torvalds/c/22d4c33f7335ddf6deda26630c78650e133bfe72|commit]]
+
+= List of merges =
+ * [[https://git.kernel.org/torvalds/c/44e98edcd11a48619b342d8f442d447b094ab2fc|Pull kvm updates ]]
+ * [[https://git.kernel.org/torvalds/c/1c00038c765561c08fd942d08579fa860e604f31|Pull char/misc driver patches ]]
+ * [[https://git.kernel.org/torvalds/c/1af115d675f323afee1e64650277a9b170845b81|Pull driver core updates ]]
+ * [[https://git.kernel.org/torvalds/c/2f37d65a6a5c360ba0c386a6aa0d2afcbda7060d|Pull staging driver updates ]]
+ * [[https://git.kernel.org/torvalds/c/c2078402e479f963168bfcf7a8de78ab63748a98|Pull tty/serial driver updates ]]
+ * [[https://git.kernel.org/torvalds/c/4ff12049d6b6cc79ad8ee092ae226434687062ec|Pull USB updates ]]
+ * [[https://git.kernel.org/torvalds/c/9551bf292d67e9070409b59685cdb8fc5437ec3a|Pull m68k updates ]]
+ * [[https://git.kernel.org/torvalds/c/7b8067d37058ec01889513e16033fb6de72a98ce|Pull alpha update ]]
+ * [[https://git.kernel.org/torvalds/c/7c01919130ef8b27306ed1faf1f2cc079621923c|Pull xtensa updates ]]
+ * [[https://git.kernel.org/torvalds/c/9c6a019c6edf8591e34ae9da51bac7684131d905|Pull s390 updates ]]
+ * [[https://git.kernel.org/torvalds/c/c8192ba416397ad6ce493f186da40767ce086c3b|Pull power supply and reset changes ]]
+ * [[https://git.kernel.org/torvalds/c/22629b6d9072c4e86e900306d7020ad722ae6536|Pull hwmon updates ]]
+ * [[https://git.kernel.org/torvalds/c/e2701603f72cd38e99c6b1da13c8e99bc27b2f34|Pull documentation updates ]]
+ * [[https://git.kernel.org/torvalds/c/cf9d615f7f5842ca1ef0f28ed9f67a97d20cf6fc|Pull regulator updates ]]
+ * [[https://git.kernel.org/torvalds/c/e5aeced6bcec5a110e6dfcb78acc203dbe895b59|Pull spi updates ]]
+ * [[https://git.kernel.org/torvalds/c/edc837da4b54a01ba6fa3c29b411e35d1a8430ca|Pull LED updates ]]
+ * [[https://git.kernel.org/torvalds/c/26f8b7edc9eab56638274f5db90848a6df602081|Pull PCI updates ]]
+ * [[https://git.kernel.org/torvalds/c/f36fc04e4cdda9e4c72ee504e7dc638f9a168863|Pull clk updates ]]
+ * [[https://git.kernel.org/torvalds/c/d4c90396ed7ef9b4e4d221e008e54be8bea8307f|Pull crypto updates ]]
+ * [[https://git.kernel.org/torvalds/c/7073bc66126e3ab742cce9416ad6b4be8b03c4f7|Pull RCU updates ]]
+ * [[https://git.kernel.org/torvalds/c/5757bd6157f523ff0d448a4ec93938523ca441a9|Pull inlining tuning ]]
+ * [[https://git.kernel.org/torvalds/c/4658000955d1864b54890214434e171949c7f1c5|Pull x86/kasan changes ]]
+ * [[https://git.kernel.org/torvalds/c/41d859a83c567a9c9f50a34082cc64aab0abb0cd|Pull perf updates ]]
+ * [[https://git.kernel.org/torvalds/c/3959df1dfb9538498ec3372a2d390bc7fbdbfac2|Pull RAS updates ]]
+ * [[https://git.kernel.org/torvalds/c/a1d8561172f369ba56d636df49a6b4d6d77e2123|Pull scheduler updates ]]
+ * [[https://git.kernel.org/torvalds/c/65a99597f044c083983f4274ab049c9ec3b9d764|Pull NOHZ updates ]]
+ * [[https://git.kernel.org/torvalds/c/5778077d03cb25aac9b6a428e18970642fc019e3|Pull x86 asm changes ]]
+ * [[https://git.kernel.org/torvalds/c/11e612ddb4bc667d0b830bfaab3acdf8b86da845|Pull x86 boot updates ]]
+ * [[https://git.kernel.org/torvalds/c/6b2282aa372665c14ea1100b63ac0703051407e9|Pull x86 cpu updates ]]
+ * [[https://git.kernel.org/torvalds/c/25525bea46e7d5bc1f82cbc12de2f27b9c346a92|Pull x86 mm updates ]]
+ * [[https://git.kernel.org/torvalds/c/361f7d175734a8e21bcd0585eca9be195c12c5c5|Pull x86 core platform updates ]]
+ * [[https://git.kernel.org/torvalds/c/28dce7c7703fd6ec922fa63b1187cf9f43d1d1c4|Pull ARC architecture updates ]]
+ * [[https://git.kernel.org/torvalds/c/c5fc249862af862df027030188cc083e072ecd19|Pull ARM SoC cleanups ]]
+ * [[https://git.kernel.org/torvalds/c/50686e8a3aed2f5d295e9d2e79ff43df461c7b76|Pull ARM SoC platform updates ]]
+ * [[https://git.kernel.org/torvalds/c/102178108e2246cb4b329d3fb7872cd3d7120205|Pull ARM SoC driver updates ]]
+ * [[https://git.kernel.org/torvalds/c/b3a5af435ab4b860714b2f56c65fd506aa677e71|Pull ARM DT updates ]]
+ * [[https://git.kernel.org/torvalds/c/2faf962d90ca4c5ee7ba026b7351b1f74500bcdf|Pull ARM SoC defconfig updates ]]
+ * [[https://git.kernel.org/torvalds/c/8d01b66b4f23a9fcf5c6787b27f0be5f8cbae98c|Pull ARM SoC 64-bit changes ]]
+ * [[https://git.kernel.org/torvalds/c/5e359bf2219d8622eb0931701e45af55db323228|Pull timer updates ]]
+ * [[https://git.kernel.org/torvalds/c/17e6b00ac422b49d44a0b8d98402a211f726282d|Pull irq updates ]]
+ * [[https://git.kernel.org/torvalds/c/43af9872f52abfed5523b8346d98a5e283b38163|Pull x86 apic updates ]]
+ * [[https://git.kernel.org/torvalds/c/e713c80a4e49d4bed5324d24755e42bf01c87556|Pull x86 clockevent update ]]
+ * [[https://git.kernel.org/torvalds/c/73b6fa8e49c2d13e04d20186261e5f7855c6d0bf|Pull user namespace updates ]]
+ * [[https://git.kernel.org/torvalds/c/851328feb8c1d4130d3a0acb004e474168702d6d|Pull HID updates ]]
+ * [[https://git.kernel.org/torvalds/c/089b669506ef28fae2c24a0ec21e06c02a38556b|Pull trivial tree updates ]]
+ * [[https://git.kernel.org/torvalds/c/f1a3c0b933e7ff856223d6fcd7456d403e54e4e5|Pull devicetree updates ]]
+ * [[https://git.kernel.org/torvalds/c/ae982073095a44f004d7ffb9f271077abef9dbcf|Pull power management and ACPI updates ]]
+ * [[https://git.kernel.org/torvalds/c/2dc7e555e33e645df70a8aa89c529de1902f0064|Pull libata updates ]]
+ * [[https://git.kernel.org/torvalds/c/7d3e2eb1786fafa186eb8bc276edef75ba69e023|Pull workqueue updates ]]
+ * [[https://git.kernel.org/torvalds/c/76ec51ef5edfe540bbc3c61b860f88deb8e6a37b|Pull percpu updates ]]
+ * [[https://git.kernel.org/torvalds/c/8bdc69b764013a9b5ebeef7df8f314f1066c5d79|Pull cgroup updates ]]
+ * [[https://git.kernel.org/torvalds/c/91a247d7d3694a161092931ea4e0b13c11b8e9a0|Pull MTD updates ]]
+ * [[https://git.kernel.org/torvalds/c/df910390e2db07a76c87f258475f6c96253cee6c|Pull first round of SCSI updates ]]
+ * [[https://git.kernel.org/torvalds/c/1081230b748de8f03f37f80c53dfa89feda9b8de|Pull core block updates ]]
+ * [[https://git.kernel.org/torvalds/c/52b084d31cbc8e90cb6fc1ac4061d9a24375c89d|Pull block driver updates ]]
+ * [[https://git.kernel.org/torvalds/c/d975f309a8b250e67b66eabeb56be6989c783629|Pull SG updates ]]
+ * [[https://git.kernel.org/torvalds/c/1e1a4e8f439113b7820bc7150569f685e1cc2b43|Pull device mapper update ]]
+ * [[https://git.kernel.org/torvalds/c/dd5cdb48edfd34401799056a9acf61078d773f90|Pull networking updates ]]
+ * [[https://git.kernel.org/torvalds/c/824b005c86f91fe02eb2743a4526361f11786f70|Merge hpfs upddate ]]
+ * [[https://git.kernel.org/torvalds/c/e31fb9e00543e5d3c5b686747d3c862bc09b59f3|Pull ext3 removal, quota & udf fixes ]]
+ * [[https://git.kernel.org/torvalds/c/ea814ab9aab23505f6828a0cc01c985e59847f4e|Pull ext4 updates ]]
+ * [[https://git.kernel.org/torvalds/c/9cbf22b37ae0592dea809cb8d424990774c21786|Pull dlm updates ]]
+ * [[https://git.kernel.org/torvalds/c/4c12ab7e5e2e892fa94df500f96001837918a281|Pull f2fs updates ]]
+ * [[https://git.kernel.org/torvalds/c/ca520cab25e0e8da717c596ccaa2c2b3650cfa09|Pull locking and atomic updates ]]
+ * [[https://git.kernel.org/torvalds/c/c706c7eb0d08098f0d768aeef945d7cf1f8858b4|Pull ARM development updates ]]
+ * [[https://git.kernel.org/torvalds/c/4c92b5bb14226faa16d29a1df5752baf1ff22b53|Pull ARM pcmcia updates ]]
+ * [[https://git.kernel.org/torvalds/c/ff474e8ca8547d09cb82ebab56d4c96f9eea01ce|Pull powerpc updates ]]
+ * [[https://git.kernel.org/torvalds/c/807249d3ada1ff28a47c4054ca4edd479421b671|Pull MIPS updates ]]
+ * [[https://git.kernel.org/torvalds/c/a4fdb2a46f617b8b2cd47acec026ec16532edbc6|Pull arm64 updates ]]
+ * [[https://git.kernel.org/torvalds/c/02cf1da2548d318ad4db9eb4cf8656e24b11aefc|Pull tile updates ]]
+ * [[https://git.kernel.org/torvalds/c/8d2faea672606827c2018143ec7d88c760f2d6de|Pull GPIO updates ]]
+ * [[https://git.kernel.org/torvalds/c/88a99886c26fec8bf662e7b6bc080431a8660326|Pull pin control updates ]]
+ * [[https://git.kernel.org/torvalds/c/352712274507645b6f82b8763977ad87321919a3|Pull dmaengine updates ]]
+ * [[https://git.kernel.org/torvalds/c/8bd8fd0a29bfd5ad8e1976edd8c4c40cdb39aa4f|Pull MFD updates ]]
+ * [[https://git.kernel.org/torvalds/c/670c039deeffb5c0a3a900de53b95dba781aaf89|Pull backlight updates ]]
+ * [[https://git.kernel.org/torvalds/c/abebcdfb64f1b39eeeb14282d9cd4aad1ed86f8d|Pull sound updates ]]
+ * [[https://git.kernel.org/torvalds/c/51e771c0d25b43d0f12b2c7c01939942becbbe28|Pull input subsystem updates ]]
+ * [[https://git.kernel.org/torvalds/c/f377ea88b862bf7151be96d276f4cb740f8e1c41|Pull drm updates ]]
+ * [[https://git.kernel.org/torvalds/c/6c0f568e84a3cfc775682311d65205462c3f3bc1|Merge patch-bomb ]]
+ * [[https://git.kernel.org/torvalds/c/22365979ab15f8500254cb90037b0b4c17554739|Pull btrfs updates ]]
+ * [[https://git.kernel.org/torvalds/c/17447717a3266965e257d3eae79d89539ce3ec0a|Pull nfsd updates ]]
+ * [[https://git.kernel.org/torvalds/c/2a013e37ce691a7c072df27b35e9790fc8f5a82f|Pull md updates ]]
+ * [[https://git.kernel.org/torvalds/c/e3a98ac47698bf1c1e4e6fae72afc9866953fce5|Pull mailbox updates ]]
+ * [[https://git.kernel.org/torvalds/c/9cfcc658da9693f65e7224e8329e40ada2f3c699|Pull media updates ]]
+ * [[https://git.kernel.org/torvalds/c/bd779669945ed9982890da789ad32e3bd0d41f14|Pull 9p updates ]]
+ * [[https://git.kernel.org/torvalds/c/7d9071a095023cd1db8fa18fa0d648dc1a5210e0|Pull vfs updates ]]
+ * [[https://git.kernel.org/torvalds/c/77a78806c7df8d414c33031a1ca5121876910c4f|Pull xfs updates ]]
+ * [[https://git.kernel.org/torvalds/c/4e4adb2f462889b9eac736dd06d60658beb091b6|Pull NFS client updates ]]
+ * [[https://git.kernel.org/torvalds/c/b8cb642af98216fe6eeca1525345b8a5c9d7c9a4|Pull more irq updates ]]
+ * [[https://git.kernel.org/torvalds/c/752240e74d650faa24425adc523f1308973ea51c|Pull xen updates ]]
+ * [[https://git.kernel.org/torvalds/c/6f0a2fc1feb19bd142961a39dc118e7e55418b3f|Pull NMI backtrace update ]]
+ * [[https://git.kernel.org/torvalds/c/b793c005ceabf6db0b17494b0ec67ade6796bb34|Pull security subsystem updates ]]
+ * [[https://git.kernel.org/torvalds/c/425afcff13a4bea2a3cf6f395cbc66fc158852be|Pull audit update ]]
+ * [[https://git.kernel.org/torvalds/c/59a47fff0217592e248556a7ab436d5c17365962|Pull tracing update ]]
+ * [[https://git.kernel.org/torvalds/c/dab3c3cc4f44273ccf2d7ff57c0a4f5bd45c0528|Pull core kbuild updates ]]
+ * [[https://git.kernel.org/torvalds/c/605e9710fb5fef0dd2bb49d7b75e46601df62112|Pull kconfig updates ]]
+ * [[https://git.kernel.org/torvalds/c/d9241b22b58e012f26dd2244508d9f4837402af0|Pull misc kbuild updates ]]
+ * [[https://git.kernel.org/torvalds/c/12f03ee606914317e7e6a0815e53a48205c31dae|Pull libnvdimm updates ]]
+ * [[https://git.kernel.org/torvalds/c/c19176154b464c861e49355eff636aa6896735b5|Pull RTC updates ]]
+ * [[https://git.kernel.org/torvalds/c/acceba598eda9817bc187f3a683a2d2ee7e7fbc7|Pull i2c updates ]]
+ * [[https://git.kernel.org/torvalds/c/3af6e98f25d1f68b9c36beee330342944a4e0048|Pull x86 platform driver updates ]]
+ * [[https://git.kernel.org/torvalds/c/85579ad7f1dfc0b72bb243b7227bc4f663035e71|Pull MMC updates ]]
+ * [[https://git.kernel.org/torvalds/c/fa815580fb87d1b8c218f9eba8122b2fc3f1a68c|Pull fbdev updates ]]
+ * [[https://git.kernel.org/torvalds/c/e81b594cdae73f341ea13bc9fb2b57a5b739c1a3|Pull regmap updates ]]
+ * [[https://git.kernel.org/torvalds/c/9a9952bbd76a13fc2c95c28f09ba1801a3664929|Pull iommu updates for ]]
+ * [[https://git.kernel.org/torvalds/c/54283aed90c3cf353e2c01a1d1ca853f5eedf92a|Pull kselftest update ]]
+ * [[https://git.kernel.org/torvalds/c/839fe9156fbe89c3157aa6146d22090f8cffddd8|Pull parisc updates ]]
+ * [[https://git.kernel.org/torvalds/c/f6f7a6369203fa3e07efb7f35cfd81efe9f25b07|Merge second patch-bomb ]]
+ * [[https://git.kernel.org/torvalds/c/a794b4f3292160bb3fd0f1f90ec8df454e3b17b3|Pull IPMI updates ]]
+ * [[https://git.kernel.org/torvalds/c/26d2177e977c912863ac04f6c1a967e793ca3a56|Pull inifiniband/rdma updates ]]
+ * [[https://git.kernel.org/torvalds/c/384989b58d45e5478d555cdb4ac79336a88a45cc|Pull cifs updates ]]
+ * [[https://git.kernel.org/torvalds/c/949feacb8af3659037dd34ef177e9bc727627859|Pull nios2 updates ]]
+ * [[https://git.kernel.org/torvalds/c/065d80b4bf314df143aa9f260a154a24e33b4fbe|Pull metag updates ]]
+ * [[https://git.kernel.org/torvalds/c/daf0e1ed578f65e8395102549e135887e6661860|Pull virtio updates ]]
+ * [[https://git.kernel.org/torvalds/c/82278fc079542a04e076da34546a7d6dc649b0cc|Pull pwm updates ]]
+ * [[https://git.kernel.org/torvalds/c/fac33bfdb0a54e149f8d1c2f002de5b57770b84c|Pull more MTD updates ]]
+ * [[https://git.kernel.org/torvalds/c/b8889c4fc6ba03e289cec6a4d692f6f080a55e53|Pull tty driver reverts ]]
+ * [[https://git.kernel.org/torvalds/c/0cdf5a464070c8a2980a27113c47fb8e71babb9c|Pull hexagon updates ]]
+ * [[https://git.kernel.org/torvalds/c/573c577af079184ca523984e3279644eb37756a3|Pull microblaze update ]]
+ * [[https://git.kernel.org/torvalds/c/519f526d391b0ef775aeb04c4b6f632ea6b3ee50|Pull more kvm updates ]]
+ * [[https://git.kernel.org/torvalds/c/d71fc239b6915a8b750e9a447311029ff45b6580|Pull late ARM SoC updates ]]
+ * [[https://git.kernel.org/torvalds/c/33e247c7e58d335d70ecb84fd869091e2e4b8dcb|Merge third patch-bomb ]]
+ * [[https://git.kernel.org/torvalds/c/b0a1ea51bda4c2bcdde460221e1772f3a4f8c44f|Pull blk-cg updates ]]
+ * [[https://git.kernel.org/torvalds/c/01cab5549c3e9a0fe7248fc5ad0fd79361cc0d39|Pull GFS2 updates ]]
+ * [[https://git.kernel.org/torvalds/c/e013f74b60bbd37ee8c3a55214eb351ea3101c15|Pull Ceph update ]]
+ * [[https://git.kernel.org/torvalds/c/51a73ba5f409ef6f419c8ec3a0d1257633500aaa|Pull watchdog updates ]]
+ * [[https://git.kernel.org/torvalds/c/9ebd051a7d5aa7b0ce813c3c2e5b9c851e7774b9|Pull thermal updates ]]
+ * [[https://git.kernel.org/torvalds/c/d9b44fe30fb8637b23f804eab2e7afbce129d714|Pull edac updates ]]
+ * [[https://git.kernel.org/torvalds/c/06a660ada2064bbdcd09aeb8173f2ad128c71978|Pull media updates ]]
+ * [[https://git.kernel.org/torvalds/c/8e78b7dc93c580c050435b0f88991c26e02166bc|Pull second round of SCSI updates ]]
+ * [[https://git.kernel.org/torvalds/c/05c78081d2d8eaf04bf60946fcc53380febf3376|Pull SCSI target updates ]]
+ * [[https://git.kernel.org/torvalds/c/fa9a67ef9de48de5474ea1e5a358340369e78b74|Pull more power management and ACPI updates ]]
+ * [[https://git.kernel.org/torvalds/c/f0c032d81f58c99b63a6e57cf883e923db910928|Pull more input updates ]]
+ * [[https://git.kernel.org/torvalds/c/ded0e250b58a27af6034a8ab9226cbcdf7c0d847|Pull NTB fixes ]]
+ * [[https://git.kernel.org/torvalds/c/01b0c014eeb0bb857a5dc572cd108be7becddfe7|Merge fourth patch-bomb ]]
+ * [[https://git.kernel.org/torvalds/c/6917b51dee54f21816706af2278517b7af218f9a|Pull CRIS updates ]]
+
+
+= Other news sites =
+
+ * LWN 4.3 merge window [[https://lwn.net/Articles/656267/|part 1]], [[https://lwn.net/Articles/656731/|part 2]], [[https://lwn.net/Articles/657325/|part 3]]
+ * Phoronix [[http://www.phoronix.com/scan.php?page=article&item=linux-43-features&num=1|4.3 report]]
+ * Linuxfr [[http://linuxfr.org/news/sortie-du-noyau-linux-4-3|Sortie du noyau Linux 4.3]]
+ * Heise.de [[http://www.heise.de/open/artikel/Die-Neuerungen-von-Linux-4-3-2860564.html|Die Neuerungen von Linux 4.3]]

@@ -1,0 +1,233 @@
+#pragma section-numbers on
+#pragma keywords Linux, kernel, operating system, changes, changelog, file system, Linus Torvalds, open source, device drivers
+#pragma description Summary of the changes and new features merged in the Linux kernel during the 3.15 development cycle
+
+Linux 3.15 [[https://lkml.org/lkml/2014/6/8/70|has been released]] on Sun, 8 Jun
+
+Summary: This release resumes much faster in systems with hard disks, it adds support for cross-renaming two files atomically, it adds new [[http://man7.org/linux/man-pages/man2/fallocate.2.html|fallocate(2)]] modes that allow to remove the range of a file or set it to zero, it adds a new file locking API, the memory management adapts better to working set size changes, it improves FUSE write performance, it adds support for the LZ4 algorithm in zram, it allows to load 64-bit kernels from 32-bit EFI firmware, it adds support for AVX-512 vector instructions that will be added in upcoming Intel CPUs, and it adds new drivers and many other small improvements.
+
+<<TableOfContents>>
+= Prominent features =
+== Faster resume from power suspend in systems with hard disk drives ==
+Resuming a system from suspend used to take a long time in systems with traditional hard disk drives, because the system blocks the resume process until the hard disk drive finish powering up. In this release, commands are sent to the hard disk asynchronously, so the entire resuming process isn't paused by the hard disk. The end result is that systems with hard disks will resume several seconds faster with this Linux release.
+
+For more details, see this [[https://01.org/suspendresume/blogs/tebrandt/2013/hard-disk-resume-optimization-simpler-approach|blog entry]]
+
+Code:  [[https://git.kernel.org/linus/200421a80f6e0a9e39d698944cc35cba103eb6ce|commit 1]], [[https://git.kernel.org/linus/3c31b52f96f7b559d950b16113c0f68c72a1985e|2]]
+
+== Improved working set size detection ==
+When there is not enough room for all memory in RAM, the Linux kernel is in charge of deciding which memory must be kept in RAM, and which must be sent to swap or discarded. In order to make good decisions, it is necessary to track which memory is most used and deserves to be kept in RAM, and which memory is not used often and can be evicted. The way the Linux kernel does this is by keeping an "inactive" and "active" list, when some data needs to be moved to RAM its memory is marked as active. As more and more memory gets used, the active list gets filled and the less used memory is moved to the inactive list.
+
+The problem with this algorithm is to know how big must be each list. Linux used to have a policy of not allowing the active list to grow larger than the inactive, but this approach caused problems. In this release, Linux does more advanced tracking of how memory gets used and can balance better the size of the lists, which makes Linux perform better in certain workloads, adapt better to workload size changes, and creates a foundation to build improved policies in the future.
+
+For more details, read this recommended link: [[http://lwn.net/Articles/495543/|Better active/inactive list balancing]]
+
+[[https://git.kernel.org/linus/e7b563bb2a6f4d974208da46200784b9c5b5a47e|commit 1]], [[https://git.kernel.org/linus/449dd6984d0e47643c04c807f609dd56d48d5bcc|2]], [[https://git.kernel.org/linus/d26914d11751b23ca2e8747725f2cae10c2f2c1b|3]], [[https://git.kernel.org/linus/6dbaf22ce1f1dfba33313198eb5bd989ae76dd87|4]], [[https://git.kernel.org/linus/a528910e12ec7ee203095eb1711468a66b9b60b0|5]]
+
+== EFI 64-bit kernels can be booted from 32-bit firmware ==
+Most modern x86 CPUs are 64-bit, but many modern systems ship with a 32-bit EFI implementation. This didn't allow to boot a Linux 64-bit EFI kernel from these 32-bit EFI systems. This limitation has been removed, a 64-bit kernel can be booted on 32-bit firmware that runs on 64-bit CPUs (note that it is not possible to boot a mixed-mode enabled kernel via the EFI boot stub - a bootloader that supports the EFI handover protocol must be used)
+
+Code: [[https://git.kernel.org/linus/0154416a71c2a84c3746c8dd8ed25287e36934d3|commit 1]], [[https://git.kernel.org/linus/4f9dbcfc40299ddaa780fe8c1cd74998c1be3af5|2]], [[https://git.kernel.org/linus/54b52d87268034859191d671505bb1cfce6bd74d|3]], [[https://git.kernel.org/linus/099240ac111aac454962e6399c0cc51d1511504a|4]], [[https://git.kernel.org/linus/b8ff87a6158886771677e6dc8139bac6e3cba717|5]], [[https://git.kernel.org/linus/e10848a26a962e404ac00c897dfe54f14290806d|6]], [[https://git.kernel.org/linus/18c46461d9e42d398536055f31f58cdcd2c6347e|7]], [[https://git.kernel.org/linus/9a11040ff962304c1838aa9a9f33be78784eae47|8]], [[https://git.kernel.org/linus/3f4a7836e33134d4ac34fa7c99788f0c6a79fa1c|9]], [[https://git.kernel.org/linus/c116e8d60adabfd545a269fccab85e77febc1643|10]], [[https://git.kernel.org/linus/7d453eee36ae4cf30fc2f2faae54f634c4f863b7|11]]
+
+== New file locking scheme: open file description locks ==
+Due to some unfortunate history, POSIX locks have very strange and unhelpful semantics: they are dropped whenever the process closes any file descriptor associated with the inode, and locks taken between threads within the same process won't conflict with one another, which renders them useless for synchronization between threads.
+
+This release adds a new type of lock that attempts to address these issues: open file description locks (initially called "file-private locks"). These locks will conflict with classic POSIX read/write locks, but have semantics that are more like BSD locks with respect to inheritance and lock release when closing a file descriptor.
+
+For more documentation and details about the new locking API, read this recommended LWN link: [[http://lwn.net/Articles/586904/|File-private POSIX locks]]
+
+Code: [[https://git.kernel.org/linus/5d50ffd7c31dab47c6b828841ca1ec70a1b40169|commit]]
+
+== Faster erasing and zeroing of parts of a file ==
+This release adds two new [[http://man7.org/linux/man-pages/man2/fallocate.2.html|fallocate(2)]] mode flags:
+
+ * FALLOC_FL_COLLAPSE_RANGE: Allows to remove a range of a file without leaving holes, improving the performance of these operations that previously needed to be done with workarounds.
+
+ * FALLOC_FL_ZERO_RANGE: Allows to set a range of a file to zero, much faster than it would take to do it manually (this functionality was previously available in XFS through the XFS_IOC_ZERO_RANGE ioctl)
+
+In this release, only XFS and ext4 have added support for these new flags, other filesystems will follow in the future.
+
+For more details, read this LWN article: [[http://lwn.net/Articles/589260/|Finding the proper scope of a file collapse operation]]
+
+Code: [[https://git.kernel.org/linus/00f5e61998dd17f5375d9dfc01331f104b83f841|commit 1]], [[https://git.kernel.org/linus/409332b65d3ed8cfa7a8030f1e9d52f372219642|2]], [[https://git.kernel.org/linus/9eb79482a97152930b113b51dff530aba9e28c8e|3]], [[https://git.kernel.org/linus/b8a8684502a0fc852afa0056c6bb2a9273f6fcc0|4]], [[https://git.kernel.org/linus/e1d8fb88a64c1f8094b9f6c3b6d2d9e6719c970d|5]], [[https://git.kernel.org/linus/376ba313147b4172f3e8cf620b9fb591f3e8cdfa|6]]
+
+== File cross-renaming support ==
+This release adds cross-rename, a variant of rename which exchanges the two files. This allows interesting use cases which were not possible before, for example atomically replacing a directory tree with a symlink. It also allows overlayfs and friends to operate on whiteouts atomically.
+
+For more details, read this LWN article: [[http://lwn.net/Articles/569134/|Exchanging two files]]
+
+Code: [[https://git.kernel.org/linus/520c8b16505236fc82daa352e6c5e73cd9870cff|commit]], [[https://git.kernel.org/linus/da1ce0670c14d8380e423a3239e562a1dc15fa9e|commit]], [[https://git.kernel.org/linus/bd42998a6bcb9b1708dac9ca9876e3d304c16f3d|commit]]
+
+== zram: LZ4 compression support, improved performance ==
+Zram is a memory compression mechanism added in [[http://kernelnewbies.org/Linux_3.14#head-72b295b09fea85de2e80f0b7850048264fed887e|Linux 3.14]] that is used in Android, Cyanogenmod, Chrome OS, Lubuntu and other projects. In this release zram brings support for the LZ4 compression algorithm, which is better than the current available LZO in some cases.
+
+This release also adds performance improvements to concurrent compression of multiple compression streams, and the ability to switch the compression algorithm in /sys/block/zram0/comp_algorithm
+
+Code: [[https://git.kernel.org/linus/e7e1ef439d18f9a21521116ea9f2b976d7230e54|commit 1]], [[https://git.kernel.org/linus/beca3ec71fe5490ee9237dc42400f50402baf83e|2]], [[https://git.kernel.org/linus/e46b8a030d76d3c94156c545c3f4c3676d813435|3]], [[https://git.kernel.org/linus/6e76668e415adf799839f0ab205142ad7002d260|4]]
+
+== Intel AVX-512 vector instructions support ==
+[[http://en.wikipedia.org/wiki/AVX-512|AVX-512]] are 512-bit extensions to the 256-bit Advanced Vector Extensions SIMD instructions for x86 instruction set architecture proposed by Intel, and scheduled to be supported in 2015 with Intel's [[http://en.wikipedia.org/wiki/Knights_Landing_(microarchitecture)|Knights Landing]] processor.
+
+For more details about these extensions, read the [[http://download-software.intel.com/sites/default/files/managed/71/2e/319433-017.pdf|documentation]].
+
+Code: [[https://git.kernel.org/linus/918d80a136430aeb23659aa75f8b415090500667|commit]]
+
+== FUSE: improved write performance ==
+FUSE can now use cached writeback support to fuse, which improves write throughput.
+
+Code: [[https://git.kernel.org/linus/4d99ff8f12eb20c6cde292f185cb1c8c334ba0ed|commit]]
+
+= Drivers and architectures =
+All the driver and architecture-specific changes can be found in the [[http://kernelnewbies.org/Linux_3.15-DriversArch|Linux_3.15-DriversArch page]]
+
+= Core =
+ * See the "prominent features" section to find more information about other new core features.
+ * Add generic support for CPU feature based module autoloading [[https://git.kernel.org/linus/67bad2fdb754dbef14596c0b5d28b3a12c8dfe84|commit]]
+ * Introduce cancelable MCS lock, it is a simple spinlock with the desirable properties of being fair, and with each CPU trying to acquire the lock spinning on a local variable. It avoids expensive cache bouncings that common test-and-set spinlock implementations incur [[https://git.kernel.org/linus/fb0527bd5ea99bfeb2dd91e3c1433ecf745d6b99|commit]]
+ * Permit disabling the obsolete uselib [[https://git.kernel.org/linus/69369a7003735d0d8ef22097e27a55a8bad9557a|commit]] and sys_sysfs syscalls, no longer used by libc [[https://git.kernel.org/linus/6af9f7bf3c399e0ab1eee048e13572c6d4e15fe9|commit]]
+ * NUMA: make smarter decisions on NUMA migrations in order to maximize performance of workloads that do not fit in one NUMA node [[https://git.kernel.org/linus/10f39042711ba21773763f267b4943a2c66c8bef|commit]]
+ * Rework sysfs layout for memcg caches [[https://git.kernel.org/linus/9a41707bd3a0811919000daf094e9d50ea65f7da|commit]]
+ * tools/vm/page-types.c: 'page-types' can walk over a file's mappings and analyze populated page cache pages mostly without disturbing its state [[https://git.kernel.org/linus/65a6a4105f84f961fb219f5acaf05203f7114cf9|commit]]
+ * Show mnt_id in /proc/pid/fdinfo [[https://git.kernel.org/linus/49d063cb353265c3af701bab215ac438ca7df36d|commit]]
+ * Make /proc/*/pagemap 0400 [[https://git.kernel.org/linus/32ed74a4b968a4faff7aaaff557035ce5d5e70ab|commit]]
+ * Make /proc/*/{stack,syscall,personality} 0400 [[https://git.kernel.org/linus/35a35046e4f9d8849e727b0e0f6edac0ece4ca6e|commit]]
+ * Add a lock-torture kernel module [[https://git.kernel.org/linus/0af3fe1efa534a43385fe2694c42ffec7a310e46|commit]]
+
+= Memory management =
+ * As [[http://kernelnewbies.org/Linux_3.15#head-dbe2430cd9e5ed1d3f2362367758cd490aba4b9d|mentioned in the "prominent features" section]], improved working set size detection
+ * hugetlb: improve page-fault scalability. The kernel could only handle a single hugetlb page fault at a time. This release allows a better chance of parallelization. This releases reduces the startup time of a 10 Gb Oracle database (with ~5000 faults) from 37.5 seconds to 25.7 seconds compared with previous kernels. Larger workloads will benefit even more [[https://git.kernel.org/linus/8382d914ebf72092aa15cdc2a5dcedb2daa0209d|commit]]
+ * Per-thread VMA caching; cache last recently used VMA to improve VMA cache hit rate, for more details see the recommended LWN article [[http://lwn.net/Articles/589475/|Optimizing VMA caching]]. [[https://git.kernel.org/linus/615d6e8756c87149f2d4c|commit]]
+ * Introduce byte-sized index for the freelist of a slab; microoptimizes some microbenchmarks [[https://git.kernel.org/linus/a41adfaa23dfe58d0832e74bef54b98db8dcc774|commit]]
+ * zswap: support multiple swap devices [[https://git.kernel.org/linus/60105e1248f571aa3b895cd63bef072ed9d90c77|commit]]
+ * "opportunistic fault around"; for more details see the bottom of [[http://lwn.net/Articles/592989/|this]] page [[https://git.kernel.org/linus/8c6e50b0290c4c708a3e6462729e1e9151a9a7df|commit]]
+
+1b93d471bca002bd849 commit]
+
+= Power management =
+ * As [[http://kernelnewbies.org/Linux_3.15#head-3abfee1e7c09473e1d9617d8765ce0925396baa4|mentioned in the "prominent features" section]], faster resume from power suspend in systems with hard disk drives
+ * Speed up resume by resuming runtime-suspended devices later during system suspend [[https://git.kernel.org/linus/7cd0602d7836c0056fe9bdab014d5ac5ec5cb291|commit]], [[https://git.kernel.org/linus/92858c476ec4e99cf0425f05dee109b6a55eb6f8|commit]]
+ * Speed up resume by using asynchronous threads for resume_early [[https://git.kernel.org/linus/9e5e7910df824ba02aedd2b5d2ca556426ea6d0b|commit]], resume_noirq [[https://git.kernel.org/linus/76569faa62c46382e080c3e190c66e19515aae1c|commit]], suspend_late [[https://git.kernel.org/linus/de377b3972729f00ee236ae4a97393e282ffe391|commit]], suspend_noirq [[https://git.kernel.org/linus/28b6fd6e37792b16a56d324841bdb20ab78e4522|commit]], acpi_thermal_check [[https://git.kernel.org/linus/a59ffb2062df3a5c346dbed931fa1e587fd0f0f3|commit]]
+ * tools/power turbostat: Run on Intel Broadwell [[https://git.kernel.org/linus/4e8e863fed2e82278d29c6357de8251adb73acb9|commit]]
+
+= Block layer =
+ * UBI: Read-only block driver on top of UBI volumes [[https://git.kernel.org/linus/9d54c8a33eec78289b1b3f6e10874719c27ce0a7|commit]]
+ * Device Mapper: add dm-era target. dm-era is a target that behaves similar to the linear target, and in  addition it keeps track of which blocks were written within a user-defined period of time called an 'era'. Use cases include tracking changed blocks for backup software, and partially invalidating the contents of a cache to restore cache coherency after rolling back a vendor snapshot [[https://git.kernel.org/linus/eec40579d84873dfb7021eb24c50360f073237c5|commit]]
+
+= File systems =
+ * Btrfs
+  * Allow mounting different Btrfs subvolumes with different ro/rw options [[https://git.kernel.org/linus/0723a0473fb48a1c93b113a28665b64ce5faf35a|commit]]
+  * Don't bother compress  writes smaller than a block that are not inlined [[https://git.kernel.org/linus/68bb462d42a963169bf7acbe106aae08c17129a5|commit]]
+  * Less lock contention when using autodefrag [[https://git.kernel.org/linus/f094c9bd3e12ee83e91f4249b600d4d2ac0a4738|commit]]
+  * Replace the Btrfs async threads with regular kernel workqueues [[https://git.kernel.org/linus/a046e9c88b0f46677923864295eac7c92cd962cb|commit]]
+  * Add simple debugfs interface [[https://git.kernel.org/linus/1bae30982bc86ab66d61ccb6e22792593b45d44d|commit]]
+
+ * ext3
+  * Speedup [[http://man7.org/linux/man-pages/man2/sync.2.html|sync(2)]] [[https://git.kernel.org/linus/2299432e1950c9ac0aa649d4617374ea24b6f131|commit]]
+ * ext4
+  * Speedup [[http://man7.org/linux/man-pages/man2/sync.2.html|sync(2)]] [[https://git.kernel.org/linus/10542c229a4e8e25b40357beea66abe9dacda2c0|commit]]
+  * jbd2: scalability improvements [[https://git.kernel.org/linus/42cf3452d5f5b0817d27c93e4e7d7eab6e89077d|commit]]
+
+ * xfs
+  * v5 format is now considered stable [[https://git.kernel.org/linus/c99d609a16506602a7398eea7d12b13513f3d889|commit]]
+  * Add O_TMPFILE support [[https://git.kernel.org/linus/99b6436bc29e4f10e4388c27a3e4810191cc4788|commit]]
+  * Allow appending aio writes [[https://git.kernel.org/linus/9862f62faba8c279ac07415a6f610041116fbdc0|commit]]
+
+ * f2fs
+  * introduce large directory support [[https://git.kernel.org/linus/3843154598a00408f4214a68bd536fdf27b1df10|commit]], [[https://git.kernel.org/linus/ab9fa662e4867455f44f4de96d29a7f09cf292c6|commit]]
+  * throttle the memory footprint with a sysfs entry [[https://git.kernel.org/linus/cdfc41c134d48c1923066bcfa6630b94588ad6bc|commit]]
+
+ * nilfs2
+  * Add FITRIM ioctl support for nilfs2 [[https://git.kernel.org/linus/f9f32c44e7016c61f8c60afbe461fbc7d5a6c7cc|commit]]
+  * Implementation of NILFS_IOCTL_SET_SUINFO ioctl. With this ioctl the segment usage entries in the SUFILE can be updated from userspace [[https://git.kernel.org/linus/2cc88f3a5f16ae9a3c8f54de1b2fd4a397b36075|commit]]
+
+ * GFS2
+  * Add meta readahead field in directory entries [[https://git.kernel.org/linus/44aaada9d144a46d3de48ad81093f69d17fae96f|commit]]
+
+ * affs
+  * add mount option to avoid filename truncates [[https://git.kernel.org/linus/8ca577223f75230a746a06f4566c53943f78d5d0|commit]]
+
+= Networking =
+ * Bluetooth
+  * Enable Secure Connection [[https://git.kernel.org/linus/eac83dc632a7afba72f7084266bc310219486253|commit]]
+  * Security Level 4, a new strong security requirement that is based around 128-bit equivalent strength for link and encryption keys required using FIPS approved algorithms. Which means that E0, SAFER+ and P-192 are not allowed. Only connections created with P-256 resulting from using Secure Connections support are allowed [[https://git.kernel.org/linus/7b5a9241b780ea2f77e71647bc0d3c9708c18ef1|commit]], [[https://git.kernel.org/linus/7d513e9243afd01df315db45ffe96a6e3688e612|commit]], [[https://git.kernel.org/linus/2c068e0b924c6fabd9a2ac59bc451b4b656cbae3|commit]]
+  * Add Secure Connection Only Mode [[https://git.kernel.org/linus/0ab04a9c0e8e37ca495fb08c8b83615c5f144551|commit]]
+  * Add management command to use of debug keys [[https://git.kernel.org/linus/4e39ac81366583486b857c88656409e56befefdf|commit]], [[https://git.kernel.org/linus/b1de97d8c06d9d8d38e85dc5b0cf3630372e702c|commit]]
+  * Enable LE L2CAP Connection oriented Channel support by default [[https://git.kernel.org/linus/9b7655eafeeec9e74e97e9056e820ede8d18093e|commit]]
+  * Add support for Set Privacy command [[https://git.kernel.org/linus/62b04cd124cb76ce0b9a6391c6c046c08c1ac8b7|commit]]
+  * Add support for handling signature resolving keys [[https://git.kernel.org/linus/7ee4ea3692f20b87b0e0d3884d5b2d22ec1a2df0|commit]]
+  * Introduce LE auto connection support [[https://git.kernel.org/linus/a4790dbd43d1617b09d57e96494fde5a4b01980a|commit]], [[https://git.kernel.org/linus/9fcb18ef3acb51e54b6bca6d2d803676ac86813d|commit]]
+ * wireless
+  * Add NAPI support back [[https://git.kernel.org/linus/06d181a8fd58031db9c114d920b40d8820380a6e|commit]]
+  * Remove NL80211_FEATURE_P2P_DEVICE_NEEDS_CHANNEL [https://git.kernel.org/linus
+  * hwsim: add channel switch support [[https://git.kernel.org/linus/0037db63ca71ddbe4473c8e261dcb74d75ff47d2|commit]]
+  * hwsim: make P2P-Device support optional [[https://git.kernel.org/linus/8c66a3d9d951a645861b9ec5751184723c4480ce|commit]]
+ * Devices: add busy_poll feature to allow finding out if a device supports busy polling [[https://git.kernel.org/linus/d0290214de712150b118a532ded378a29255893b|commit]]
+ * af_rxrpc: Add sysctls for configuring RxRPC parameters [[https://git.kernel.org/linus/5873c0834f8896aa9da338b941035a2f8b29e99b|commit]]
+ * [[http://en.wikipedia.org/wiki/B.A.T.M.A.N.|BATMAN]] protocol
+  * Add IPv4 link-local/IPv6-ll-all-nodes multicast support [[https://git.kernel.org/linus/ab49886e3da73b6b35ece21006e191910427bb30|commit]]
+  * Multicast Listener Announcements via Translation Table [[https://git.kernel.org/linus/c5caf4ef34e2779c9a90bf4cbb57fbdf57dc8cbc|commit]], [[https://git.kernel.org/linus/60432d756cf06e597ef9da511402dd059b112447|commit]]
+ * bonding: support QinQ for bond arp interval [[https://git.kernel.org/linus/fbd929f2dce460456807a51e18d623db3db9f077|commit]], [[http://git.kernel.org/linus/e7aceef4ac3180bd93d4c0d3fe23775850b6c31d|commit]]
+
+ * ieee802154: support rf212 and extended mac features [[https://git.kernel.org/linus/e035b8addc544c2b4de2f8b0326ba7939abd9541|commit]]
+ * ipsec: add support of limited SA dump [[https://git.kernel.org/linus/d3623099d3509fa68fa28235366049dd3156c63a|commit]]
+ * New IP_MTU_DISCOVER option IP_PMTUDISC_OMIT [[https://git.kernel.org/linus/1b346576359c72bee34b1476b4fc63d77d37b314|commit]], new IPV6_MTU_DISCOVER option IPV6_PMTUDISC_OMIT [[https://git.kernel.org/linus/0b95227a7ba7e69f795757cd7c839eff0615f2d1|commit]]
+ * netfilter
+  * connlimit: use keyed locks for improved performance [[https://git.kernel.org/linus/1442e7507dd597cc701b224d3cc9bf1f165e928b|commit]]
+  * connlimit: use rbtree for per-host conntrack obj storage, for improved performance [[https://git.kernel.org/linus/7d08487777c8b30dea34790734d708470faaf1e5|commit]]
+  * conntrack: remove central spinlock nf_conntrack_lock for improved performance [[https://git.kernel.org/linus/93bb0ceb75be2fdfa9fc0dd1fb522d9ada515d9c|commit]]
+  * ipset: add forceadd kernel support for hash set types [[https://git.kernel.org/linus/07cf8f5ae2657ac495b906c68ff3441ff8ba80ba|commit]]
+  * ipset: add hash:ip,mark data type to ipset [[https://git.kernel.org/linus/3b02b56cd5988d569731f6c0c26992296e46b758|commit]]
+  * ipset: add markmask for hash:ip,mark data type [[https://git.kernel.org/linus/4d0e5c076d01d3fb4767a502a9517923fb9a080e|commit]]
+  * nf_tables: accept QUEUE/DROP verdict parameters [[https://git.kernel.org/linus/e0abdadcc6e113ed2e22c85b350074487095875b|commit]]
+  * nf_tables: add optional user data area to rules [[https://git.kernel.org/linus/0768b3b3d228c5acf2075f40f3d25cda30011d4f|commit]]
+ * loopback: sctp: add NETIF_F_SCTP_CSUM to device features [[https://git.kernel.org/linus/b17c706987fa6f28bdc1771c8266e7a69e22adcb|commit]]
+ * tcp: snmp stats for Fast Open, SYN rtx, and data pkts [[https://git.kernel.org/linus/f19c29e3e391a66a273e9afebaf01917245148cd|commit]]
+ * Add IPsec protocol multiplexer [[https://git.kernel.org/linus/3328715e6c1fcb10cd86b0f3212d18290b7e4463|commit]], [[https://git.kernel.org/linus/7e14ea1521d9249d9de7f0ea39c9af054745eebd|commit]]
+ * vti4/vti6: Support inter address family tunneling. With this patch we can tunnel ipv4/6 traffic via a vti6/4 interface [[https://git.kernel.org/linus/78a010cca000aafc6a8503eb2be590a533589a27|commit]], [[https://git.kernel.org/linus/22e1b23dafa8554ef722454e8b84645820cbbc17|commit]]
+
+= Virtualization =
+ * KVM
+  * Allow per-vm capability enablement [[https://git.kernel.org/linus/d938dc55225a7212e7f31c5a8571da304cc3de16|commit]]
+  * PPC: Book3S HV: Add transactional memory support [[https://git.kernel.org/linus/e4e38121507a27d2ccc4b28d9e7fc4818a12c44c|commit]]
+  * x86: Add nested virtualization support for MPX [[https://git.kernel.org/linus/36be0b9deb23161e9eba962c215aece551113a15|commit]]
+
+ * Hyper-V
+  * Implement the file copy service for Linux guests on Hyper-V ([[http://technet.microsoft.com/en-us/library/dn464282.aspx|related documentation]]) [[https://git.kernel.org/linus/01325476d6e46185031be4a9bc6443832dbc807c|commit]]
+  * network: Enable receive side IP checksum offload, send side checksum offload and large send offload [[https://git.kernel.org/linus/4a0e70ae5e3858052f6d91564bf3484f1eb91dc7|commit]], [[https://git.kernel.org/linus/e3d605ed441cf4d113f9a1cf9e1b3f7cabe0d781|commit]], [[https://git.kernel.org/linus/08cd04bf6d5b14ea90845b596d371bfa33eaba06|commit]], [[https://git.kernel.org/linus/77bf5487946254798ed7f265877939c703189f1e|commit]]
+  * network: Enable scatter gather I/O [[https://git.kernel.org/linus/54a7357f7ac408be4ef4ca82900bd24cb6789f36|commit]]
+  * hyperv-fb: add support for generation 2 virtual machines. [[https://git.kernel.org/linus/9069fd54960304a7c941909cbccdf8df9c42b488|commit]]
+ * Xen
+  * xen-netback: Add stat counters for zerocopy [[https://git.kernel.org/linus/1bb332af4cd889e4b64dacbf4a793ceb3a70445d|commit]]
+  * xen-netback: Introduce TX grant mapping [[https://git.kernel.org/linus/f53c3fe8dad725b014e9c7682720d8e3e2a8a5b3|commit]]
+  * Add support for MSI message groups [[https://git.kernel.org/linus/4892c9b4ada9f9a71a0da7a268f95e988d88064b|commit]]
+ * vfio: Multi-IOMMU domain support [[https://git.kernel.org/linus/1ef3e2bc04223ff956dc62abaf2dff1f3322a431|commit]]
+
+= Security =
+ * audit: Allow login in non-init namespaces [[https://git.kernel.org/linus/543bc6a1a987672b79d6ebe8e2ab10471d8f1047|commit]]
+ * audit: add compat syscall audit support [[https://git.kernel.org/linus/4b58841149dcaa500ceba1d5378ae70622fe4899|commit]]
+ * audit: audit /proc/<pid>/cmdline aka proctitle [[https://git.kernel.org/linus/3f1c82502c299da08b7b7f08b435212e51166ed9|commit]]
+ * Add driver for Intel Trusted Execution Environment with ME Interface [[https://git.kernel.org/linus/92ab513072e73d74fee78062c9935f119339e4de|commit]]
+
+= Crypto =
+ * caam - add support for aead null encryption [[https://git.kernel.org/linus/ae4a825ffdd6fd769af2667e03070940af1b8368|commit]]
+ * omap-des - Add omap-des driver for OMAP4/AM43xx [[https://git.kernel.org/linus/e91aa9d50c3561c4a40b87d1d302db851f07ef31|commit]]
+ * sha - SHA1 transform x86_64 AVX2 [[https://git.kernel.org/linus/7c1da8d0d046174a4188b5729d7579abf3d29427|commit]]
+ * tegra - remove driver [[https://git.kernel.org/linus/645af2e43705d8c80c9606d5c5e83eda9a1a1a2e|commit]]
+
+= Tracing/perf =
+ * Currently the tracers (function, function_graph, irqsoff, etc) can only be used by the top-level tracing directory (not for instances). Allow instances to be able to  run a separate tracer apart from the what the top-level tracing is doing [[https://git.kernel.org/linus/607e2ea167e56db84387f3ab97e59a862e101cab|commit]],  [[https://git.kernel.org/linus/591dffdade9f07692a7dd3ed16830ec24e901ece|commit]], [[https://git.kernel.org/linus/f20a580627f43e73e4e57cb37e3864080ca06088|commit]]
+ * uprobes: Add support for event triggering  [[https://git.kernel.org/linus/ca3b162021a421b38a9cd7b66555b9b01568dc9d|commit]]
+ * perf
+  * bench: Add futex-hash microbenchmark [[https://git.kernel.org/linus/a043971141f163f9845324a2f83502d15011485d|commit]], add futex-requeue microbenchmark [[https://git.kernel.org/linus/0fb298cf95c0d8119557b7d4657724a146e0622e|commit]], add futex-wake microbenchmark [[https://git.kernel.org/linus/27db78307481dbba68c5f3563c6cb694b25521d9|commit]]
+  * kvm: introduce --list-cmds for use by scripts [[https://git.kernel.org/linus/09a71b97cce70551356b13b668aa1d7d6da84457|commit]]
+  * probe: Show in what binaries/modules probes are set [[https://git.kernel.org/linus/fb226ccd2a6f77be13009edc196da2077800066b|commit]]
+  * Support distro-style debuginfo for uprobe [[https://git.kernel.org/linus/a15ad2f5360c821f030c53266ebf467738249c68|commit]]
+  * Add call-graph option support into .perfconfig [[https://git.kernel.org/linus/eb853e80324fa87faf7ae7e1a763ad643f908f2d|commit]]
+  * Disable user-space callchain/stack dumps for function trace events [[https://git.kernel.org/linus/6bedfab68666afac1b03f8d62ee037c6ab82fbc5|commit]], [[https://git.kernel.org/linus/b9e1ab6d4c0582cad97699285a6b3cf992251b00|commit]]
+  * Disallow user-space callchains for function trace events [[https://git.kernel.org/linus/cfa77bc4af2c75c0781ee76cde2dd104c6c8e2b7|commit]]
+  * Disallow user-space stack dumps for function trace events [[https://git.kernel.org/linus/63c45f4ba533e9749da16298db53e491c25d805b|commit]]
+  * Add trace_clock=<clock> kernel parameter [[https://git.kernel.org/linus/e1e232ca6b8faa210e5509f17d55519b4392524f|commit]]
+
+= Other news sites that track the changes of this release =
+ * LWN Merge window, [[http://lwn.net/Articles/592989/|part 1]] and [[http://lwn.net/Articles/594864/|part 2]]
+ * Phoronix [[http://www.phoronix.com/scan.php?page=news_item&px=MTcwOTY|The Top Features Of The Linux 3.15 Kernel]]

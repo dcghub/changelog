@@ -1,0 +1,192 @@
+#pragma section-numbers on
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 3.0 development cycle
+
+Linux 3.0 [[http://lkml.org/lkml/2011/7/21/455|released]] on 21 Jul, 2011
+
+'''''Summary''''': Besides a new version numbering scheme, Linux 3.0 also has several new features: Btrfs data scrubbing and automatic defragmentation, XEN Dom0 support, unprivileged ICMP_ECHO, wake on WLAN, Berkeley Packet Filter JIT filtering, a memcached-like system for the page cache, a sendmmsg() syscall that batches sendmsg() calls and setns(), a syscall that allows better handling of light virtualization systems such as containers. New hardware support has been added: for example, Microsoft Kinect, AMD Llano Fusion APUs, Intel iwlwifi 105 and 135, Intel C600 serial-attached-scsi controller, Ralink RT5370 USB, several Realtek RTL81xx devices or the Apple iSight webcam. Many other drivers and small improvements have been added.
+
+<<TableOfContents>>
+= Prominent features =
+== Btrfs: Automatic defragmentation, scrubbing, performance improvements ==
+
+'''''Automatic defragmentation'''''
+
+COW (copy-on-write) filesystems have many advantages, but they also have some disadvantages, for example fragmentation. Btrfs lays out the data sequentially when files are written to the disk for first time, but a COW design implies that any subsequent modification to the file must not be written on top of the old data, but be placed in a free block, which will cause fragmentation (RPM databases are a common case of this problem). Aditionally, it suffers the fragmentation problems common to all filesystems.
+
+Btrfs already offers alternatives to fight this problem: First, it supports online defragmentation using the command "btrfs filesystem defragment". Second, it has a mount option, -o nodatacow, that disables COW for data. Now btrfs adds a third option, the -o autodefrag mount option. This mechanism detects small random writes into files and queues them up for an automatic defrag process, so the filesystem will defragment itself while it's used. It isn't suited to virtualization or big database workloads yet, but works well for smaller files such as rpm, SQLite or bdb databases. Code:  [[http://git.kernel.org/linus/4cb5300bc839b8a943eb19c9f27f25470e22d0ca|(commit)]]
+
+'''''Scrub'''''
+
+"Scrubbing" is the process of checking the integrity of the data in the filesystem. This initial implementation of scrubbing will check the checksums of all the extents in the filesystem. If an error occurs (checksum or IO error), a good copy is searched for. If one is found, the bad copy will be rewritten. Code: [[http://git.kernel.org/linus/a2de733c78fa7af51ba9670482fa7d392aa67c57|(commit 1]], [[http://git.kernel.org/linus/475f63874d739d7842a56da94687f18d583ae654|2)]]
+
+
+'''''Other improvements'''''
+
+-File creation/deletion speedup: The performance of file creation and deletion on btrfs was very poor. The reason is that for each creation or deletion, btrfs must do a lot of b+ tree insertions, such as inode item, directory name item, directory name index and so on. Now btrfs can do some delayed b+ tree insertions or deletions, which allows to batch these modifications. Microbenchmarks of file creation have been speed up by ~15%, and file deletion by ~20%. Code: [[http://git.kernel.org/linus/16cdcec736cd214350cdb591bf1091f8beedefa0|(commit)]]
+
+
+-Do not flush csum items of unchanged file data: speeds up fsync. A sysbench workload doing "random write + fsync" went from 112.75 requests/sec to 1216 requests/sec. Code: [[http://git.kernel.org/linus/8e531cdfeb75269c6c5aae33651cca39707848da|(commit)]]
+
+
+-Quasi-round-robin for space allocation in multidevice setups: the chunk allocator currently always allocates space on the devices in the same order. This leads to a very uneven distribution, especially with RAID1 or RAID10 and an uneven number of devices. Now Btrfs always sorts the devices before allocating, and allocates the stripes on the devices with the most available space. Code: [[http://git.kernel.org/linus/73c5de0051533cbdf2bb656586c3eb21a475aa7d|(commit)]]
+
+
+== sendmmsg(): batching of sendmsg() calls ==
+
+Recvmsg() and sendmsg() are the syscalls used to receive/send data to the network. In 2.6.33, Linux [[http://kernelnewbies.org/Linux_2_6_33#head-346ce08dcffcf216d56ef0cbf19f3702ed2fb493|added recvmmsg()]], a syscall that allows to receive in a single call data that would need multiple recvmsg() calls, improving throughput and latency for a number of scenarios. Now, a equivalent sendmmsg() syscall has been added. A microbenchmark saw a 20% improvement in throughput on UDP send and 30% on raw socket send
+
+
+Code: [[http://git.kernel.org/linus/228e548e602061b08ee8e8966f567c12aa079682|(commit)]]
+
+== XEN dom0 support ==
+
+Finally, Linux has got [[http://blog.xen.org/index.php/2011/06/14/linux-3-0-how-did-we-get-initial-domain-dom0-support-there/|Xen dom0 support]]
+
+== Cleancache ==
+
+Recommended LWN article: [[http://lwn.net/Articles/386090/|Cleancache and Frontswap]]
+
+Cleancache is an optional feature that can potentially increases page cache performance. It could be described as a memcached-like system, but for cache memory pages. It provides memory storage not directly accessible or addressable by the kernel, and it does not guarantee that the data will not vanish. It can be used by virtualization software to improve memory handling for guests, but it can also be useful to implement things like a compressed cache.
+
+Code: [[http://git.kernel.org/linus/4fe4746ab694690af9f2ccb80184f5c575917c7f|(commit)]], [[http://git.kernel.org/linus/077b1f83a69d94f2918630a882d74939baca0bce|(commit)]]
+
+
+== Berkeley Packet Filter just-in-time filtering ==
+
+Recommended LWN article: [[https://lwn.net/Articles/437981/|A JIT for packet filters]]
+
+The Berkeley Packet Filter filtering capabilities, used by tools like libpcap/tcpdump, are normally handled by an interpreter. This release adds a simple JIT that generates native code when filter is loaded in memory (something already done by other OSes, like [[http://www.freebsd.org/releases/7.0R/relnotes.html#NET-PROTO|FreeBSD]]).  Admin need to enable this feature writting "1" to /proc/sys/net/core/bpf_jit_enable
+
+
+Code: [[http://git.kernel.org/linus/0a14842f5a3c0e88a1e59fac5c3025db39721f74|(commit)]]
+
+== Wake on WLAN support ==
+
+Wake on Wireless is a feature to allow the system to go into a low-power state (e.g. ACPI S3 suspend) while the wireless NIC remains active and does varying things for the host, e.g. staying connected to an AP or searching for networks. The 802.11 stack has added support for it.
+
+Code: [[http://git.kernel.org/linus/eecc48000afe2ca6da22122d553b7cad294e42fc|(commit 1]], [[http://git.kernel.org/linus/ff1b6e69ad4f31fb3c9c6da2665655f2e798dd70|2)]]
+
+== Unprivileged ICMP_ECHO messages ==
+
+Recommended LWN article: [[https://lwn.net/Articles/420799/|ICMP sockets]]
+
+This release makes it possible to send ICMP_ECHO messages (ping) and receive the corresponding ICMP_ECHOREPLY messages without any special privileges, similar to what is implemented [[http://www.manpagez.com/man/4/icmp/|in Mac OS X]]. In other words, the patch makes it possible to implement setuid-less and CAP_NET_RAW-less /bin/ping. Initially this functionality was written for Linux 2.4.32, but unfortunately it was never made public. The new functionality is disabled by default, and is enabled at bootup by supporting Linux distributions, optionally with restriction to a group or a group range.
+
+Code: [[http://git.kernel.org/linus/c319b4d76b9e583a5d88d6bf190e079c4e43213d|(commit)]]
+
+
+== setns() syscall: better namespace handling ==
+
+Recommended LWN article: [[https://lwn.net/Articles/407495/|Namespace file descriptors]]
+
+Linux supports different namespaces for many of the resources its handles; for example, lightweight forms of virtualization such as [[http://en.wikipedia.org/wiki/Operating_system-level_virtualization|containers]] or [[http://0pointer.de/blog/projects/changing-roots.html|systemd-nspaw]] show to the virtualized processes a virtual PID different from the real PID. The same thing can be done with the filesystem directory structure, network resources, IPC, etc. The only way to set different namespace configurations was using different flags in the clone() syscall, but that system didn't do things like allow to one processes to access to other process' namespace. The setns() syscall solves that problem-
+
+Code: [[http://git.kernel.org/linus/6b4e306aa3dc94a0545eb9279475b1ab6209a31f|(commit 1]], [[http://git.kernel.org/linus/13b6f57623bc485e116344fe91fbcb29f149242b|2]], [[http://git.kernel.org/linus/0663c6f8fa37d777ede74ff991a0cba3a42fcbd7|3]], [[http://git.kernel.org/linus/34482e89a5218f0f9317abf1cfba3bb38b5c29dd|4]], [[http://git.kernel.org/linus/a00eaf11a223c63fbb212369d6db69ce4c55a2d1|5]], [[http://git.kernel.org/linus/7b21fddd087678a70ad64afc0f632e0f1071b092|6)]]
+
+== Alarm-timers ==
+
+Recommended LWN article: [[https://lwn.net/Articles/429925/|Waking systems from suspend]]
+
+Alarm-timers are a hybrid style timer, similar to high-resolution timers, but when the system is suspended, the RTC device is set to fire and wake the system for when the soonest alarm-timer expires. The concept for Alarm-timers was inspired by the Android Alarm driver, and the interface to userland uses the POSIX clock and timers interface, using two new clockids:CLOCK_REALTIME_ALARM and CLOCK_BOOTTIME_ALARM. 
+    
+Code: [[http://git.kernel.org/linus/ff3ead96d17f47ee70c294a5cc2cce9b61e82f0f|(commit 1]], [[http://git.kernel.org/linus/9a7adcf5c6dea63d2e47e6f6d2f7a6c9f48b9337|2)]]
+
+= Driver and architecture-specific changes =
+All the driver and architecture-specific changes can be found in the [[http://kernelnewbies.org/Linux_3.0_DriverArch|Linux_3.0_DriverArch page]]
+
+
+= VFS =
+ * Cache xattr security drop check for write: benchmarking on btrfs showed that a major scaling bottleneck on large systems on btrfs is currently the xattr lookup on every write, which causes an additional tree walk, hitting some per file system locks and quite bad scalability. This is also a problem in ext4, where it hits the global mbcache lock. Caching this check solves the problem [[http://git.kernel.org/linus/69b4573296469fd3f70cf7044693074980517067|(commit)]]
+
+= Process scheduler =
+ * Increase SCHED_LOAD_SCALE resolution: With this extra resolution, the scheduler can handle deeper cgroup hiearchies and do better shares distribution and load balancing on larger systems (especially for low weight task groups) [[http://git.kernel.org/linus/1399fa7807a1a5998bbf147e80668e9950661dfa|(commit)]], [[http://git.kernel.org/linus/c8b281161dfa4bb5d5be63fb036ce19347b88c63|(commit)]]
+ * Move the second half of ttwu() to the remote CPU: avoids having to take rq->lock and doing the task enqueue remotely, saving lots on cacheline transfers. A semaphore benchmark goes from 647278 worker burns per second to 816715 [[http://git.kernel.org/linus/317f394160e9beb97d19a84c39b7e5eb3d7815a8|(commit)]]
+ * Next buddy hint on sleep and preempt path: a worst-case benchmark consisting of 2 tbench client processes with 2 threads each running on a single CPU changed from 105.84 MB/sec to 112.42 MB/sec [[http://git.kernel.org/linus/2f36825b176f67e5c5228aa33d828bc39718811f|(commit)]]
+= Memory management =
+ * Make mmu_gather preempemtible [[http://git.kernel.org/linus/d16dfc550f5326a4000f3322582a7c05dec91d7a|(commit)]]
+ * Batch activate_page() calls to reduce zone->lru_lock contention [[http://git.kernel.org/linus/eb709b0d062efd653a61183af8e27b2711c3cf5c|(commit)]]
+ * tmpfs: implement generic xattr support [[http://git.kernel.org/linus/b09e0fa4b4ea66266058eead43350bd7d55fec67|(commit)]]
+ * Memory cgroup controller:
+  * Add memory.numastat API for NUMA statistics [[http://git.kernel.org/linus/406eb0c9ba765eb066406fd5ce9d5e2b169a4d5a|(commit)]]
+  * Add the pagefault count into memcg stats [[http://git.kernel.org/linus/456f998ec817ebfa254464be4f089542fa390645|(commit)]]
+  * Reclaim memory from nodes in round-robin order [[http://git.kernel.org/linus/889976dbcb1218119fdd950fb7819084e37d7d37|(commit)]]
+  * Remove the deprecated noswapaccount kernel parameter [[http://git.kernel.org/linus/a2c8990aed5ab000491732b07c8c4465d1b389b8|(commit)]]
+
+
+= Networking =
+ * Allow setting the network namespace by fd [[http://git.kernel.org/linus/f063052947f770845a6252f7fa24f6f624592a24|(commit)]]
+ * Wireless
+  * Add the ability to advertise possible interface combinations [[http://git.kernel.org/linus/7527a782e187d1214a5b3dc2897ce441033bb4ef|(commit)]]
+  * Add support for scheduled scans [[http://git.kernel.org/linus/807f8a8c300435d5483e8d78df9dcdbc27333166|(commit)]]
+  * Add userspace authentication flag to mesh setup [[http://git.kernel.org/linus/15d5dda623139bbf6165030fc251bbd5798f4130|(commit)]]
+  * New notification to discover mesh peer candidates. [[http://git.kernel.org/linus/c93b5e717ec47b57abfe0229360bc11e77520984|(commit)]]
+ * Allow ethtool to set interface in loopback mode. [[http://git.kernel.org/linus/eed2a12f1ed9aabf0676f4d0db34aad51976c5c6|(commit)]]
+ * Allow no-cache copy from user on transmit [[http://git.kernel.org/linus/c6e1a0d12ca7b4f22c58e55a16beacfb7d3d8462|(commit)]]
+ * ipset: SCTP, UDPLITE support added [[http://git.kernel.org/linus/91eb7c08c6cb3b8eeba1c61f5753c56dcb77f018|(commit)]]
+ * sctp: implement socket option SCTP_GET_ASSOC_ID_LIST [[http://git.kernel.org/linus/209ba424c2c6e5ff4dd0ff79bb23659aa6048eac|(commit)]], implement event notification SCTP_SENDER_DRY_EVENT [[http://git.kernel.org/linus/e1cdd553d482ceb083fac5e544e8702fccefbfd6|(commit)]]
+ * bridge: allow creating bridge devices with netlink [[http://git.kernel.org/linus/bb900b27a2f49b37bc38c08e656ea13048fee13b|(commit)]], allow creating/deleting fdb entries via netlink [[http://git.kernel.org/linus/36fd2b63e3b4336744cf3f6a6c9543ecbec334a7|(commit)]]
+ * batman-adv: multi vlan support for bridge loop detection [[http://git.kernel.org/linus/61906ae86d8989e5bd3bc1f51b2fb8d32ffde2c5|(commit)]]
+ * pkt_sched: QFQ - quick fair queue scheduler [[http://git.kernel.org/linus/0545a3037773512d3448557ba048cebb73b3e4af|(commit)]]
+ * RDMA: Add netlink infrastructure that allows for registration of RDMA clients [[http://git.kernel.org/linus/b2cbae2c248776d81cc265ff7d48405b6a4cc463|(commit)]]
+
+
+
+
+= File systems =
+'' BLOCK LAYER ''
+ * Submit discard bio in batches in blkdev_issue_discard() - makes discarding data faster [[http://git.kernel.org/linus/5dba3089ed03f84b84c6c739df8330112f04a15d|(commit)]]
+
+'' EXT4 ''
+ * Enable "punch hole" functionality ([[https://lwn.net/Articles/415889/|recommended LWN article]]) [[http://git.kernel.org/linus/a4bb6b64e39abc0e41ca077725f2a72c868e7622|(commit)]], [[http://git.kernel.org/linus/d583fb87a3ff0ca50befd2f73f7a67fade1c8c56|(commit)]]
+ * Add support for multiple mount protection [[http://git.kernel.org/linus/c5e06d101aaf72f1f2192a661414459775e9bd74|(commit)]]
+
+'' CIFS ''
+ * Add support for mounting Windows 2008 DFS shares [[http://git.kernel.org/linus/c1508ca23653245266e2e3ab69a8dad464f7a569|(commit)]]
+ * Convert cifs_writepages to use async writes [[http://git.kernel.org/linus/c3d17b63e5eafcaf2678c11de801c189468631c8|(commit)]], [[http://git.kernel.org/linus/c28c89fc43e3f81436efc4748837534d4d46f90c|(commit)]]
+ * Add rwpidforward mount option that enables a mode when CIFS forwards pid of a process who opened a file to any read and write operation [[http://git.kernel.org/linus/d4ffff1fa9695c5b5c0bf337e208d8833b88ff2d|(commit)]]
+
+'' OCFS2 ''
+ * SSD trimming support [[http://git.kernel.org/linus/55e67872b67ebd30d1326067cdba53a622ab497d|(commit)]], [[http://git.kernel.org/linus/e80de36d8dbff216a384e9204e54d59deeadf344|(commit)]]
+ * Support for moving extents [[http://git.kernel.org/linus/028ba5df63fa9fc18045bc1e9b48cdd43727e1c5|(commit)]], [[http://git.kernel.org/linus/220ebc4334326bc23e4c4c3f076dc5a58ec293f6|(commit)]]
+
+
+'' NILFS2 ''
+ * Implement resize ioctl [[http://git.kernel.org/linus/4e33f9eab07e985282fece4121066c2db1d332ed|(commit)]]
+
+'' XFS ''
+ * Add online discard support [[http://git.kernel.org/linus/e84661aa84e2e003738563f65155d4f12dc474e7|(commit)]]
+
+= Crypto =
+ * caam - Add support for the Freescale SEC4/CAAM [[http://git.kernel.org/linus/8e8ec596e6c0144e2dd500a57ee23dde9684df46|(commit)]]
+ * padlock - Add SHA-1/256 module for VIA Nano [[http://git.kernel.org/linus/0475add3c27a43a6599fe6338f8fffe919a13547|(commit)]]
+ * s390: add System z hardware support for CTR mode [[http://git.kernel.org/linus/0200f3ecc19660bebeabbcbaf212957fcf1dbf8f|(commit)]], add System z hardware support for GHASH [[http://git.kernel.org/linus/df1309ce955a490eac6697a41159b43e24d35995|(commit)]], add System z hardware support for XTS mode [[http://git.kernel.org/linus/99d97222150a24e6096805530e141af94183b9a1|(commit)]]
+ * s5p-sss - add S5PV210 advanced crypto engine support [[http://git.kernel.org/linus/a49e490c7a8a5c6c9474b1936ad8048f3e4440fc|(commit)]]
+
+= Virtualization =
+ * User-mode Linux: add earlyprintk support [[http://git.kernel.org/linus/d634f194d4e2e58d57927c812aca097e67a2287d|(commit)]], add ucast Ethernet transport [[http://git.kernel.org/linus/4ff4d8d342fe25c4d1106fb0ffdd310a43d0ace0|(commit)]]
+ * xen: add blkback support [[http://git.kernel.org/linus/4d05a28db56225bbab5e1321d818f318e92a4657|(commit)]]
+
+= Security =
+ * Allow the application of capability limits to usermode helpers [[http://git.kernel.org/linus/17f60a7da150fdd0cfb9756f86a262daa72c835f|(commit)]]
+ * SELinux
+  * add /sys/fs/selinux mount point to put selinuxfs [[http://git.kernel.org/linus/7a627e3b9a2bd0f06945bbe64bcf403e788ecf6e|(commit)]]
+  * Make SELinux cache VFS RCU walks safe (improves VFS performance) [[http://git.kernel.org/linus/0dc1ba24f7fff659725eecbba2c9ad679a0954cd|(commit)]]
+
+= Tracing/profiling =
+ * perf stat: Add -d -d and -d -d -d options to show more CPU events [[http://git.kernel.org/linus/c6264deff7ea6125492b442edad885e5429679af|(commit)]], [[http://git.kernel.org/linus/2cba3ffb9a9db3874304a1739002d053d53c738b|(commit)]]
+ * perf stat: Add --sync/-S option [[http://git.kernel.org/linus/f9cef0a90c4e7637f1ec98474a1a099aec45eb65|(commit)]]
+
+= Various core changes =
+ * rcu: priority boosting for TREE_PREEMPT_RCU [[http://git.kernel.org/linus/27f4d28057adf98750cf863c40baefb12f5b6d21|(commit)]]
+ * ulimit: raise default hard ulimit on number of files to 4096 [[http://git.kernel.org/linus/0ac1ee0bfec2a4ad118f907ce586d0dfd8db7641|(commit)]]
+ * cgroups
+  * remove the Namespace cgroup subsystem. It has been replaced by a compatibility flag 'clone_children', where a newly created cgroup will copy the parent cgroup values. The userspace has to manually create a cgroup and add a task to the 'tasks' file [[http://git.kernel.org/linus/a77aea92010acf54ad785047234418d5d68772e2|(commit)]]
+  * Make 'procs' file writable [[http://git.kernel.org/linus/74a1166dfe1135dcc168d35fa5261aa7e087011b|(commit)]]
+ * kbuild: implement several W= levels [[http://git.kernel.org/linus/28bc20dccadc610c56e27255aeef2938141a0cd3|(commit)]]
+ * PM/Hibernate: Add sysfs knob to control size of memory for drivers [[http://git.kernel.org/linus/ddeb648708108091a641adad0a438ec4fd8bf190|(commit)]]
+ * posix-timers: RCU conversion [[http://git.kernel.org/linus/8af088710d1eb3c980e0ef3779c8d47f3f217b48|(commit)]]
+ * coredump: add support for exe_file in core name [[http://git.kernel.org/linus/57cc083ad9e1bfeeb4a0ee831e7bb008c8865bf0|(commit)]]
+
+----
+CategoryReleases

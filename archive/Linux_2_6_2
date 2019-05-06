@@ -1,0 +1,11 @@
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.2 development
+
+
+= 2.6.2 =
+  * Released February 4, 2004 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.2|changelog]]
+  * RAID 6 implementation [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=8869ce42bfc6301d645eabb64eea343569be9575|(commit)]]
+  * One-shot support for epoll [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=b248eb341da327a418e3fdd55bcad209c3802892|(commit)]]
+  * Add support for m68knommu [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=ccc218ff4f93913018f735201586caa19dc022db|(commit)]]
+  * Schedulers interactivity improvements [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=80605ac9c461beed318da1af7f0355c66d90f66c|(commit)]]
+  * New Qlogic SCSI driver

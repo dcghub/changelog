@@ -1,0 +1,221 @@
+#pragma section-numbers on
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.39 development cycle
+
+
+Kernel 2.6.39 [[http://lkml.org/lkml/2011/5/19/16|released]] on Wed, 18 May 2011.
+
+'''Summary''': EXT4 SMP scalability improvements, increase of the initial TCP congestion window, a new architecture called Unicore-32, a feature that allows the creation of groups of network resources called IPset, Btrfs updates, a feature that allows to store crash information in firmware to recover it after a reboot, open-by-handle syscalls, perf updates, and many other small changes and new drivers.
+
+
+<<TableOfContents>>
+= Prominent features (the cool stuff) =
+
+== Ext4 SMP scalability ==
+In 2.6.37, huge Ext4 scalability improvements were merged and [[http://kernelnewbies.org/Linux_2_6_37#head-5b9d7940fa4e8294ceaac86a74beb021b2fce3e3|mentioned in the changelog]]. But this feature was not ready for prime time and had been disabled in source before the release - something that the changelog didn't mention. In this release it has been enabled by default. This is the text from the previous changelog:
+
+"In this release Ext4 will use the "bio" layer directly instead of the intermediate "buffer" layer. The "bio" layer (alias for Block I/O: it's the part of the kernel that sends the requests to the IO/O scheduler) was one of the first features merged in the Linux 2.5.1 kernel. The buffer layer has a lot of performance and SMP scalability issues that will get solved with this port. A FFSB benchmark in a 48 core AMD box using a 24 SAS-disk hardware RAID array with 192 simultaneous ffsb threads speeds up by 300% (400% disabling journaling), while reducing CPU usage by a factor of 3-4"
+
+Code: [[http://git.kernel.org/linus/6fd7a46781999c32f423025767e43b349b967d57|(commit)]]
+
+
+== TCP: Increase the initial congestion window to 10 packets ==
+
+Recommended LWN article: [[https://lwn.net/Articles/427104/|Increasing the TCP initial congestion window]]
+
+The initial congestion window of the Linux TCP stack has been increased to 10 packets, it should improve latencies.
+
+Code: [[http://git.kernel.org/linus/442b9635c569fef038d5367a7acd906db4677ae1|(commit)]]
+
+
+
+== IPset ==
+
+Official IPset webpage: [[http://ipset.netfilter.org/|http://ipset.netfilter.org/]]
+
+IPset allows the creation of groups of network resources (IPv4/v6 addresses, TCP/UDP port numbers, IP-MAC address pairs, IP-port number pairs, etc), called "IP sets", then you can use those sets to define Netfilter/iptables rules. These sets are much more lookup-efficient than bare iptables rules, but may come with a greater memory footprint. Different storage algorithms (for the data structures in memory) are provided in ipset for the user to select an optimum solution. IPset has been available for some time in the xtables-addons patches and is now being included in the Linux tree.
+
+This tool is useful to do things like: store multiple IP addresses or port numbers and match against the collection by iptables at one swoop; dynamically update iptables rules against IP addresses or ports without performance penalty; express complex IP address and ports based rulesets with one single iptables rule and benefit from the speed of IP sets.
+
+Code: [[http://git.kernel.org/linus/a7b4f989a629493bb4ec4a354def784d440b32c4|(commit 1]], [[http://git.kernel.org/linus/72205fc68bd13109576aa6c4c12c740962d28a6c|2]], [[http://git.kernel.org/linus/de76021a1bb35e3560afccf741d1119a872aea49|3]], [[http://git.kernel.org/linus/6c027889696a7a694b0e2f6e3cabadefec7553b6|4]], [[http://git.kernel.org/linus/543261907dc3c4e90845acfcd602ebdbfdfcb4f0|5]], [[http://git.kernel.org/linus/07896ed37b94599a1b8ea97f4bd5766be71390f4|6]], [[http://git.kernel.org/linus/5663bc30e6114b6ba88cc428619ede46a3246a7b|7]], [[http://git.kernel.org/linus/41d22f7b2e48c77175b62cec3797d7d7173a626e|8]], [[http://git.kernel.org/linus/b38370299eeaba4cf8a9e0c5c6acc2a1e049be23|9]], [[http://git.kernel.org/linus/21f45020a3084f80fcdd5f056a0c6389f5406399|10)]]
+
+== Btrfs updates ==
+Btrfs allows different compression and copy-on-write settings for each file/directory (in addition to the per-filesystem controls). There is also the usual round of minor speedups, and tracepoints for runtime analysis.
+
+Code: [[http://git.kernel.org/linus/75e7cb7fe0c391561bd3af36515be3f3c64a04c6|(commit 1]], [[http://git.kernel.org/linus/32471f6e1983922473573da62cbee58699574aa4|2]], [[http://git.kernel.org/linus/c622ae6085d0c6ad834213bbf1477eb311359078|3]], [[http://git.kernel.org/linus/240f62c8756df285da11469259b3900f32883168|4]], [[http://git.kernel.org/linus/1abe9b8a138c9988ba8f7bfded6453649a31541f|5)]]
+
+== Pstore: storing crash information across a reboot ==
+Recommended LWN article: [[https://lwn.net/Articles/434821/|Persistent storage for a kernel's "dying breath"]]
+
+Pstore is a filesystem interface that allows to store and recover crash information across a reboot storing it in places like the ERST, a mechanism specified by ACPI that allows saving and retrieving hardware error information to and from a non-volatile location (like flash).
+
+Code: [[http://git.kernel.org/linus/ca01d6dd2d7a2652000307520777538740efc286|(commit)]], [[http://git.kernel.org/linus/0bb77c465f02e8281e24b9f02e7dc8a7e2b81ee2|(commit)]]
+
+== New Architecture: UniCore-32 ==
+
+UniCore-32 is 32-bit Instruction Set Architecture, including a series of low-power-consumption RISC chip designs licensed by [[http://www.pkunity.com/|PKUnity Ltd]].
+
+Code: [[http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=tree;f=arch/unicore32;hb=HEAD|arch/unicore32]]
+
+== Transcendent Memory ==
+Recommended LWN article: [[https://lwn.net/Articles/340080/|Transcendent memory]]
+
+Trascendent memory is a new type of memory with a particular set of characteristics. From LWN: "transcendental memory can be thought of as a sort of RAM disk with some interesting characteristics: nobody knows how big it is, writes to the disk may not succeed, and, potentially, data written to the disk may vanish before being read back again". This memory could be used in places like the page cache, swap, or virtualization. In this release it is used for to implement a compressed in-memory caching mechanism called zcache.
+
+Code: [[http://git.kernel.org/linus/daa6afa6d920a389015bb8f1ea519cef0636f528|(commit 1]], [[http://git.kernel.org/linus/9cc06bf88d554dd527ded26eab28eec6a0d0e3df|2]], [[http://git.kernel.org/linus/6630889735ec3d950b4f1496ada77df287d8ee1b|3)]]
+
+== BKL: That's all, folks  ==
+In 2.6.37, it was possible to compile a Linux kernel without support for the BKL. In this release, the BKL has been removed completely from the kernel sources, including the functions lock_kernel() and unlock_kernel().
+
+Code: [[http://git.kernel.org/linus/4ba8216cd90560bc402f52076f64d8546e8aefcb|(commit)]]
+
+== Open-by-handle syscalls ==
+
+Recommended LWN article: [[https://lwn.net/Articles/375888/|Open by handle]]
+
+Two new syscalls have been added, name_to_handle_at() and open_by_handle_at(). These syscalls return a file handle, which is useful for user-space filesystems, backup software and other storage management tools. These handles can be used in a new flag that has been added to the open() syscall: O_PATH.
+
+
+Code [[http://git.kernel.org/linus/990d6c2d7aee921e3bce22b2d6a750fd552262be|(commit)]], [[http://git.kernel.org/linus/becfd1f37544798cbdfd788f32c827160fab98c1|(commit)]], [[http://git.kernel.org/linus/7dadb755b082c259f7dd4a95a3a6eb21646a28d5|(commit)]], [[http://git.kernel.org/linus/6aae5f2b2085c5c90964bb78676ea8a6a336e037|(commit)]], [[http://git.kernel.org/linus/1abf0c718f15a56a0a435588d1b104c7a37dc9bd|(commit)]], [[http://git.kernel.org/linus/bcda76524cd1fa32af748536f27f674a13e56700|(commit)]]
+
+
+== Perf updates ==
+ * Add the ability to filter monitoring based on container groups (cgroups) for both perf stat and perf record. It is possible to monitor multiple cgroup in parallel. There is one cgroup per event. The cgroups to monitor are passed via a new -G option followed by a comma separated list of cgroup names [[http://git.kernel.org/linus/e5d1367f17ba6a6fed5fd8b74e4d5720923e0c25|(commit)]], [[http://git.kernel.org/linus/023695d96ee06f36cf5014e286edcd623e9fb847|(commit)]]
+ * perf top: Introduce slang based TUI with live annotation, ''perf top --tui'' [[http://git.kernel.org/linus/c0443df1b69b59675fc6790e0ddce87c8ca00abf|(commit)]], [[http://git.kernel.org/linus/c97cf42219b7b6037d2f96c27a5f114f2383f828|(commit)]]
+ * Initial python binding [[http://git.kernel.org/linus/877108e42b1b9ba64857c4030cf356ecc120fd18|(commit)]]
+ * perf list: Allow filtering list of events [[http://git.kernel.org/linus/668b8788f497b2386402daeca583d6300240d41d|(commit)]]
+ * perf script: Support custom field selection for output [[http://git.kernel.org/linus/745f43e3433a7939bd9c351c8106e0c1db2044c6|(commit)]], add support for dumping symbols [[http://git.kernel.org/linus/c0230b2bfbd16e42d937c34aed99e5d6493eb5e4|(commit)]], add support for H/W and S/W events [[http://git.kernel.org/linus/1424dc96807909438282663079adc7f27c10b4a5|(commit)]]
+ * perf stat: Provide support for filters [[http://git.kernel.org/linus/cfd748ae066e776d45bdce550b47cd00c67d55de|(commit)]]
+ * perf evlist: New command to list the names of events present in a perf.data file [[http://git.kernel.org/linus/43adec955edd116c3e98c6e2f85fbd63281f5221|(commit)]]
+ * Add Intel SandyBridge CPU support [[http://git.kernel.org/linus/b06b3d49699a52e8f9ca056c4f96e81b1987d78e|(commit)]]
+ * perf probe: add variable filter support, e.g. ''perf probe -V schedule --externs --filter=cpu*'' [[http://git.kernel.org/linus/bd09d7b5efeb13965b6725b4a3e9944908bca9d2|(commit)]], add filters support for available functions [[http://git.kernel.org/linus/3c42258c9a4db70133fa6946a275b62a16792bb5|(commit)]], support function@filename syntax for --line [[http://git.kernel.org/linus/e116dfa1c357da49f55e1555767ec991225a8321|(commit)]], add --funcs to show available functions in symtab [[http://git.kernel.org/linus/e80711ca8512c8586da0c3e18e2f1caf73c88731|(commit)]], enable to put probe inline function call site This will increase line-based probe-ability [[http://git.kernel.org/linus/5069ed86be3c2f28bcdf7fae1374ec0c325aafba|(commit)]]
+
+
+= Drivers and architectures =
+All the driver and architecture-specific changes can be found in the [[http://kernelnewbies.org/Linux_2_6_39-DriversArch|Linux_2_6_39-DriversArch page]]
+
+= Core =
+ * Add a commandline parameter "threadirqs" which forces all interrupts except those marked IRQF_NO_THREAD to run threaded [[http://git.kernel.org/linus/8d32a307e4faa8b123dc8a9cd56d1a7525f69ad3|(commit)]]
+ * POSIX timers: Introduce a syscall for clock tuning. [[http://git.kernel.org/linus/f1f1d5ebd10ffa4242bce7a90a56a222d6b7bc77|(commit)]]
+ * bloat-o-meter: include read-only data section in report [[http://git.kernel.org/linus/c50e3f512a5a15a73acd94e6ec8ed63cd512e04f|(commit)]]
+ * console: allow to retain boot console via boot option keep_bootcon [[http://git.kernel.org/linus/7bf693951a8e5f7e600a45b74d91d962a453146e|(commit)]]
+ * firmware: DMI table support in sysfs /sys/firmware/dmi [[http://git.kernel.org/linus/948af1f0bbc8526448e8cbe3f8d3bf211bdf5181|(commit)]]
+ * Add shared BCH ECC library [[http://git.kernel.org/linus/437aa565e2656776a7104aaacd792fe789ea8b2d|(commit)]]
+ * lib: cpu_rmap: CPU affinity reverse-mapping [[http://git.kernel.org/linus/c39649c331c70952700f99832b03f87e9d7f5b4b|(commit)]]
+ * PM: Add support for device power domains [[http://git.kernel.org/linus/7538e3db6e015e890825fbd9f8659952896ddd5b|(commit)]]
+ * proc: enable writing to /proc/pid/mem [[http://git.kernel.org/linus/198214a7ee50375fa71a65e518341980cfd4b2f0|(commit)]]
+ * scripts/extract-ikconfig: add xz compression support [[http://git.kernel.org/linus/ab94e4666d5cee0e393367671eeab4111105bffb|(commit)]]
+
+
+
+= CPU scheduler =
+ * Allow users with sufficient RLIMIT_NICE to change from SCHED_IDLE policy [[http://git.kernel.org/linus/c02aa73b1d18e43cfd79c2f193b225e84ca497c8|(commit)]]
+ * Export ns irqtimes through /proc/stat [[http://git.kernel.org/linus/abb74cefa9c682fb38ba86c17ca3c86fed6cc464|(commit)]]
+
+= Memory management =
+ * Lockless (and preemptless) fastpaths for slub [[http://git.kernel.org/linus/8a5ec0ba42c4919e2d8f4c3138cc8b987fdb0b79|(commit)]]
+ * Add VM counters for transparent hugepages [[http://git.kernel.org/linus/81ab4201fb7d91d6b0cd9ad5b4b16776e4bed145|(commit)]]
+ * vmap area cache (solves a regression introduced in [[http://kernelnewbies.org/Linux_2_6_28#head-26b4ca97ca6bd51ffa63c361ae97552eb29d30e8|2.6.28]]  [[http://git.kernel.org/linus/89699605fe7cfd8611900346f61cb6cbf179b10a|(commit)]]
+ * Have smaps show transparent huge pages [[http://git.kernel.org/linus/4031a219d8913da40ade5a6e5b538cc61e975cc8|(commit)]]
+
+= Block =
+ * Remove per-queue plugging, reimplement FLUSH/FUA to support merge [[http://git.kernel.org/linus/ae1b1539622fb46e51b4d13b3f9e5f4c713f86ae|(commit)]], [[http://git.kernel.org/linus/7eaceaccab5f40bbfda044629a6298616aeaed50|(commit)]]
+ * Introduce the sys_syncfs() syscall to sync a single file system [[http://git.kernel.org/linus/b7ed78f56575074f29ec99d8984f347f6c99c914|(commit)]]
+
+''DM''
+ * Add flakey target that it returns I/O errors periodically [[http://git.kernel.org/linus/3407ef5262b55ca5d7139d2b555ef792fe531eec|(commit)]]
+ * stripe: implement merge method, performance improvement has been measured to be ~12-35% -- when a reasonable chunk_size is used (e.g. 64K) in conjunction with a stripe count that is a power of 2 [[http://git.kernel.org/linus/29915202006c2e7bafe81348eb498ff9a724ac61|(commit)]]
+
+
+= Networking =
+ * IPv4: Remove the hash based routing table implementation, make the FIB Trie implementation the default [[http://git.kernel.org/linus/3630b7c050d9c3564f143d595339fc06b888d6f3|(commit)]]
+ * AF_UNIX: implement socket filter [[http://git.kernel.org/linus/d6ae3bae3d1bf7a8bf367e29f2cac0788dcd0db5|(commit)]]
+ * Net Schedulers: SFB flow scheduler [[http://git.kernel.org/linus/e13e02a3c68d899169c78d9a18689bd73491d59a|(commit)]], CHOKe flow scheduler  (recommended LWN article: [[https://lwn.net/Articles/422477/|The CHOKe packet scheduler]]) [[http://git.kernel.org/linus/45e144339ac59971eb44be32e1282760aaabe861|(commit)]], multi-queue priority scheduler (MQPRIO) [[http://git.kernel.org/linus/b8970f0bfc78103cb74c66055de7379b15097840|(commit)]]
+ * Implement the ability to enslave/release slave devices [[http://git.kernel.org/linus/afc6151a78a43bdca5f64a8bd3e3c13837580c54|(commit)]], [[http://git.kernel.org/linus/fbaec0ea54f7d9131891ff98744e82c073ce03b1|(commit)]]
+
+
+ * Implement mechanism for HW based QOS [[http://git.kernel.org/linus/4f57c087de9b46182545676d2c594120a20f2e58|(commit)]]
+ * RPS: Enable hardware acceleration of RFS [[http://git.kernel.org/linus/c445477d74ab3779d1386ab797fbb9b628eb9f64|(commit)]]
+ * UDP: Add lockless transmit path [[http://git.kernel.org/linus/903ab86d195cca295379699299c5fc10beba31c7|(commit)]]
+ * Add support for IPsec extended sequence numbers (esn) as defined in RFC 4303 [[http://git.kernel.org/linus/9736acf395d3608583a7be70f62800b494fa103c|(commit 1]], [[http://git.kernel.org/linus/0dc49e9b28a7253ff05be2794d747f8ea5f1f423|2]], [[http://git.kernel.org/linus/d212a4c29096484e5e83b5006e695add126260af|3]], [[http://git.kernel.org/linus/2cd084678fc1eb75aec4f7ae3d339d232c00ec61|4]], [[http://git.kernel.org/linus/d8647b79c3b7e223ac051439d165bc8e7bbb832f|5)]]
+ * TX timestamps for IPv6 UDP packets [[http://git.kernel.org/linus/a693e69897e7811e2790295f38a0ce3a92c4b45c|(commit)]]
+ * 9p: Implement syncfs 9P operation [[http://git.kernel.org/linus/c0aa4caf4c8b87fa85c67538974a14b07e81a23f|(commit)]]
+ * Add support for network device groups [[http://git.kernel.org/linus/cbda10fa97d72c7a1923be4426171aa90e8c6dab|(commit)]], [[http://git.kernel.org/linus/e7ed828f10bd89a28f821ae7f20e691704d61923|(commit)]]
+ * tipc: Add support for SO_RCVTIMEO socket option [[http://git.kernel.org/linus/71092ea122062012f8e4b7fb2f9a747212d1479c|(commit)]]
+
+
+'' Netfilter ''
+ * Audit target to record accepted/dropped packets [[http://git.kernel.org/linus/43f393caec0362abe03c72799d3f342af3973070|(commit)]]
+ * xtable: connlimit revision 1 [[http://git.kernel.org/linus/cc4fc022571376412986e27e08b0765e9cb2aafb|(commit)]]
+ * xtable: speedup compat operations [[http://git.kernel.org/linus/255d0dc34068a976550ce555e153c0bfcfec7cc6|(commit)]]
+ * xtable: "set" match and "SET" target support [[http://git.kernel.org/linus/d956798d82d2d331c031301965d69e17a1a48a2b|(commit)]]
+ * xt_addrtype: ipv6 support [[http://git.kernel.org/linus/2f5dc63123905a89d4260ab8ee08d19ec104db04|(commit)]]
+ * xt_CLASSIFY: add ARP support, allow CLASSIFY target on any table [[http://git.kernel.org/linus/9811600f7c1f18152430c6b93b0a76fdd88a59ce|(commit)]]
+ * xt_conntrack: support matching on port ranges [[http://git.kernel.org/linus/b017900aac4a158b9bf7ffdcb8a369a91115b3e4|(commit)]]
+ * ebt_ip6: allow matching on ipv6-icmp types/codes [[http://git.kernel.org/linus/6faee60a4e82075853a437831768cc9e2e563e4e|(commit)]]
+ * nf_conntrack: nf_conntrack snmp helper [[http://git.kernel.org/linus/93557f53e1fbd9e2b6574ab0a9b5852628fde9e3|(commit)]]
+ * nf_conntrack_tstamp: add flow-based timestamp extension [[http://git.kernel.org/linus/a992ca2a0498edd22a88ac8c41570f536de29c9e|(commit)]]
+
+
+
+
+= File systems =
+''9p''
+ * Add buffered write support for v9fs. [[http://git.kernel.org/linus/7263cebed9fadad719063fdc8bba7085cf2c080d|(commit)]]
+ * Add direct IO support in cached mode [[http://git.kernel.org/linus/e959b54901e835f062ac8d44107bc543b66f0364|(commit)]]
+ * Add posixacl mount option [[http://git.kernel.org/linus/e782ef71097e832f62256370a2fe231b9fba96cf|(commit)]]
+''GFS2''
+ * Deallocation performance patch [[http://git.kernel.org/linus/4c16c36ad62fff8485215bd803d778eb2bd0b8bd|(commit)]]
+ * Improve cluster mmap scalability [[http://git.kernel.org/linus/b9c93bb7deadc7cdd00415edc6b38d67a26c1c7a|(commit)]]
+ * Introduce AIL lock [[http://git.kernel.org/linus/d6a079e82efd5fcbb1c7295f22e123c2cc748018|(commit)]]
+ * Use RCU for glock hash table [[http://git.kernel.org/linus/bc015cb84129eb1451913cfebece270bf7a39e0f|(commit)]]
+
+''HPFS''
+ * Make HPFS compile on preempt and SMP [[http://git.kernel.org/linus/637b424bf8747e50bab6648ab919632d6efd6c28|(commit)]]
+ * Implement fsync for hpfs [[http://git.kernel.org/linus/bc8728ee56bca62df269b2dd159bc60838ac8e80|(commit)]]
+ * Remove CR/LF conversion option [[http://git.kernel.org/linus/0fe105aa29bed0994991462b58ef61646db0e459|(commit)]]
+
+''XFS''
+ * Enable delaylog by default [[http://git.kernel.org/linus/20ad9ea9becd34a3c16252ca9d815f2c74f8f30f|(commit)]]
+ * Stop using the page cache to back the buffer cache [[http://git.kernel.org/linus/0e6e847ffe37436e331c132639f9f872febce82e|(commit)]]
+
+''CEPH''
+ * Add ino32 mount option [[http://git.kernel.org/linus/ad1fee96cbaf873520064252c5dc3212c9844861|(commit)]]
+ * Add lingering request and watch/notify event framework [[http://git.kernel.org/linus/a40c4f10e3fb96030358e49abd010c1f08446fa3|(commit)]]
+
+
+''EXOFS''
+ * Add option to mount by osdname [[http://git.kernel.org/linus/9ed96484311b89360b80a4181d856cbdb21630fd|(commit)]]
+
+''NILFS2''
+ * Implement FS_IOC_GETFLAGS/SETFLAGS/GETVERSION [[http://git.kernel.org/linus/cde98f0f84ccff78e87235cb7b551747d6ad00de|(commit)]]
+
+''CIFS''
+ * Allow user names longer than 32 bytes [[http://git.kernel.org/linus/8727c8a85f3951ef0eef36a665f5dceebb4c495d|(commit)]]
+
+''SQUASHFS''
+ * Add compression options support to xz decompressor [[http://git.kernel.org/linus/ff750311d30acc9564ef577050794953eee59f01|(commit)]]
+
+
+
+= Crypto =
+ * authencesn - Add algorithm to handle IPsec extended sequence numbers [[http://git.kernel.org/linus/a5079d084f8be781aae8a635cab4b179cfea4ebd|(commit)]]
+ * picoxcell - add support for the picoxcell crypto engines [[http://git.kernel.org/linus/ce92136843cb6e14aba5fd7bc4e88dbe71e70c5a|(commit)]]
+
+= Virtualization =
+ * KVM: SVM: Add support for perf-kvm [[http://git.kernel.org/linus/3781c01c1574a2cd58fd5ba2bf58c710edff3da5|(commit)]]
+
+= Security =
+ * Smack: mmap controls for library containment [[http://git.kernel.org/linus/7898e1f8e9eb1bee88c92d636e0ab93f2cbe31c6|(commit)]]
+
+''SELinux ''
+ * Make selinux cache VFS RCU walks safe [[http://git.kernel.org/linus/9ade0cf440a1e5800dc68eef2e77b8d9d83a6dff|(commit)]]
+ * Add a 4th criteria to object labeling: directory entry [[http://git.kernel.org/linus/652bb9b0d6ce007f37c098947b2cc0c45efa3f66|(commit)]]
+
+= Tracing/perf =
+
+
+
+
+----
+CategoryReleases

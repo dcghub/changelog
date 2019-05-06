@@ -1,0 +1,218 @@
+#pragma section-numbers on
+#pragma keywords Linux, kernel, operating system, changes, changelog, file system, Linus Torvalds, open source, device drivers
+#pragma description Summary of the changes and new features merged in the Linux kernel during the 3.17 development cycle
+
+Linux 3.17 [[https://lkml.org/lkml/2014/10/5/126|has been released]] on Sun, 5 Oct (this document was only finished on Sunday, 13 - sorry for the delay)
+
+Summary: This release adds support for USB device sharing over IP, support for Xbox One controllers, support for Apple's thunderbolt, a new sealing API that restricts operations on shared memory file descriptors that allows easier shared memory programming for developers, support for page fault tracing in perf trace, support for only using signed kernels in kexec, a getrandom() syscall for more secure random number generation, and graphic "render nodes" are no longer experimental. There are also new drivers and many other small improvements.
+
+
+<<TableOfContents>>
+= Prominent features =
+== USB device sharing over IP ==
+USB/IP is a project that provides a general USB device sharing system over IP network. To share USB devices between computers with their full functionality, USB/IP encapsulates "USB I/O messages" into TCP/IP payloads and transmits them between computer. Original USB device drivers and applications can be also used for remote USB devices without any modification of them. A computer can use remote USB devices as if they were directly attached.
+
+This project has been for a while in the "staging" area, and it's now considered stable enough for prime consumption. Userspace tools can be found at [[https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/tools/usb/usbip|tools/usb/usbip]]
+
+Code: [[https://git.kernel.org/linus/96c2737716d586a218bc795fcb79d2e2b6003081|commit]], [[https://git.kernel.org/linus/588b48caf65c4a92af567948ec0025065e749ddf|commit]]
+
+Project: [[http://usbip.sourceforge.net/|http://usbip.sourceforge.net]]
+
+== 'File sealing' eases handling of shared memory ==
+
+When various processes communicate with each other via shared memory, they have to be careful and synchronize, because the shared memory can be modified by others at any time, or shrink and grow the buffer. This makes IPC via shared memory fragile, forces servers to do extra checks, encourages making local copies of shared memory and makes zero-copy operations impossible if the source of shared memory is not trusted.
+
+This release includes the concept of "file sealing". Files from shmfs can be "sealed" through [[http://linux.die.net/man/2/fcntl|fcntl(2)]] different flags that restrict determinate behaviours: shrinking the file, growing, writing to it or setting new seals.
+
+Sealing allows sharing shmfs files without any trust-relationship. This is enforced by rejecting seal modifications if you don't own an exclusive reference to the given file. So if a process owns a file-descriptor, it can be sure that no-one besides him can modify the seals on the given file. This allows mapping shared files from untrusted parties without the fear of the file getting truncated or modified by an attacker.
+
+This has some useful uses. For example, a graphic server (e.g. Wayland) may want to reject any file descriptors that don't have the SEAL_SHRINK seal set. That way, any memory-mappings are guaranteed to stay accessible (while at the same time allowing to grow the buffer). Another example would be a general purpose IPC mechanism such as D-Bus. With sealing, zero-copy can be easily done by sharing a file-descriptor that has SEAL_SHRINK | SEAL_GROW | SEAL_WRITE seals set. This way, the source can store sensible data in the file, seal the file and then pass it to the destination. The destination verifies these seals are set and then can parse the message in-line, or even do safe multicasts of the message and allow all receivers parse the same zero-copy file without affecting each other.
+
+Recommended LWN article: [[http://lwn.net/Articles/593918/|Sealed files]]
+
+Recommended blog article: [[https://dvdhrm.wordpress.com/2014/06/10/memfd_create2/|memfd_create(2)]]
+
+Code and preliminary API documentation: [[https://git.kernel.org/linus/40e041a2c858b3caefc757e26cb85bfceae5062b|commit]], [[https://git.kernel.org/linus/9183df25fe7b194563db3fec6dc3202a5855839c|commit]]
+
+== Graphic "render nodes" feature enabled by default ==
+"Render nodes" is a feature [[http://kernelnewbies.org/Linux_3.12#head-276162293c22a1526d6a5162f3cb7d802ea5fc43|merged in Linux 3.12]]. It allows to create different device nodes for the GPU and the display, thus allowing applications to use the GPU for off-screen rendering by talking directly to the DRM device node.
+
+This feature had been considered experimental for a while and could only be enabled with the "drm.rnodes=1" module parameter. In this release, render nodes have been enabled by default.
+
+For more details about render nodes, see [[https://dvdhrm.wordpress.com/2013/09/01/splitting-drm-and-kms-device-nodes/|this blog]]
+
+Code: [[https://git.kernel.org/linus/6d6dfcfb883818b40b58bac61cc72cab428a7a03|commit]]
+
+== Improved power management features enabled for more Radeon GPUs ==
+Dynamic power management (dpm) has been re-enabled by default on Cayman and BTC devices.
+
+Also, a new module parameter (radeon.bapm=1) has been added to enable bidirectional application power management (bapm) on APUs where it's disabled by default due to stability issues.
+
+Code: [[https://git.kernel.org/linus/c08abf11900e19b14dd3a0cc3d105bd74519cd18|commit]], [[https://git.kernel.org/linus/8f500af4efe347d1a8ac674d115220e8caa84559|commit]], [[https://git.kernel.org/linus/6e909f74db2aa9c5b5606b81efcbe18f2749b008|commit]]
+
+
+== Thunderbolt support ==
+
+[[http://en.wikipedia.org/wiki/Thunderbolt_%28interface%29|Thunderbolt]] is a hardware interface that combines PCI Express and Displayport into one serial signal alongside a DC connection for electric power, transmitted over one cable. Up to six peripherals may be supported by one connector through various topologies. Co-developed by Intel and Apple, it's mostly used in Apple devices.
+
+Code: [[https://git.kernel.org/linus/16603153666d22df544ae9f9b3764fd18da28eeb|commit]]
+
+== Support for Xbox One controllers ==
+This release adds support for Xbox One controllers.
+
+Code: [[https://git.kernel.org/linus/1a48ff81b3912be5fadae3fafde6c2f632246a4c|(commit)]]
+
+== More secure generation of random numbers with the getrandom() syscall ==
+Linux systems usually get their random numbers from /dev/[u]random. This interface, however, is vulnerable to file descriptor exhaustion attacks, where the attacker consumes all available file descriptors, and is inconvenient for containers. The getrandom(2) syscall, analogous to OpenBSD's getentropy(2), solves that problems.
+
+Recommended LWN article: [[http://lwn.net/Articles/606141/|A system call for random numbers: getrandom()]]
+
+Code: [[https://git.kernel.org/linus/c6e9d6f38894798696f23c8084ca7edbf16ee895|commit]]
+
+== Support for page fault tracing in perf trace ==
+
+This release adds page fault tracing support to 'perf trace'. Using -F/--pf option user can specify whether he wants minor, major or all pagefault events to be traced. Output example:
+
+{{{1756272.905 ( 0.000 ms): curl/5937 majfault [0x7fa7261978b6] => /usr/lib/x86_64-linux-gnu/libkrb5.so.26.0.0@0x85288 (d.)
+1862866.036 ( 0.000 ms): wget/8460 majfault [__clear_user+0x3f] => 0x659cb4 (?k)}}}
+
+Code: [[https://git.kernel.org/linus/598d02c5a07b60e5c824184cdaf697b70f3c452a|commit]], [[https://git.kernel.org/linus/1e28fe0a4ff8680d5a0fb84995fd2444dac19cc4|commit]], [[https://git.kernel.org/linus/a2ea67d7b5618c868c1fe15a50af71b858d36887|commit]]
+
+== perf timechart adds I/O mode ==
+
+Currently, perf timechart records only scheduler and CPU events (task switches, running times, CPU power states, etc); this release adds I/O mode which makes it possible to record IO (disk, network) activity. In this mode perf timechart will generate SVG with I/O charts (writes, reads, tx, rx, polls).
+
+Code: [[https://git.kernel.org/linus/b97b59b93d10a54022afb06d5725d7aa55d98dd7|commit]], [[https://git.kernel.org/linus/d243144af0b52fc5164a0823194f29a5979e236c|commit]]
+
+
+== Signed kexec kernels ==
+
+Kexec is a Linux feature that allows to boot a Linux kernel from an existing Linux kernel. It is used for faster rebooting or even for automatically booting a new kernel after a crash. However, UEFI "secure boot" systems are not supposed to allow to boot unsigned operating systems. Kexec allows to bypass the UEFI secure boot by kexec'ing into a unsigned kernel. To solve this problem, this release incorporates support for only allowing to kexec kernels that are signed.
+
+Recommended LWN article: [[http://lwn.net/Articles/603116/|Reworking kexec for signatures]]
+
+Code: [[https://git.kernel.org/linus/f0895685c7fd8c938c91a9d8a6f7c11f22df58d2|commit]], [[https://git.kernel.org/linus/cb1052581e2bddd6096544f3f944f4e7fdad4c7f|commit]], [[https://git.kernel.org/linus/dd5f726076cc7639d9713b334c8c133f77c6757a|commit]], [[https://git.kernel.org/linus/8fc5b4d4121c95482b2583a07863c6b0aba2d9e1|commit]], [[https://git.kernel.org/linus/daeba0641a707626f3674db71016f333edf64395|commit]], [[https://git.kernel.org/linus/6a2c20e7d8900ed273dc34a9af9bf02fc478e427|commit]], [[https://git.kernel.org/linus/8e7d838103feac320baf9e68d73f954840ac1eea|commit]]
+
+
+
+= Drivers and architectures =
+All the driver and architecture-specific changes can be found in the [[http://kernelnewbies.org/Linux_3.17-DriversArch|Linux_3.17-DriversArch page]]
+
+= Core =
+ * A resizable, Scalable, Concurrent Hash Table [[https://git.kernel.org/linus/7e1e77636e36075ebf118298855268468f1028e8|commit]]
+ * firmware loader: allow disabling of udev as firmware loader [[https://git.kernel.org/linus/5a1379e8748a5cfa3eb068f812d61bde849ef76c|commit]]
+ * Add a option to enable dwarf4 debug info format [[https://git.kernel.org/linus/bfaf2dd3509bc73bf4a4cea0e72472755ed860e2|commit]]
+ * Support the "[[http://gcc.gnu.org/wiki/DebugFission|split debug info]]" debug info model present in gcc 4.7+ and newer binutils. It avoids having to copy it around multiple times, from the object files to the final executable, lowers the disk space and defaults to compressed debug data [[https://git.kernel.org/linus/866ced950bcd54820c3e571229356adc2b2dd72e|commit]]
+ * Support initramfs and initrd bigger than 2 GiB [[https://git.kernel.org/linus/d97b07c54f34e88352ebe676beb798c8f59ac588|commit]], [[https://git.kernel.org/linus/38747439914c468ecba70b492b54dc4ef0b50453|commit]]
+ * sysfs: disallow world-writable files. [[https://git.kernel.org/linus/37549e94c77a94a9c32b5ae3313a3801cb66adf9|commit]]
+ * rcu: Remove CONFIG_PROVE_RCU_DELAY [[https://git.kernel.org/linus/11992c703a1c7d95f5d8759498d7617d4a504819|commit]]
+
+= Memory management =
+ * dma-buf: add poll support [[https://git.kernel.org/linus/9b495a5887994a6d74d5c261d012083a92b94738|commit]]
+ * dma-buf: A new "fence" mechanism allows to do cross-device synchronization of DMA buffers. Fences are attached to a buffer which is being filled or consumed by hardware, to allow userspace to pass the buffer without waiting to another device. For example, userspace can call page_flip ioctl to display the next frame of graphics after kicking the GPU but while the GPU is still rendering.  The display device sharing the buffer with the GPU would attach a callback to get notified when the GPU's rendering-complete IRQ fires, to update the scan-out address of the display, without having to wake up userspace  [[https://git.kernel.org/linus/e941759c74a44d6ac2eed21bb0a38b21fe4559e2|commit]], [[https://git.kernel.org/linus/606b23ad609c71cfb37eeb972ea4c901034edd3c|commit]]
+
+
+ * iommu: Add sysfs support [[https://git.kernel.org/linus/c61959ecbbc6bf9034e65c8e8ef03fa9d1066f05|commit]], [[https://git.kernel.org/linus/066f2e98d8c7f043747fb08ebaa66bad723b1121|commit]]
+ * Export NR_SHMEM via sysinfo(2) / si_meminfo() interfaces [[https://git.kernel.org/linus/cc7452b6dca384400960d40090a98d0eb920ab22|commit]]
+
+= Block layer =
+ * brd: add module option to enable RAM disk visibility in /proc/partitions [[https://git.kernel.org/linus/aeac31819475ad0980cb3a13d5599f5a1127e83d|commit]]
+ * drbd: New net configuration option socket-check-timeout [[https://git.kernel.org/linus/5d0b17f1a29e8189d04aef447a3a53cfd05529b2|commit]]
+
+= Power management =
+  * scripts/analyze_suspend.py: update to v3.0, which includes back-2-back suspend testing, device filters to reduce the html size, the inclusion of device_prepare and device_complete callbacks, a USB topography list, and the ability to control USB device autosuspend [[https://git.kernel.org/linus/b8432c6fc12bdf4a6921e1640d3ead23fcd04c10|commit]]
+
+
+= File systems =
+ * Btrfs
+  * Adjust statfs() space utilization calculations according to RAID profiles [[https://git.kernel.org/linus/ba7b6e62f420f5a8832bc161ab0c7ba767f65b3d|commit]]
+ * XFS
+  * Add a sysfs /sys/fs/xfs/ directory with various files providing information about XFS filesystems [[https://git.kernel.org/linus/3d8712265c26546823b38eb97487262500ff13db|commit]], [[https://git.kernel.org/linus/a31b1d3d89e40f585a1c6745b066774ee3263eb2|commit]], [[https://git.kernel.org/linus/80d6d69821a27c3cd4687c2eefe409cbd1b7f458|commit]], [[https://git.kernel.org/linus/baff4e44b92aad363dcce176b907a369ee8b348e|commit]], [[https://git.kernel.org/linus/a087481811bed920eb5eedbb5574b915881adbea|commit]]
+  * Create libxfs infrastructure, libxfs will be used by userspace tools [[https://git.kernel.org/linus/69116a1317ce3d2292e062bfb1a22757b95dcd06|commit]]
+
+ * SMB
+  * Add sparse file support [[https://git.kernel.org/linus/3d1a3745d8ca7ccdf00905b01fd5ab42ff523a94|commit]]
+  * Enable fallocate punch hole ("fallocate -p") [[https://git.kernel.org/linus/31742c5a331766bc7df6b0d525df00c6cd20d5a6|commit]]
+  * Enable fallocate -z support [[https://git.kernel.org/linus/30175628bf7f521e9ee31ac98fa6d6fe7441a556|commit]]
+
+ * f2fs
+  * Add nobarrier mount option [[https://git.kernel.org/linus/0f7b2abd188089a44f60e2bf8521d1363ada9e12|commit]]
+  * Support cross-rename rename2() syscall [[https://git.kernel.org/linus/32f9bc25cbda00410e2379c58ae027e88bf24770|commit]]
+  * Support O_TMPFILE [[https://git.kernel.org/linus/50732df02eefb39ab414ef655979c2c9b64ad21c|commit]]
+
+ * nilfs2
+  * Add /sys/fs/nilfs2 directory with several files that provide information about the filesystem [[https://git.kernel.org/linus/da7141fb78db915680616e15677539fc8140cf53|commit]], [[https://git.kernel.org/linus/02a0ba1c60c2ad532322089a60256c8b0f46678c|commit]], [[https://git.kernel.org/linus/a2ecb791a9d6e71a2d37d66034475a92ebc7e02c|commit]], [[https://git.kernel.org/linus/a5a7332a291b55beb0863b119816d12ffc04dfb0|commit]], [[https://git.kernel.org/linus/abc968dbf291955ac750ecf59e3baf2b529a8257|commit]], [[https://git.kernel.org/linus/ef43d5cd84b7d2ea09846de34e14be7d74be3e6f|commit]],  [[https://git.kernel.org/linus/caa05d49dfd7fe04820ba8b7e424343d5426a7f3|commit]], [[https://git.kernel.org/linus/aebe17f6844488ff0b824fbac28d9f342f7b078e|commit]]
+
+ * NFS
+  * Add a new /proc/fs/nfsd/max_connections file [[https://git.kernel.org/linus/5b8db00bae39e5ecd9bafb05478cca5b42564ab1|commit]]
+
+= Networking =
+ * ipv6: Implement automatic generation of flow labels for IPv6 packets on transmit [[https://git.kernel.org/linus/cb1ce2ef387b01686469487edd45994872d52d73|commit]]
+ * openvswitch: Enable tunnel GSO for Open vSwitch bridge. [[https://git.kernel.org/linus/f6eec614d2252a99b861e288b6301599d2d58da4|commit]]
+
+ * timestamp: ACK timestamp for bytestreams [[https://git.kernel.org/linus/e1c8a607b28190cd09a271508aa3025d3c2f312e|commit]]
+ * timestamp: SCHED timestamp on entering packet scheduler [[https://git.kernel.org/linus/e7fd2885385157d46c85f282fc6d7d297db43e1f|commit]]
+ * timestamping: TCP timestamping [[https://git.kernel.org/linus/4ed2d765dfaccff5ebdac68e2064b59125033a3b|commit]]
+ * Remove deprecated syststamp timestamp [[https://git.kernel.org/linus/4d276eb6a478307a28ae843836c455bf04b37a3c|commit]]
+ * bridge: netlink dump interface at par with brctl [[https://git.kernel.org/linus/5e6d243587990a588143b9da3974833649595587|commit]]
+ * Wireless
+  * Add support for Rx reordering offloading [[https://git.kernel.org/linus/08cf42e843f9a7e253502011c81677f61f7e5c42|commit]]
+  * Remove PID controller based rate control algorithm [[https://git.kernel.org/linus/20edb50e593dca7522b4f3a95b801dbf99f24c52|commit]]
+ 
+ * Bluetooth
+  * Add support for background LE scanning [[https://git.kernel.org/linus/0d2bf13462732d3b2e11d8efb0545c1ed272298b|commit]]
+  * Add support for changing the public device address [[https://git.kernel.org/linus/9713c17b086c1ebfe34ea4d34147a778276e2dab|commit]]
+  * Add support for several new commands [[https://git.kernel.org/linus/2faade53e65f276cf1c30a885fb64808a083714e|commit]][[https://git.kernel.org/linus/958684263d3efbc721fb2b86f94876893eb638d2|commit]], [[https://git.kernel.org/linus/9fc3bfb681bdf59999f56072fff4632a5abea897|commit]], [[https://git.kernel.org/linus/73d1df2a7a1036a1f000e5f0ece6ade3e082b854|commit]], [[https://git.kernel.org/linus/dbece37a3233933ec89f77f04049e13ad9b29634|commit]], 
+  * Add support for some new events [[https://git.kernel.org/linus/f4537c04d387eda86ed89e0eafe0352f7fa0c9d0|commit]], [[https://git.kernel.org/linus/c70a7e4cc8d22cb1ce684637ef8a4bb3a80d15b7|commit]], [[https://git.kernel.org/linus/0602a8adc3ce3f592d03df426c92d1f36229403c|commit]], [[https://git.kernel.org/linus/edd3896bc41059fc064c4ec76da004a57203d88e|commit]]
+
+
+ * netfilter/nftables
+  * Add generic ARP packet logger [[https://git.kernel.org/linus/35b9395104d51f4b85847fa72a1bf4136d36c56e|commit]]
+  * bridge: add generic packet logger [[https://git.kernel.org/linus/960649d1923c31a7f771162fa0eef00210044262|commit]]
+  * bridge: add reject support [[https://git.kernel.org/linus/85f5b3086a04c459f9147859fcbf7bdc7578c378|commit]]
+  * kill ulog targets (deprecated by the NFLOG target) [[https://git.kernel.org/linus/7200135bc1e61f1437dc326ae2ef2f310c50b4eb|commit]]
+  * nft_log: complete logging support [[https://git.kernel.org/linus/09d27b88f15f08fcfbaf57d9b0b4489816264815|commit]]
+
+
+
+ * SCTP
+  * Deprecate rfc6458, 5.3.2. SCTP_SNDRCV support [[https://git.kernel.org/linus/bbbea41d5e53335fd81e89c728f71b14386f336e|commit]]
+  * Implement rfc6458, 5.3.4. SCTP_SNDINFO cmsg support [[https://git.kernel.org/linus/63b949382c5f263746b1c177f6ff84de2201ae9d|commit]]
+  * Implement rfc6458, 5.3.5. SCTP_RCVINFO cmsg support [[https://git.kernel.org/linus/0d3a421d284812d07970b4ccee74d4fa38737e4d|commit]]
+  * Implement rfc6458, 5.3.6. SCTP_NXTINFO cmsg support [[https://git.kernel.org/linus/2347c80ff127b94ddaa675e2b78ab4cef46dc905|commit]]
+  * Implement rfc6458, 8.1.31. SCTP_DEFAULT_SNDINFO support [[https://git.kernel.org/linus/6b3fd5f3a2bbc8464a8e0bf134a183b8fa026439|commit]]
+
+= Virtualization =
+ * virtio-blk: support multiple virtual queues that can get assigned to host's hardware queues [[https://git.kernel.org/linus/6a27b656fc0210e976db362e1368c56db05c8f08|commit]]
+ * virtio-net: rx busy polling support, 1 byte netperf tcp_rr shows 127% improvement [[https://git.kernel.org/linus/91815639d8804d1eee7ce2e1f7f60b36771db2c9|commit]]
+ * vfio: EEH support for VFIO PCI device [[https://git.kernel.org/linus/1b69be5e8afc634f39ad695a6ab6aad0cf0975c7|commit]]
+ * hyperv: Add netpoll support [[https://git.kernel.org/linus/316158feff0078b266d6e423adb016d12eb96a5a|commit]]
+ * xen: EFI under Xen dom0 support [[https://git.kernel.org/linus/bf1e3ae468aca7ce34110a59ed5d1b877890014b|commit]], [[https://git.kernel.org/linus/be81c8a1da24288b0231be50130a64f5cdffdcd4|commit]]
+
+
+= Tracing/perf =
+ * perf timechart: add IO mode [[https://git.kernel.org/linus/b97b59b93d10a54022afb06d5725d7aa55d98dd7|commit]], [[https://git.kernel.org/linus/d243144af0b52fc5164a0823194f29a5979e236c|commit]]
+ * perf trace: Add support for pagefault tracing [[https://git.kernel.org/linus/1e28fe0a4ff8680d5a0fb84995fd2444dac19cc4|commit]], [[https://git.kernel.org/linus/598d02c5a07b60e5c824184cdaf697b70f3c452a|commit]], add pagefault statistics [[https://git.kernel.org/linus/a2ea67d7b5618c868c1fe15a50af71b858d36887|commit]]
+ * perf trace: Add possibility to switch off syscall events [[https://git.kernel.org/linus/e281a9606d7073c517f2571e83faaff029ddc1cf|commit]]
+ * perf bench: Add --repeat option [[https://git.kernel.org/linus/b6f0629a94f7ed6089560be7f0561be19f934fc4|commit]]
+ * perf hists browser: Display columns header text on 'H' press [[https://git.kernel.org/linus/81a888fea2cfd727052926e95510c11981d9b1c2|commit]], [[https://git.kernel.org/linus/c83023676dc34f1b4422b842e1e2dc5c21bfc4dc|commit]]
+ * perf inject: Add --kallsyms parameter [[https://git.kernel.org/linus/a7a2b8b4ce9e0bfd085c5797d535487594a71882|commit]]
+ * perf kvm: Add stat support on s390 [[https://git.kernel.org/linus/3be8e2a0a53c3179a44a933614f6a893da0b5c19|commit]]
+ * perf tools: Add --debug optionto set debug variable [[https://git.kernel.org/linus/bbb2cea7e8dd496b41558df1a0ec9205497b7ebf|commit]]
+ * tracing: Add ftrace_graph_notrace boot parameter for specifying notrace filter for function graph tracer at boot time [[https://git.kernel.org/linus/0d7d9a16ce112687487fadb2b490519b45f6c70e|commit]]
+
+= Security =
+ * Allow seccomp to set a filter across all threads ([[http://lwn.net/Articles/600250/|Recommended LWN Article]]) [[https://git.kernel.org/linus/3ba2530cc06eb4aee4f1f754f43d781e8a12ee09|commit]], add "seccomp" syscall [[https://git.kernel.org/linus/48dc92b9fc3926844257316e75ba11eb5c742b2c|commit]]
+ * seccomp: implement SECCOMP_FILTER_FLAG_TSYNC [[https://git.kernel.org/linus/c2e1f2e30daa551db3c670c0ccfeab20a540b9e1|commit]]
+ * selinux:  Report permissive mode in avc: denied messages. [[https://git.kernel.org/linus/626b9740fa73cad043e136bfb3b6fca68a4f8a7c|commit]]
+
+
+= Crypto =
+ * drbg: NIST SP800-90A compliant Deterministic Random Bit Generator [[https://git.kernel.org/linus/541af946fe1360ec1b45730964e87d7f93c50781|commit]], [[https://git.kernel.org/linus/419090c6c6862abb54b7c77efc3c00ed35909d73|commit]]
+ * Parser for a PKCS#7 signed-data message as described in part of RFC 2315 [[https://git.kernel.org/linus/2e3fadbf730fd0d13c891d5e555af3e7f39ca3f4|commit]]
+ * pefile: Support for PE file signature verification [[https://git.kernel.org/linus/26d1164be37f1145a96af15f294122876d8e5c77|commit]]
+
+
+= Other news sites that track the changes of this release =
+ * LWN Merge window, [[http://lwn.net/Articles/607627/|part 1]], [[http://lwn.net/Articles/608434/|part 2]] and [[http://lwn.net/Articles/608748/|part 3]]
+ * Phoronix [[http://www.phoronix.com/scan.php?page=news_item&px=MTc5ODM|The Top Features Of The Linux 3.17 Kernel]]

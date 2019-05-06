@@ -1,0 +1,575 @@
+#pragma section-numbers on
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.34 development cycle
+
+Linux 2.6.34 [[http://lkml.org/lkml/2010/5/16/89|has been released]] on 16 May, 2010.
+
+'''Summary''': This version adds two new filesystem, the distributed filesystem Ceph and LogFS, a filesystem for flash devices. Other features are a driver for almost-native KVM network performance, the VMware ballon driver, the "kprobes jump" optimization for dynamic probes, new perf features (the "perf lock" tool, cross-platform analysis support), support for GPU switching, several Btrfs improvements, RCU lockdep, Generalized TTL Security Mechanism (RFC 5082) and private VLAN proxy arp (RFC 3069) support, asynchronous suspend/resume, several new drivers and many other small improvements.
+
+<<TableOfContents>>
+= Prominent features (the cool stuff) =
+== Ceph filesystem ==
+Linux-mag article: [[http://www.linux-mag.com/cache/7744/1.html|Ceph: The Distributed File System Creature from the Object Lagoon]]
+
+IBM Developerworks article: [[http://www.ibm.com/developerworks/linux/library/l-ceph/index.html?ca=dgr-lnxw01CEPHdth-LX|Ceph: A Linux petabyte-scale distributed file system]]
+
+LWN article: [[http://lwn.net/Articles/258516/|The Ceph filesystem]]
+
+Ceph is a distributed network filesystem. It is built from the ground up to seamlessly and gracefully scale from gigabytes to petabytes and beyond. Scalability is considered in terms of workload as well as total storage. Ceph is designed to handle workloads in which tens thousands of clients or more simultaneously access the same file, or write to the same directory–usage scenarios that bring typical enterprise storage systems to their knees.
+
+Some of the key features that make Ceph different from existing file systems:
+
+ * Seamless scaling: A Ceph filesystem can be seamlessly expanded by simply adding storage nodes (OSDs), and proactively migrates data onto new devices in order to maintain a balanced distribution of data.
+
+ * Strong reliability and fast recovery: All data in Ceph is replicated across multiple OSDs. If any OSD fails, data is automatically re-replicated to other devices.
+
+ * Adaptive MDS: The Ceph metadata server (MDS) is designed to dynamically adapt its behavior to the current workload. As the size and popularity of the file system hierarchy changes over time, that hierarchy is dynamically redistributed among available metadata servers in order to balance load and most effectively use server resources. Similarly, if thousands of clients suddenly access a single file or directory, that metadata is dynamically replicated across multiple servers to distribute the workload.
+
+Project web site: [[http://ceph.newdream.net/|ceph.newdream.net]]
+
+Code: [[http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=tree;f=fs/ceph;hb=HEAD|(code)]]
+
+== LogFS ==
+
+Recommended LWN article: [[http://lwn.net/Articles/234441/|LogFS]]
+
+LogFS is a filesystem designed for storage devices based on flash memory (SDD hard disks, USB sticks, etc). It is aimed to scale efficiently to large devices. In comparison to JFFS2, it offers significantly faster mount times and potentially less RAM usage. In its current state it is still experimental.
+
+Project web site: [[http://logfs.org/|www.logfs.org]]
+
+Code: [[http://git.kernel.org/linus/5db53f3e80dee2d9dff5e534f9e9fe1db17c9936|(commit)]]
+
+== Vhost net: fast KVM networking ==
+
+vhost net is a kernel-level backend for virtio networking. The main motivation for vhost is to reduce virtualization overhead for virtio-net by moving the task of converting virtio descriptors to skbs and back from qemu userspace to the vhost net driver. For virtio-net this means removing up to 4 system calls per packet: vm exit for kick, reentry for kick, iothread wakeup for packet, interrupt injection for packet. This was shown to reduce latency by a factor of 5, and improve bandwidth to almost-native performance. Existing virtio net code is used in guests without modification.
+
+Project web site: [[http://www.linux-kvm.org/page/VhostNet|http://www.linux-kvm.org/page/VhostNet]]
+
+Code: [[http://git.kernel.org/linus/3a4d5c94e959359ece6d6b55045c3f046677f55c|(commit)]]
+
+== Btrfs updates ==
+ * In this version, Btrfs has the ability to change which subvolume or snapshot is mounted by default. For a while, Btrfs had a "mount -o subvol" option, which mounts into a subvolume instead of using the default root. The new ioctl allows you to set this once with "btrfs subvolume set-default" and have it used as the new default for every mount (without any mount options), until you change it again. 
+
+ This feature is part of snapshot assisted distro upgrades, where you can take a snapshot of your distro, update it to a beta version, and revert back the default root to the old tree if you want to go back to the old, stable version. Support for such functionality has already been added to the Yum package manager when the "yum-plugin-fs-snapshot" package is installed. This plugin takes snapshots and modifies the GRUB configuration files to show different boot options for each snapshot (note that recent versions of LVM also support changing which snapshot is the default root, so you also can use this feature in LVM/Ext4 systems)
+
+ But the ioctl also sets an incompat bit on the super block because the developers ended up doing it differently than they had planned in the disk format.  People would end up with a big surprise if they mounted with 2.6.33 and got one directory tree but mounted with 2.6.32 and got another, so an incompat bit is flip when the ioctl is run. The incompat bit is only set if you run the set-default ioctl. Code: [[http://git.kernel.org/linus/6ef5ed0d386be5c43ec66d6f2999919c0893558b|(commit)]], [[http://git.kernel.org/linus/73f73415caddbc01d9f10c03e0a677d5b3d11569|(commit)]], [[http://git.kernel.org/linus/4849f01d153be0f52b8191ee1be0ce492aa96811|(commit)]]
+
+ * A new userspace utility has been created, it's a command called "btrfs". This tool replaces the old utilities.
+
+ * A ioctl has been added to list all the subvolumes on the filesystem (command "btrfs subvolume list"). This makes use of a new interface that runs tree searches from userland, which will be used for incremental backups in later btrfs-progs releases. There's a userspace utility to list files recently modified (command "btrfs subvolume find-new") Ioctl code: [[http://git.kernel.org/linus/ac8e9819d71f907a0532b01b22c26b56bbbcbd21|(commit)]]
+
+ * The math for df has been changed a little to better reflect space available for data, and factors in duplication for raid and single spindle dup. Also, a a space info ioctl has been added, which shows (command "btrfs filesystem df") how much space is tied up in metadata, and shows the raid level used for metadata/data. Code: [[http://git.kernel.org/linus/bd4d10888990f7e3f8029205d27eb155202d6969|(commit)]], [[http://git.kernel.org/linus/1406e4327be3a533a2b18582f715ce2cfbcf6804|(commit)]]
+
+ * The defrag code has added the ability to compress a single file on demand and defrag only a range of bytes in the file. Code: [[http://git.kernel.org/linus/1e701a3292e25a6c4939cad9f24951dc6b6ad853|(commit)]]
+
+ * When snapshots are taken, Btrfs now waits for all the delayed allocation extents to hit the disk first.
+
+
+== Kprobes jump optimization ==
+
+Recommended LWN article: [[http://lwn.net/Articles/365833/|Minimizing instrumentation impacts]]
+
+Kprobes is an old feature (merged [[http://git.kernel.org/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=ad1fb0c375304479dcfc1555df85c883d3038094|in 2004]]) that allows to gather information from any routine in the kernel at runtime. It is the internal system that Systemtap uses to insert probes at a random point of the kernel.  The current system used to implement Kprobes (in x86) is a a breakpoint. At the instruction address, a "int 3" instruction is inserted, and when the code path hits it, the exception handler is called and kprobes recollects all the information needed.
+
+This system works very well and it's quite efficient, but it can be improved. This version adds an experimental feature to improve it. In 2.6.34, a probe can use optionally in many (but not all, and no preempt support for now) places a simple jump, which is much faster. Usually, a kprobe hit takes 0.5 to 1.0 microseconds to process. On the other hand, a jump optimized probe hit takes less than 0.1 microseconds.
+
+
+Code: [[http://git.kernel.org/linus/d498f763950703c724c650db1d34a1c8679f9ca8|(commit 1]], [[http://git.kernel.org/linus/4610ee1d3638fa05ba8e87ccfa971db8e4033ae7|2]], [[http://git.kernel.org/linus/afd66255b9a48f5851326ddae50e2203fbf71dc9|3]], [[http://git.kernel.org/linus/b2be84df99ebc93599c69e931a3c4a5105abfabc|4]], [[http://git.kernel.org/linus/0f94eb634ef7af736dee5639aac1c2fe9635d089|5]], [[http://git.kernel.org/linus/f007ea2685692bafb386820144cf73a14016fc7c|6]], [[http://git.kernel.org/linus/c0f7ac3a9edde786bc129d37627953a8b8abefdf|7]], [[http://git.kernel.org/linus/b26486bf75148ab7b776c6a532a9bad33f987a38|8)]]
+
+== perf improvements, perf lock ==
+The perf tool and the tracing subsystem adds 
+ * perf lock: analyzes lock statistics Code: [[http://git.kernel.org/linus/9b5e350c7a46a471d5b452836dbafe9aeaeca435|(commit)]]
+
+ * Cross platform analysis support. The data recollected by perf can be analyzed in another system in a different architecture. A command has been added (command "perf archive") to archive in a .tar.bz2 file all the object files needed to do an analysis of a perf record, so an user can send it to someone who can interpret the data correctly. Code: [[http://git.kernel.org/linus/56b03f3c4d641dbdbce2e52a2969712e85b0e030|(commit 1]], [[http://git.kernel.org/linus/ba21594cddee0a3af582971656702b1c4509d8f5|2]], [[http://git.kernel.org/linus/88d3d9b7c843a42cb73c55a2d13cd1041da31fb9|3]], [[http://git.kernel.org/linus/2c5851747bcf751908c02e253cb7582d342b4612|4]], [[http://git.kernel.org/linus/e8d433f335d44028d41af231ef5c52fd8a9b280b|5)]]
+
+ * Add new "perf buildid-cache" command to manage build-id cache Code: [[http://git.kernel.org/linus/ef12a141306c90336a3a10d40213ecd98624d274|(commit)]]
+
+ * Python scripting engine, allow to process trace data with a Python script [[http://git.kernel.org/linus/7e4b21b84c43bb8a80b916e40718ca4ed1fc52e6|(commit)]], [[http://git.kernel.org/linus/cff68e582237cae3cf456f01153202175961dfbe|(commit)]], [[http://git.kernel.org/linus/4d161f0360d00d46a89827b3fd6da395f00c5d90|(commit)]]
+
+== RCU lockdep ==
+
+Recommended LWN article: [[http://lwn.net/Articles/371986/|Lockdep-RCU]]
+
+RCU is a scalable locking scheme used in many parts of the Linux tree. Its use is extending all over the tree, but its correct use needs manual checking. This version brings lockdep-style checking to rcu_dereference()
+
+Code: [[http://git.kernel.org/linus/632ee200130899252508c478ad0e808222573fbc|(commit)]]
+
+== Generalized TTL Security Mechanism and private VLAN proxy arp support ==
+
+[[http://lwn.net/Articles/379070/|Linux adds router denial-of-service prevention]]
+
+This version adds support for Generalized TTL Security Mechanism (GTSM), RFC 5082. It is a lightweight security measure against forged packets causing DoS attacks using BGP packets [[http://git.kernel.org/linus/d218d11133d888f9745802146a50255a4781d37a|(commit)]]
+
+This version also adds support for private VLAN proxy arp support (RFC 3069) [[http://git.kernel.org/linus/65324144b50bc7022cc9b6ca8f4a536a957019e3|(commit)]]
+
+
+== Asynchronous suspend/resume ==
+
+Recommended LWN article: [[http://lwn.net/Articles/366915/|Redesigning asynchronous suspend/resume]]
+
+The power management code has been modified to allow asynchronous suspend/resume, allowing drivers to do device suspend/resume in parallel, which improves the time used to suspend/resume devices quite a lot. In this version, PCI, USB and SCSI devices do asynchronous suspend/resume by default.
+
+Code: [[http://git.kernel.org/linus/5af84b82701a96be4b033aaa51d86c72e2ded061|(commit 1]], [[http://git.kernel.org/linus/0e06b4a891c6a108412fe24b4500f499da2cf8a1|2]], [[http://git.kernel.org/linus/5a2eb8585f3b38e01e30aacaa8b985a1520a993d|2]], [[http://git.kernel.org/linus/97df8c12995c5bac73e3bfeea4c5be155c1f4401|3]], [[http://git.kernel.org/linus/a1e4d72cd3024999bfb6703092ea271438805c89|4]], [[http://git.kernel.org/linus/4cb077d93a57fb8bb64c277ec4ce637823cd76f4|5]], [[http://git.kernel.org/linus/927bc9165d3cd01054b472f9b25d91a8707209c8|6]]
+
+== GPU switching ==
+
+Some laptops have two GPUs, a low-power and inefficient GPU and a high-power and powerful GPU. Users should be able to switch to one or another at runtime. In this version, Linux adds support for this feature. You need to restart X, though.
+
+Code: [[http://git.kernel.org/linus/6a9ee8af344e3bd7dbd61e67037096cdf7f83289|(commit)]]
+
+== Preliminary Radeon Evergreen (Radeon HD 5xxx) ==
+
+This version adds preliminary support for Radeon Evergreen (Radeon HD 5xxx). It isn't ready for users (no acceleration at all), but it's progressing.
+
+Code: [[http://git.kernel.org/linus/bcc1c2a1d22974215e39dc87ce746ba9a39223e5|(commit)]]
+
+
+
+
+
+== VMware ballon driver ==
+
+This is a standalone version of VMware Balloon driver. Ballooning is a technique that allows hypervisor dynamically limit the amount of memory available to the guest (with guest cooperation). This driver will only activate if host is VMware.
+
+Code: [[http://git.kernel.org/linus/453dc65931915abc61f92e12bba1fc4747ff5542|(commit)]]
+
+
+
+
+= Various core changes =
+ * vmscan: Factor out page reference checks (help workloads with large amounts of shortly used file mappings, like rtorrent hashing a file or git when dealing with loose objects) [[http://git.kernel.org/linus/dfc8d636cdb95f7b792d5ba8c9f3b295809c125d|(commit)]]
+ * Change anon_vma linking to fix multi-process server scalability issue [[http://git.kernel.org/linus/5beb49305251e5669852ed541e8e2f2f7696c53e|(commit)]]
+ * Count swap usage in /proc/PID/smaps [[http://git.kernel.org/linus/b084d4353ff99d824d3bc5a5c2c22c70b1fba722|(commit)]]
+ * Add NOFOLLOW flag to umount(2) [[http://git.kernel.org/linus/db1f05bb85d7966b9176e293f3ceead1cb8b5d79|(commit)]]
+ * ptrace: Add support for generic PTRACE_GETREGSET/PTRACE_SETREGSET [[http://git.kernel.org/linus/2225a122ae26d542bdce523d9d87a4a7ba10e07b|(commit)]]
+ * readahead: introduce FMODE_RANDOM for POSIX_FADV_RANDOM [[http://git.kernel.org/linus/0141450f66c3c12a3aaa869748caa64241885cdf|(commit)]]
+ * PM: Add sysfs switch for disabling device run-time PM [[http://git.kernel.org/linus/53823639173cc9e9a261f68f4abefe62364b86c6|(commit)]]
+ * PCI: support for PCI PME wake-up [[http://git.kernel.org/linus/b67ea76172d4b1922c4b3c46c8ea8e9fec1ff38c|(commit)]], PCIe PME root port service driver [[http://git.kernel.org/linus/c7f486567c1d0acd2e4166c47069835b9f75e77b|(commit)]]
+ * memory-hotplug: create /sys/firmware/memmap entry for new memory [[http://git.kernel.org/linus/d96ae5309165d9ed7c008a178238977b73595cd9|(commit)]]
+ * elf coredump: add extended numbering support [[http://git.kernel.org/linus/8d9032bbe4671dc481261ccd4e161cd96e54b118|(commit)]]
+ * failslab: add ability to filter slab caches [[http://git.kernel.org/linus/4c13dd3b48fcb6fbe44f241eb11a057ecd1cba75|(commit)]]
+ * CPUFREQ: Processor Clocking Control interface driver [[http://git.kernel.org/linus/0f1d683fb35d6c6f49ef696c95757f3970682a0e|(commit)]]
+
+
+= Filesystems =
+ * XFS
+  * Use scalable vmap API [[http://git.kernel.org/linus/cd9640a70d542ca026a812ac34733799da0a39c9|(commit)]], [[http://git.kernel.org/linus/8a262e573d30187b32b5534ec489446931239cc5|(commit)]]
+  * Implement optimized fdatasync [[http://git.kernel.org/linus/66d834ea603d61bd90fedad90300ca91c5bba0a3|(commit)]]
+  * Otimize log flushing in xfs_fsync [[http://git.kernel.org/linus/180040b89ee2aed88c0a0b1fcf7ada9a512b12e3|(commit)]]
+ * Exofs
+  * Define on-disk per-inode optional layout attribute [[http://git.kernel.org/linus/d9c740d2253e75db8cef8f87a3125c450f3ebd82|(commit)]]
+  * Groups support, [[http://git.kernel.org/linus/b367e78bd1c7af4c018ce98b1f6d3e001aba895a|(commit)]], [[http://git.kernel.org/linus/50a76fd3c352ed2740eba01512efcfceee0703be|(commit)]]
+  * RAID0 support [[http://git.kernel.org/linus/5d952b8391692553c31e620a92d6e09262a9a307|(commit)]]
+ * GFS2
+  * Metadata address space clean up [[http://git.kernel.org/linus/009d851837ab26cab18adda6169a813f70b0b21b|(commit)]]
+  * Ordered writes are backwards [[http://git.kernel.org/linus/e5884636da3a128617032747654284ae7badc7ff|(commit)]]
+ * Squashfs
+  * Add support for lzma and lzo compression [[http://git.kernel.org/linus/4c0f0bb2351bee3de8dd7715ee199454a59f1230|(commit)]], [[http://git.kernel.org/linus/dc3256782f88602953676c447b243dedb1be99ad|(commit)]]
+ * FAT
+  * Add support for large disks [[http://git.kernel.org/linus/3fbf586cf7f245392142e5407c2a56f1cff979b6|(commit)]]
+
+= Networking =
+ * Add a mac-vlan based tap driver [[http://git.kernel.org/linus/20d29d7a916a47bf533b5709437fe735b6b5b79e|(commit)]]
+ * SCTP Transport Loadbalancing Support [[http://git.kernel.org/linus/2906f66a5682e5670a5eefe991843689b8d8563f|(commit)]]
+ * TCP: thin dupack [[http://git.kernel.org/linus/7e38017557bc0b87434d184f8804cadb102bb903|(commit)]], thin linear timeouts [[http://git.kernel.org/linus/36e31b0af58728071e8023cf8e20c5166b700717|(commit)]]
+ * tun: socket filter support [[http://git.kernel.org/linus/05c2828c72c4eabf62376adfe27bd24797621f62|(commit)]], [[http://git.kernel.org/linus/99405162598176e830d17ae6d4f3d9e070ad900c|(commit)]]
+ * packet: Add GSO/csum offload support. [[http://git.kernel.org/linus/bfd5f4a3d605e0f6054df0b59fe0907ff7e696d3|(commit)]], kill CONFIG_PACKET_MMAP. [[http://git.kernel.org/linus/889b8f964f2f226b7cd5a0a515109e3d8d9d1613|(commit)]]
+ * 9p: Add multi channel support. [[http://git.kernel.org/linus/f75580c4afb72c156746b3fc1ec977b1a85d3dee|(commit)]], add 9P2000.u and 9P2010.L protocol support [[http://git.kernel.org/linus/0fb80abd911a7cb1e6548b5279568dc1e8949702|(commit)]], [[http://git.kernel.org/linus/dd6102fbd917889384d89bc427e98e85e8fda000|(commit)]], [[http://git.kernel.org/linus/c5a7697da9775f7a0e122fa23180becc311772d1|(commit)]]
+ * xfrm: Introduce basic mark infrastructure [[http://git.kernel.org/linus/bf825f81b454fae2ffe1b675f3a549656726440e|(commit)]], [[http://git.kernel.org/linus/bd55775c8dd656fc69b3a42a1c4ab32abb7e8af9|(commit)]], [[http://git.kernel.org/linus/3d6acfa7641fd0a35f608b142f61e79f7ed8db43|(commit)]], [[http://git.kernel.org/linus/8ca2e93b557f2a0b35f7769038abf600177e1122|(commit)]], [[http://git.kernel.org/linus/34f8d8846f69f3b5bc3916ba9145e4eebae9394e|(commit)]], [[http://git.kernel.org/linus/6f26b61e177e57a41795355f6222cf817f1212dc|(commit)]], [[http://git.kernel.org/linus/295fae568885a93c39a0e29a9455054608b6cc0e|(commit)]]
+ * Phonet: zero-copy aligned GPRS RX [[http://git.kernel.org/linus/fc6a110754476362f9f4fa3199a637f2331c5993|(commit)]], zero-copy GPRS TX [[http://git.kernel.org/linus/fea93ecef619b5779ca6984568517b1685079b05|(commit)]]
+ * Add MSG_WAITFORONE flag to recvmmsg [[http://git.kernel.org/linus/71c5c1595c04852d6fbf3c4882b47b30b61a4d32|(commit)]]
+ * llc: add support for LLC_OPT_PKTINFO [[http://git.kernel.org/linus/e5cd6fe391aa8c93560bb7ffdfe334cf4d0a02e4|(commit)]], add support for SO_BINDTODEVICE [[http://git.kernel.org/linus/abf9d537fea225af60762640361af7fb233b3103|(commit)]]
+ * ethtool: Introduce n-tuple filter programming support [[http://git.kernel.org/linus/15682bc488d4af8c9bb998844a94281025e0a333|(commit)]]
+ * bridge: add core IGMP snooping support [[http://git.kernel.org/linus/eb1d16414339a6e113d89e2cca2556005d7ce919|(commit)]]
+
+ * Netfilter
+  * nf_conntrack_sip: add T.38 FAX support [[http://git.kernel.org/linus/9d288dffe3a276e1f06ba556845c456d696c5a4f|(commit)]], add TCP support [[http://git.kernel.org/linus/f5b321bd37fbec9188feb1f721ab46a5ac0b35da|(commit)]]
+  * nf_conntrack: support conntrack templates [[http://git.kernel.org/linus/b2a15a604d379af323645e330638e2cfcc696aff|(commit)]], add support for "conntrack zones" [[http://git.kernel.org/linus/5d0aa2ccd4699a01cfdf14886191c249d7b45a01|(commit)]]
+  * nf_nat_sip: add TCP support [[http://git.kernel.org/linus/48f8ac26537c1b7b1a2422f5232f45d06c945348|(commit)]]
+  * ctnetlink: add zone support [[http://git.kernel.org/linus/ef00f89f1eb7e056aab9dfe068521e6f2320c94a|(commit)]]
+  * ebtables: add CONFIG_COMPAT support [[http://git.kernel.org/linus/81e675c227ec60a0bdcbb547dc530ebee23ff931|(commit)]]
+  * xtables: add CT target [[http://git.kernel.org/linus/84f3bb9ae9db90f7fb15d98b55279a58ab1b2363|(commit)]]
+ * WiFi
+  * cfg80211: add remain-on-channel command [[http://git.kernel.org/linus/9588bbd5529461a3dacd435bf239c84c3508f569|(commit)]]
+  * mac80211
+   * add debugfs interface for U-APSD queue configuration [[http://git.kernel.org/linus/50ae0cf15c3da2f6a8e4558de5010923e84736b2|(commit)]]
+   * add U-APSD client support [[http://git.kernel.org/linus/ab13315af97919fae0e014748105fdc2e30afb2d|(commit)]]
+   * mac80211/cfg80211: add station events [[http://git.kernel.org/linus/98b6218388e345064c3f2d3c161383a18274c638|(commit)]]
+   * mac80211: enable spatial multiplexing powersave [[http://git.kernel.org/linus/0f78231bffb868a30e8533aace142213266bb811|(commit)]]
+   * mac80211: support remain-on-channel command [[http://git.kernel.org/linus/b8bc4b0aa9bfba755c64b11b8f60e6cfab25dc9d|(commit)]]
+
+  * Remove CONFIG_WIRELESS_OLD_REGULATORY [[http://git.kernel.org/linus/baeb66fe2306783e3b9a492b03882f2e249b2eeb|(commit)]]
+  * Support internal statically compiled regulatory database [[http://git.kernel.org/linus/3b377ea9d4efc94dc52fe41b4dfdb463635ab298|(commit)]]= Security =
+  * nl80211: add power save commands [[http://git.kernel.org/linus/ffb9eb3d8b450c22bbbc688c6b630141ac476fd9|(commit)]], new command for setting TX rate mask for rate control [[http://git.kernel.org/linus/13ae75b103e07304a34ab40c9136e9f53e06475c|(commit)]]
+
+= Cgroups =
+ * Make cgroup subsystems loadable modules [[http://git.kernel.org/linus/aae8aab40367036931608fdaf9e2dc568b516f19|(commit)]], [[http://git.kernel.org/linus/e6a1105ba08b265023dd71a4174fb4a29ebc7083|(commit)]], [[http://git.kernel.org/linus/cf5d5941fda647fe3d2f2d00cf9e0245236a5f08|(commit)]], [[http://git.kernel.org/linus/67523c48aa74d5637848edeccf285af1c60bf14a|(commit)]]
+ * Implement eventfd-based generic API for notifications about changing status of a cgroup [[http://git.kernel.org/linus/0dea116876eefc9c7ca9c5d74fe665481e499fa3|(commit)]], [[http://git.kernel.org/linus/1d8fd973a41942bc760dd21581e24117bc1dd063|(commit)]]
+ * memcg: add interface to move charge at task migration [[http://git.kernel.org/linus/7dc74be032bfcaa2f9d9e4296ff5bbddfa9e2f19|(commit)]], [[http://git.kernel.org/linus/4ffef5feff4e4240e767d2f1144b1634a41762e3|(commit)]], [[http://git.kernel.org/linus/854ffa8d104e44111fec96764c0e0cb29223d54c|(commit)]], [[http://git.kernel.org/linus/8033b97c9b5ef063e3f4bf2efe1cd0a22093aaff|(commit)]], [[http://git.kernel.org/linus/024914477e15ef8b17f271ec47f1bb8a589f0806|(commit)]], [[http://git.kernel.org/linus/483c30b514bd3037fa3f19fa42327c94c10f51c8|(commit)]], 
+ * memcg: implement memory thresholds and send notifications when it crosses using the new notification api [[http://git.kernel.org/linus/2e72b6347c9459e6cff5634ddc815485bae6985f|(commit)]]
+
+= Tracing/Profiling =
+ * Add lazy line matching support [[http://git.kernel.org/linus/2a9c8c36092de41c13fdd81fe59556915b080c3e|(commit)]]
+ * Use elfutils-libdw for analyzing debuginfo [[http://git.kernel.org/linus/804b36068eccd8163ccea420c662fb5d1a21b141|(commit)]]
+ * Add multiple event support [[http://git.kernel.org/linus/cbbc79a53278b83bf7f834127751459f9299e402|(commit)]]
+ * Support tracepoint glob matching [[http://git.kernel.org/linus/fb1d2edf7ee25a26ad0b238d0ee335a3b28b7aa3|(commit)]]
+ * Enable Nehalem-EX support [[http://git.kernel.org/linus/134fbadf028a5977a1b06b0253d3ee33e6f0c642|(commit)]]
+ * AMD event scheduling [[http://git.kernel.org/linus/38331f62c20456454eed9ebea2525f072c6f1d2e|(commit)]]
+ * Implement intel core solo/duo support [[http://git.kernel.org/linus/8c48e444191de0ff84e85d41180d7bc3e74f14ef|(commit)]]
+ * Implement Intel Westmere support [[http://git.kernel.org/linus/452a339a976e7f782c786eb3f73080401e2fa3a6|(commit)]]
+
+= Crypto =
+ * gcm - Add RFC4543 wrapper for GCM [[http://git.kernel.org/linus/73c89c15b959adf06366722c4be8d2eddec0a529|(commit)]]
+ * pcrypt - Add pcrypt crypto parallelization wrapper [[http://git.kernel.org/linus/5068c7a883d1694f0fb3631b664827644153cd08|(commit)]]
+= Virtualization =
+ * Initial HYPER-V emulation [[http://git.kernel.org/linus/1d5103c11e32b5028262c073d56375691d51a886|(commit)]], [[http://git.kernel.org/linus/10388a07164c1512b3a3d0273b9adc230f82790e|(commit)]], [[http://git.kernel.org/linus/55cd8e5a4edb8e235163ffe8264b9aaa8d7c050f|(commit)]], [[http://git.kernel.org/linus/c25bc1638a1211f57cccbabdd8b732813b852340|(commit)]]
+ * Bump maximum vcpu count to 64 [[http://git.kernel.org/linus/0680fe52753381cb7154beeb01ef3e48f2cdeec6|(commit)]]
+ * Enable PCI multiple-segments for pass-through device [[http://git.kernel.org/linus/ab9f4ecbb6d39a18e300a0d10a4968c37404aa76|(commit)]]
+ * PPC: Add support for FPU/Altivec/VSX [[http://git.kernel.org/linus/180a34d2d3fda0151154f9cead4aab9dddd3d0c1|(commit)]]
+ * VMX: Enable EPT 1GB page support [[http://git.kernel.org/linus/878403b788bff1af9c7f1a61e104f0c77115af29|(commit)]]
+ * x86 emulator: Add Virtual-8086 mode of emulation [[http://git.kernel.org/linus/a0044755679f3e761b8b95995e5f2db2b7efd0f6|(commit)]]
+ * virtio: Add memory statistics reporting to the balloon driver (V4) [[http://git.kernel.org/linus/9564e138b1f6eb137f7149772438d3f3fb3277dd|(commit)]], add block topology support [[http://git.kernel.org/linus/69740c8ba878f58bc3c71f74618fc2cd1da990da|(commit)]]
+
+
+= Block =
+ * drbd: --dry-run option for drbdsetup net ( drbdadm -- --dry-run connect <res> ) [[http://git.kernel.org/linus/cf14c2e987ba0a09a7b09be2ecd55af0bc9c17b4|(commit)]]
+ * Added in stricter no merge semantics for I/O (improves performance a tiny bit) [[http://git.kernel.org/linus/488991e28e55b4fbca8067edf0259f69d1a6f92c|(commit)]]
+ * cfq-iosched: rethink seeky detection for SSDs [[http://git.kernel.org/linus/41647e7a91338dba21773a16af7474ef95e0929e|(commit)]], rework seeky detection [[http://git.kernel.org/linus/3dde36ddea3e07dd025c4c1ba47edec91606fec0|(commit)]]
+
+= Security =
+ * SElinux: allow MLS->non-MLS and vice versa upon policy reload [[http://git.kernel.org/linus/0719aaf5ead7555b7b7a4a080ebf2826a871384e|(commit)]]
+ * TOMOYO: Add garbage collector. [[http://git.kernel.org/linus/847b173ea3d6f50936823d07f2245059bf44713b|(commit)]]
+
+= Architecture-specific changes =
+ * x86
+  * Support native xadd rwsem implementation (+300% speedup in threaded page faults) [[http://git.kernel.org/linus/bafaecd11df15ad5b1e598adc7736afcd38ee13d|(commit)]]
+  * numa: Remove configurable node size support for numa emulation [[http://git.kernel.org/linus/ca2107c9d6cf44fb915402d6f12b9d9ff3925cd7|(commit)]], [[http://git.kernel.org/linus/8df5bb34defd685fe86f60746bbf3d47d1c6f033|(commit)]], 
+  * Moorestown PCI support [[http://git.kernel.org/linus/a712ffbc199849364c46e9112b93b66de08e2c26|(commit)]] * ARM
+ * ARM
+  * Enable perf support [[http://git.kernel.org/linus/7ada189f5c8627662c23f49b3e68463f86fc511e|(commit)]], [[http://git.kernel.org/linus/1b8873a0c6ec511870c106c80b94658f857c47f2|(commit)]], [[http://git.kernel.org/linus/796d12959ad374cae8eb77faaf4243455a305433|(commit)]]
+  * Add support for Samsung S5P6440 board [[http://git.kernel.org/linus/d25168ea9308e19c7000f0c997eedec87c5d6298|(commit)]], [[http://git.kernel.org/linus/1a0e8a52ad56075663d8e120e2468fc96fb6fa6c|(commit)]], [[http://git.kernel.org/linus/62a6156e88b2e89eafed30aefc97ff4979393c1c|(commit)]], [[http://git.kernel.org/linus/b7db51be43bc8f9943324a00b80e5d034de0a733|(commit)]], [[http://git.kernel.org/linus/209fecd1b8e65b8046efbbc8314d449e53c4c6b6|(commit)]], [[http://git.kernel.org/linus/c4ffccddd54b669cc9683f2c69e31035e916a1a0|(commit)]], [[http://git.kernel.org/linus/42d828d46f526605c84ebdb5a987fd25fe09a3c9|(commit)]], [[http://git.kernel.org/linus/501dae90b3ae4dd3d8efdacfcb072c3d65eb5a33|(commit)]] ,[[http://git.kernel.org/linus/5f3545f64a44b2b2dac34141dba23d18cdf40a92|(commit)]]
+  * Add Samsung S5P6442 board support[[http://git.kernel.org/linus/b6f837575edc5213e00903afea240f0119ee5ec9|(commit)]], [[http://git.kernel.org/linus/d9f18a981bd0a724c87d04db1d61d91261a2feb4|(commit)]], [[http://git.kernel.org/linus/d13de2ab8a7afe2d915be4c4758fe25825204226|(commit)]], [[http://git.kernel.org/linus/5f7f6a4a0df9b43051d57fdb8ea96c083247a08f|(commit)]], [[http://git.kernel.org/linus/03843a1294073c19783b43f60f3a455dd0672685|(commit)]], [[http://git.kernel.org/linus/461859db1f367200602d81c9352e2477a6187814|(commit)]], [[http://git.kernel.org/linus/550db7f155c9e51288fbe114fbb33d7a044d8a75|(commit)]]
+  * Add Samsung S5PV210/S5PC110 board support [[http://git.kernel.org/linus/0c1945d336116e82454b5461238618ef81696669|(commit)]], [[http://git.kernel.org/linus/2c798557b9e0961e545e526197654d9437a6330e|(commit)]], [[http://git.kernel.org/linus/939d28aae17a0cb591a2ec54993496a5d31f2ec6|(commit)]], [[http://git.kernel.org/linus/d85127319cc36c38eb99615c52531c6ef2f11369|(commit)]], [[http://git.kernel.org/linus/d515ec339bf7970c8f6e368c8c7bb330417dcda9|(commit)]], [[http://git.kernel.org/linus/981744165e31410bd7bc973fd259f24b836d0346|(commit)]], [[http://git.kernel.org/linus/170f4e425808b801f81bb6be24b2c1eb80313d8e|(commit)]]
+  * AT91: Add support for Atmel AT572D940HF processor [[http://git.kernel.org/linus/5e38efae9635436efa1e4952cf953085839a7121|(commit)]], [[http://git.kernel.org/linus/c9a8fdd8b3ecdcfa3aa40e553c87c5787f5d70e4|(commit)]]
+  * Add support for Nuvoton NUC93X[[http://git.kernel.org/linus/a62e90308f7b6965310cf4ec61393aef6861f50d|(commit)]]
+  * Add Renesas SH-Mobile ARM platforms [[http://git.kernel.org/linus/c793c1b0c8ea11b46caf5a532752214b27a2df42|(commit)]], [[http://git.kernel.org/linus/2b7eda63e489a43575f776a1a32bcfbcd75b9476|(commit)]], [[http://git.kernel.org/linus/f2aaf66df0858116b2fcdbbfe8126d4ff925ac61|(commit)]], [[http://git.kernel.org/linus/8a77b8d0744ab21b59a9413c41c6a3d6cb9b0b4f|(commit)]], [[http://git.kernel.org/linus/7fdda6780aaa21c7a94e09975649649bb0f4a932|(commit)]], [[http://git.kernel.org/linus/f8eef1305b33438dd7a3a01e43b94e57ca87fc9b|(commit)]], [[http://git.kernel.org/linus/e4e430c611db75f58d3ca33869e182a530859426|(commit)]], [[http://git.kernel.org/linus/276b4f623cfd30320c004269725683ba8f262bb6|(commit)]], [[http://git.kernel.org/linus/6673be73809c8aa1ca5255c83f4fc85c43fdbfab|(commit)]], [[http://git.kernel.org/linus/b789b3fdccc1690826331f4c878b644c3904ca6b|(commit)]], [[http://git.kernel.org/linus/17ccb834d517c66c09123c24ba8553c5b14e0f78|(commit)]], [[http://git.kernel.org/linus/5098280e015e36daebfd16f976ec3db6f4975fac|(commit)]], [[http://git.kernel.org/linus/8cb3a2ebc19eef58bcbd5460c4fb463f30bc6459|(commit)]], [[http://git.kernel.org/linus/b228b48e454007436a8e6ff1c6b6f4f6602fc45e|(commit)]], [[http://git.kernel.org/linus/3a7b802d1a8c279876ec74094d71f3c6c45d8030|(commit)]], [[http://git.kernel.org/linus/aa18ef609b65a76e4531b09dd0c196be3e04eb94|(commit)]], [[http://git.kernel.org/linus/1b7e0677fb1513605df327ae2987d17e0b2ae3ea|(commit)]]
+  * mx31moboard: support for the smartbot baseboard [[http://git.kernel.org/linus/e335c75cf32b7014f84c90bbe7ed9b7ecd8e7778|(commit)]]
+  * mxc: Add support for the Babbage board (i.MX5) [[http://git.kernel.org/linus/b996b5830364c1b1d2469be574f4ebe831987ba9|(commit)]], [[http://git.kernel.org/linus/a329b48c43e5e2e6b51ce159d99aefeb90c7c066|(commit)]], [[http://git.kernel.org/linus/a003708ad4ee9384226251431c7953a24079ff80|(commit)]]
+  * SMDK6410: Add initial support for WM1192-EV1 PMIC board [[http://git.kernel.org/linus/60f9101a8881797fecd89450b8a8d17a440e6281|(commit)]]
+  * Use generic infrastructure for early params [[http://git.kernel.org/linus/2b0d8c251b8876d530a6bf671eb5425838fa698a|(commit)]]
+  * OMAP4: Add L2 Cache support [[http://git.kernel.org/linus/d309427e792ea750cdd312e7a92cf6047ae44962|(commit)]]
+  * Add support for EP9315 based Snapper CL15 board [[http://git.kernel.org/linus/dd2ac961e273c2ac9f58cfa13c9e566e4bdb3b13|(commit)]]
+  * Kirkwood: add LaCie Internet Space v2 support [[http://git.kernel.org/linus/ca9cea939932a0a64fee9d83b3c631431359446f|(commit)]], combine support for openrd base/client support [[http://git.kernel.org/linus/b2fdb5660fccc060e47658baad8911a963397ced|(commit)]]
+  * ep93xx: Add support for Simplemachines Sim.One board [[http://git.kernel.org/linus/a3662f6bbe09a3ce7cccd622654822c0d378be2e|(commit)]]
+  * mmp: add support for Marvell MMP2 [[http://git.kernel.org/linus/2f7e8faef5a50efaa1c173e99bdaa29e0129bb99|(commit)]], support jasper development board [[http://git.kernel.org/linus/e1cb7db2ef7f911dbe0edd5ff8d2216a817738d0|(commit)]]
+  * MV78xx0: Support for Buffalo WXL (Terastation Duo) [[http://git.kernel.org/linus/c499546f43f2c31b681271ef7db922839fcde5fe|(commit)]]
+  * Orion: Add Buffalo Linkstation LS-HGL support [[http://git.kernel.org/linus/2d18638ec010a2ed1daa08b4774ed12108647a53|(commit)]]
+  * pxa: add support for Embedian MXM-8x10 [[http://git.kernel.org/linus/1f3b536be7bfb3930cf7dc6d995d82877f25d6cf|(commit)]], add platform support [[http://git.kernel.org/linus/550ee52d823845f882ddadcd032b33169866a739|(commit)]]
+  * S3C64XX: Add I2S resources in platform code [[http://git.kernel.org/linus/71269364a8d5ea42ecc6cbc7b687e5d45cbabe0e|(commit)]], add S3C64XX RTC platform driver [[http://git.kernel.org/linus/206090913d0d6ad3506e3e2693a696fc1626993e|(commit)]], add S3C64XX support to the generic Samsung ADC driver [[http://git.kernel.org/linus/bcedfa98d97e02e95bb023ab93675dbe63c508ef|(commit)]]
+  * SAMSUNG: Add core clock implementation for clksrc based clocks [[http://git.kernel.org/linus/aa9ad6ad9c16e1daff41792c485f46e601a5af33|(commit)]]
+  * mx25: add NAND support [[http://git.kernel.org/linus/27f590258954ea0d22b43e33dd356bc76a8dfe7a|(commit)]]
+  * Add COH 901 318 DMA driver platform config for U300 [[http://git.kernel.org/linus/08d1e2e68da977956ff10735148ac1de21c85afd|(commit)]]
+  * OMAP3: Add support for flash on 3430SDP board [[http://git.kernel.org/linus/88c8460ac32283e2a25e36e4670ff5ab02f3b521|(commit)]], add support for flash on IGEP v2 board [[http://git.kernel.org/linus/cddb483a74a39ed0846e6a276c4e5f4b7ac69d9c|(commit)]], introduce 3630 DPLL4 HSDivider changes [[http://git.kernel.org/linus/678bc9a2eabb7f444ef8ad1cfc5ef394e2bd8bf2|(commit)]], introduce DPLL4 Jtype [[http://git.kernel.org/linus/358965d7bab9c70c11b64931da02667b161cb03a|(commit)]], cm-t35: add DSS2 display support [[http://git.kernel.org/linus/7f049ad15ece7f63b59ad438b51629434cdc0198|(commit)]]
+  * OMAP: DSS2: Add Sharp LQ043T1DG01 panel driver [[http://git.kernel.org/linus/1c64606968538396ffe87eb6da4121a5bffe5e34|(commit)]], add Toppoly TDO35S panel [[http://git.kernel.org/linus/751ef159c5600e7ee53e64c3d04f3e2d78908ce5|(commit)]], [[http://git.kernel.org/linus/60596045ac3d73ab6aac85d1eca617ba4c97b020|(commit)]], add TPO TD043MTEA1 panel [[http://git.kernel.org/linus/9ce4ad0a7b2e21363ce1d1d4c8eb4c2ae213cb59|(commit)]]
+  * NUC900 LCD Controller Driver [[http://git.kernel.org/linus/8661970875d7d27e4de233d357327fffdb4a5e3d|(commit)]]
+  * Add support for Devkit8000 [[http://git.kernel.org/linus/867af973a3b38f2a564d612326efd2694d931f30|(commit)]], [[http://git.kernel.org/linus/476544cad1fc9c0b99bc39089677578070e9e62c|(commit)]]
+  * davinci: add power management support [[http://git.kernel.org/linus/efc1bb8a6fd56f6df5b797dff5156c935175c319|(commit)]]
+
+ * PowerPC
+  * Add timer, performance monitor and machine check counts to /proc/interrupts [[http://git.kernel.org/linus/89713ed10815401a1bfe12e3a076b64048381b56|(commit)]]
+  * booke: Add support for advanced debug registers [[http://git.kernel.org/linus/99396ac105f54fe3584374c7c70a5cb6def766e6|(commit)]], [[http://git.kernel.org/linus/3bffb6529cf10d48a97ac0d6d789986894c25c37|(commit)]], [[http://git.kernel.org/linus/172ae2e7f8ff9053905a36672453a6d2ff95b182|(commit)]]
+  * Extended ptrace interface [[http://git.kernel.org/linus/3162d92dfb79a0b5fc03380b8819fa5f870ebf1e|(commit)]]
+  * e500 perf support [[http://git.kernel.org/linus/a11106544f33c104706ae42d27219a409b67478e|(commit)]]
+ * SH
+  * Abstracted SH-4A UBC support on hw-breakpoint core. [[http://git.kernel.org/linus/4352fc1b12fae4c753a063a2f162ddf9277af774|(commit)]]
+  * Add support for LZO-compressed kernels. [[http://git.kernel.org/linus/c7b16efb7d0c7fce218b2cdafa2432c5fbf57314|(commit)]]
+  * Definitions for 3-level page table layout [[http://git.kernel.org/linus/5d9b4b19f118abfb75e352841f7bf74580d7e427|(commit)]]
+  * kmemleak support. [[http://git.kernel.org/linus/660e2acad81c19b404f7d7d06e57a6d5e6ce7426|(commit)]]
+  * mach-sdk7786: heartbeat support. [[http://git.kernel.org/linus/2267c7875b3a3a41b7a8cc9659d75ec934c98ffd|(commit)]]
+  * Move over to dynamically allocated FPU context. [[http://git.kernel.org/linus/0ea820cf9bf58f735ed40ec67947159c4f170012|(commit)]]
+  * Preliminary SDK7786 board support. [[http://git.kernel.org/linus/02bf6cc72cc2a6258411ddf1649f33a65fc9a06e|(commit)]]
+  * Support PCI domains. [[http://git.kernel.org/linus/320e68da59353fe6ad51b81f6865c4b674ad66ea|(commit)]]
+ * Blackfin
+  * Add support for cpufreq on SMP systems [[http://git.kernel.org/linus/6c2b7072a7035837998da38809f98e4182e4c41c|(commit)]]
+  * Initial XIP support [[http://git.kernel.org/linus/d86bfb1600db38e8387beee0aaab4263cfd728a2|(commit)]]
+  * SMP: add PM/CPU hotplug support [[http://git.kernel.org/linus/0b39db28b953945232719e7ff6fb802aa8a2be5f|(commit)]]
+  * SMP: make core timers per-cpu clock events for HRT [[http://git.kernel.org/linus/0d152c27e336b5fd777da7dd3e814617e7305afd|(commit)]]
+  * Initial regset support [[http://git.kernel.org/linus/e50e2f25c5b90abd00a1e5871c45094cf5207afc|(commit)]]
+  * Initial tracehook support [[http://git.kernel.org/linus/e8f263dfd32a784a816fe68956e564f8ede4a9fc|(commit)]]
+  * tcm-bf518: new board port [[http://git.kernel.org/linus/5aff1642aee0fe3cb9be7339fcc09dd2bd1976f0|(commit)]]
+  * bf527-ezkit: add support for V2.1 boards [[http://git.kernel.org/linus/6924dfb0588dab02a331a3a526f8a8fae7d1b3cc|(commit)]]
+ * S390
+  * qeth: HiperSockets Network Traffic Analyzer [[http://git.kernel.org/linus/76b11f8e270f04851774ff64b16e29e5a43d3a1a|(commit)]]
+  * Add support for compressed kernels [[http://git.kernel.org/linus/1844c9bc0b2fed3023551c1affe033ab38e90b9a|(commit)]]
+  * dasd: automatic recognition of read-only devices [[http://git.kernel.org/linus/33b62a30f78536b976183cc764c08038ac011e0a|(commit)]]
+  *  zfcpdump: remove cross arch dump support [[http://git.kernel.org/linus/f64ca21714f114a78b6c19ceabc7745b29913efc|(commit)]]
+ * SPARC
+  * Add function graph tracer support. [[http://git.kernel.org/linus/9960e9e8944f9b1ca6af5f7d26400ca45b429600|(commit)]]
+  * Add very basic XVR-1000 framebuffer driver. [[http://git.kernel.org/linus/2d378b9179881b46a0faf11430efb421fe03ddd8|(commit)]]
+  * Support kmemleak. [[http://git.kernel.org/linus/8b8d8e2840a440d62e8dc0ef36ba433b26f70d32|(commit)]]
+ * Microblaze
+  * Add support from PREEMPT [[http://git.kernel.org/linus/777537905744c28b02c283692e7f75f5445c1afa|(commit)]]
+  * Enable PCI [[http://git.kernel.org/linus/a6475c132278c1be158a13872c233aeab8a00176|(commit)]]
+  * Support DMA [[http://git.kernel.org/linus/ccfe27d7000668b02d10fc3e06aa49e3e3603162|(commit)]]
+  * Enable memory leak detector [[http://git.kernel.org/linus/47c4c864af60d14926f4017d23968a8341b8ab9f|(commit)]]
+ * MIPS
+  * Two-level pagetables for 64-bit kernels with 64KB pages. [[http://git.kernel.org/linus/325f8a0a31df567dbafafc48f8e60f3c1f101a46|(commit)]]
+  * Preliminary VDSO [[http://git.kernel.org/linus/c52d0d30aef84aa8893b34e5254716c8ab5c4472|(commit)]]
+  * Optimize spinlocks. [[http://git.kernel.org/linus/500c2e1fdbcc2b273bd4c695a9b8ac8196f61614|(commit)]]
+  * Implement Read Inhibit/eXecute Inhibit [[http://git.kernel.org/linus/6dd9344cfc41bcc60a01cdc828cb278be7a10e01|(commit)]]
+  * Alchemy: Extended DB1200 board support. [[http://git.kernel.org/linus/63323ec54a7e922a232c82070727e44eb1a5b43c|(commit)]], XXS1500 PCMCIA driver rewrite [[http://git.kernel.org/linus/0273b4efccd3bc2b2ef5ea9778e71d8efbbb7ac7|(commit)]]
+  * BCM63xx: Add DWVS0 board [[http://git.kernel.org/linus/f29b7cac19ef5aa093fc9403d10735fa72cabf99|(commit)]], add the RTA1025W-16 BCM6348-based board to supported boards. [[http://git.kernel.org/linus/2e6ad9a9585b5520cddda4743bfbfdf7f11c5a50|(commit)]]
+  * Add driver for Cavium OCTEON I2C ports. [[http://git.kernel.org/linus/85660f43a308cc601b243c1f4dc18a63545c5cfa|(commit)]]
+  * PCMCIA: New socket driver for Au1000 demoboards. [[http://git.kernel.org/linus/66213b3ccfc770704025ce9465fa3aaedde21b55|(commit)]]
+  * Alchemy: DB1200 AC97+I2S audio support. [[http://git.kernel.org/linus/05ae3231801df8fdb4e1c0aa4aa6b8d7278eddde|(commit)]]
+ * M68k
+  * Add NPTL support [[http://git.kernel.org/linus/9674cdc74d63f346870943ef966a034f8c71ee57|(commit)]], [[http://git.kernel.org/linus/a58f75349063f60949614de39390df594ba1418d|(commit)]]
+  * pmac-zilog: add platform driver [[http://git.kernel.org/linus/ec9cbe09899e36b5f216c3232215520dcf0320ab|(commit)]]
+ * IA64: Remove COMPAT_IA32 support [[http://git.kernel.org/linus/32974ad4907cdde6c9de612cd1b2ee0568fb9409|(commit)]]
+
+
+= Drivers =
+== Graphics ==
+ * i915
+  * Add dynamic performance control support for Ironlake [[http://git.kernel.org/linus/f97108d1d0facc7902134ebc453b226bbd4d1cdb|(commit)]]
+  * Add initial bits for VGA modesetting bringup on Sandybridge. [[http://git.kernel.org/linus/bad720ff3e8e47a04bd88d9bbc8317e7d7e049d3|(commit)]]
+  * Enable memory self refresh on 9xx [[http://git.kernel.org/linus/ee980b8003a25fbfed50c3367f2b426c870eaf90|(commit)]]
+ * Nouveau
+  * new userspace interface, needs new userspace driver [[http://git.kernel.org/linus/a1606a9596e54da90ad6209071b357a4c1b0fa82|(commit)]]
+  * nv50: Implement ctxprog/state generation. [[http://git.kernel.org/linus/d5f3c90d4f3ad6b054f9855b7b69137b97bda131|(commit)]]
+ * Radeon
+  * Add asic hook for dma copy to r200 cards. [[http://git.kernel.org/linus/44ca7478d46aaad488d916f7262253e000ee60f9|(commit)]]
+  * Add new RS880 pci id [[http://git.kernel.org/linus/338e2b1d571e4873908b199c90d6a31f65137fe3|(commit)]]
+  * Add support for hw i2c on r1xx-r5xx [[http://git.kernel.org/linus/40bacf1631a3e8654b1128aa9b72e73ca801c9e4|(commit)]]
+  * Add support for square microtiles on r3xx-r5xx [[http://git.kernel.org/linus/939461d59d6ac4e5142f767d24810c9b4b5caa38|(commit)]]
+  * r600/r700 command stream checker [[http://git.kernel.org/linus/961fb597c17e2e4f55407d56b7211c188ab41eff|(commit)]]
+  * Add dynamic engine reclocking [[http://git.kernel.org/linus/c913e23a145ae07b6f9f88aae8cd5ad06b5729ff|(commit)]]
+  * Enable ACPI powermanagement mode on radeon gpus. [[http://git.kernel.org/linus/d668046c13024d74af7d04a124ba55f406380fe7|(commit)]]
+
+ * agp/intel: Add support for Sandybridge. [[http://git.kernel.org/linus/1089e3009572e07a1fe12c3408828f27c96453be|(commit)]]
+ * vgaarb: Add user selectability of the number of GPUS in a system [[http://git.kernel.org/linus/36028f3383872eefb558a4aae4c12ec2b5fa640f|(commit)]]
+ * viafb: support color depth 15 and 30 [[http://git.kernel.org/linus/e17cea3cece6d3ec47a5b358821505943abe6541|(commit)]]
+== Storage ==
+ * SATA/PATA
+  * pata_atiixp: enable parallel scan [[http://git.kernel.org/linus/1d3a8118b049252a84641b6643066bda0da0d316|(commit)]]
+  * pata_efar: Enable parallel scanning [[http://git.kernel.org/linus/7e044a12c73f474e59f1ddecf08d6781c7830f0f|(commit)]]
+  * pata_via: Add VIA VX900 support [[http://git.kernel.org/linus/4f1deba435ef75380c1d06fda860c7a15ea16fdf|(commit)]]
+  * ata_piix: IDE Mode SATA patch for Intel Cougar Point DeviceIDs [[http://git.kernel.org/linus/88e8201e67aace3d86de9e75122ea525f0e7248e|(commit)]]
+  * via82cxxx: add support for VT6415 PCIE PATA IDE Host Controller [[http://git.kernel.org/linus/a354ae8747d0687093ce244e76b15b6174d2f098|(commit)]], add support for vt8261 and future chips [[http://git.kernel.org/linus/5b6c82ea0fd130a9f0bb7f4d86f6dbbf2fdaaa04|(commit)]]
+  * ahci: AHCI and RAID mode SATA patch for Intel Cougar Point DeviceIDs [[http://git.kernel.org/linus/5623cab83ea61e0420f2064216d83eab067a24c6|(commit)]], implement SATA AHCI FIS-based switching support [[http://git.kernel.org/linus/d6ef31539d715db7a0eb2d67a1a008c9d8ccf059|(commit)]]
+ * SCSI
+  * be2iscsi: Adding support for BE3 [[http://git.kernel.org/linus/f98c96b0b6572b5491e954148509b20f08f31491|(commit)]]
+  * hpsa: Allow multiple command completions per interrupt. [[http://git.kernel.org/linus/303932fd4ff63e8650d5d5da6cc286a8b5f8318d|(commit)]], add pci ids for storageworks 1210m, remove p400, p800, p700m [[http://git.kernel.org/linus/f8b01eb9049113920f4eb2f944a0c713ce597673|(commit)]]
+  * ipr: adds PCI ID definitions for new adapters [[http://git.kernel.org/linus/d7b4627f5f3390a2f350f16c047b3fc3eccce6d8|(commit)]]
+  * lpfc: Added management for LP21000 through BSG. [[http://git.kernel.org/linus/e2aed29f29d0d289df3b0b627b122832d4dc80fe|(commit)]], SLI enhancements to support new hardware. [[http://git.kernel.org/linus/28baac7492fa084dbff6a1b9c4b42ed0d014b558|(commit)]], restore MSI-X/MSI support [[http://git.kernel.org/linus/8605c46c171f02859fb3a32655fa226ce446c6ec|(commit)]]
+  * mpt2sas: Added raid transport support [[http://git.kernel.org/linus/f7c95ef02b564d9984c0655c9659791b1dd5d7ad|(commit)]]
+  * qla2xxx: Add BSG support for FC ELS/CT passthrough and vendor commands. [[http://git.kernel.org/linus/9a069e196767d7b87184fd8d8211d22bb5b9c0b8|(commit)]], add firmware ETS burst support. [[http://git.kernel.org/linus/ae97c91eb1f139b19c1e7cbc5c1380dae8ad874e|(commit)]], enhance EEH support and enable AER support. [[http://git.kernel.org/linus/90a86fc05ffefe48581c88106d0b9cc37f6e060c|(commit)]]
+
+== Network ==
+ * Intel(R) 82599 Virtual Function Ethernet support [[http://git.kernel.org/linus/50d9c84ee522ce6f61cd6a7dfce1b82a260edd3c|(commit)]], [[http://git.kernel.org/linus/3047f90bd515b38e62094eff90b299f379ab7243|1]], [[http://git.kernel.org/linus/cbf698dbba25741ee1b2e734a6dd4f3070a1706f|2]], [[http://git.kernel.org/linus/92915f71201b43762fbe05dbfb1a1a0de9c8adb9|3]], [[http://git.kernel.org/linus/0d3592fa28965a3083d670b430bb59c19efb6abe|4]], [[http://git.kernel.org/linus/ecc6703cbb2bb648c7345c652a704f7af56322b8|5)]]
+ * Add cxgb4 driver for Chelsio T4-based gigabit and 10Gb Ethernet devices [[http://git.kernel.org/linus/bbc02c7e9d343c521f17dc06e8d8d7468639d154|(commit)]], [[http://git.kernel.org/linus/56d36be4dd5fc7b33bff7986737aff79c790184a|(commit)]], [[http://git.kernel.org/linus/fd3a47900b6f9fa72a4074ecb630f9dae62f1a95|(commit)]], [[http://git.kernel.org/linus/625ba2c2eed763fad9c3f51318cbe8e1917b9fc8|(commit)]], [[http://git.kernel.org/linus/b8ff05a9c3237f694a1c3bf8ceec3bf6c3c14b15|(commit)]], [[http://git.kernel.org/linus/43e9da8d782b8a40d5127fcc59ac2e543cf16d7d|(commit)]]
+ * qlcnic: Qlogic ethernet driver for CNA devices [[http://git.kernel.org/linus/af19b49152bdb68fda894183e88096d6d1aa5c3d|(commit)]]
+ * Add Aeroflex Gaisler 10/100/1G Ethernet MAC driver [[http://git.kernel.org/linus/d4c41139df6e74c6fff0cbac43e51cab782133be|(commit)]]
+ * Add Micrel KSZ8841/2 PCI Ethernet driver [[http://git.kernel.org/linus/8ca86fd83eae6c73db5f6b23ee3a63b77d52c8ee|(commit)]]
+ * smsc75xx: SMSC LAN75xx USB gigabit ethernet adapter driver [[http://git.kernel.org/linus/d0cad871703b898a442e4049c532ec39168e5b57|(commit)]]
+ * ixgbe: Add SR-IOV support [[http://git.kernel.org/linus/096a58fdec72335d9cbee94bd10b312c5f14f8af|(commit 1]], [[http://git.kernel.org/linus/1cdd1ec8784399eef55a60887a45f3f46a1c240a|2]], [[http://git.kernel.org/linus/7f870475c8f102469df44a86387a03cb23e79b90|3]], [[http://git.kernel.org/linus/17367270b1d7f529f5d72e8f2cf76672829eb335|4]], [[http://git.kernel.org/linus/92ed72d536445334829af65c63516557fd50f554|5]], add support for the new ethtool n-tuple programming interface [[http://git.kernel.org/linus/9a713e7c7cca2f31c89367bb7b48310ab8a3e630|(commit)]]
+ * mwl8k: basic AP interface support [[http://git.kernel.org/linus/b64fe619e371fc17d8d686d6d44aef1b41317880|(commit)]], enable multi-BSS AP operation [[http://git.kernel.org/linus/ee0ddf1865954f44ee929d963e2c968eb377f447|(commit)]], implement AP firmware station database maintenance [[http://git.kernel.org/linus/3f5610ff560aeaccf051a6f93f25535c219599a0|(commit)]], add a pci-id [[http://git.kernel.org/linus/e5868ba10c3c5d8a56c06bbafe098103356ac03f|(commit)]]
+ * igb: Add support for 82576 ET2 Quad Port Server Adapter [[http://git.kernel.org/linus/b894fa2627e28c078740dc7041cd08c7e2c353ab|(commit)]], add support for device reset interrupt [[http://git.kernel.org/linus/7f081d405adb5f905db11c6449319ab7c670722e|(commit)]], add support for wake-on-link [[http://git.kernel.org/linus/22939f0606e515799d83e1a29250917f94c8d07b|(commit)]], support for VF configuration tools [[http://git.kernel.org/linus/8151d2948e088c20b7d29c793cf1fd744b6a2699|(commit)]]
+ * sh_sir: Add SuperH IrDA driver [[http://git.kernel.org/linus/2a6ace1b3d4dc65401e71fc01af100692b9f27f8|(commit)]]
+ * IGEPv2: Added WIFI support [[http://git.kernel.org/linus/c67b0d987088ae0339edc66de63aea5ac3d76c0d|(commit)]]
+ * wl1251: add U-APSD support [[http://git.kernel.org/linus/4ff6ffa107ba1c6ba9a1cc75a1f304eaa79e8bf4|(commit)]], implement WMM [[http://git.kernel.org/linus/49e1b9faed736b20ad9a785638919341b567a595|(commit)]], [[http://git.kernel.org/linus/da2fb4e9c215b8f0f8954818691549f8a34135be|(commit)]]
+ * wl1271: Add rudimentary ad-hoc support [[http://git.kernel.org/linus/e0d8bbf0d23e6b82f13b29f39593d5d13d923b2b|(commit)]], implement WMM [[http://git.kernel.org/linus/c6999d831ab9ae5e368b20f3bc11b0ca9c17a7ec|(commit)]], implement chipset boot retry [[http://git.kernel.org/linus/9ccd921792e5b6719ff9e561438e095cba757727|(commit)]], add testmode support [[http://git.kernel.org/linus/c8c90873520ef4c201cfd03b4892ca8bbf551e2e|(commit)]]
+ * iwlwifi: add continuous uCode event log capability [[http://git.kernel.org/linus/a9e1cb6a78ea8a74c49bf76726a2942f636a833b|(commit)]]
+ * rt73usb: add WLI-U2-H54HP [[http://git.kernel.org/linus/050e8a47dc8b056c880f380ffd01055669f8fe68|(commit)]]
+ * libertas: add Station and AdHoc mode support [[http://git.kernel.org/linus/f32338319f10c4ca5499c19edc5b3618896920ba|(commit)]], make mesh configurable [[http://git.kernel.org/linus/4143a23de096910e3ceb0939f41de6ffb8c59475|(commit)]]
+ * be2net: implements ethtool function to read eeprom data. [[http://git.kernel.org/linus/368c0ca2f0a69b0818fbc1796d8e21ff02a61b4c|(commit)]]
+ * enic: feature add: add ethtool -c/C support [[http://git.kernel.org/linus/7c8445991172cc17eaca9f7de0a300c02caaa49d|(commit)]]
+ * fs_enet: Add support for MPC512x to fs_enet driver [[http://git.kernel.org/linus/60ab4361adc188fb47da1c4892cc7a2bb621efef|(commit)]]
+ * MCS7830 USB-Ether: add Rx error support [[http://git.kernel.org/linus/76802851b6e1b78b614ba611d6b5d27a83f60ded|(commit)]]
+ * qlge: Add watchdog timer. [[http://git.kernel.org/linus/15c052fc7f4a1b3544602be8af77e31bba9261bf|(commit)]]
+ * Delete isa-skeleton net driver [[http://git.kernel.org/linus/8266d7127c1b0bdf924066c19c71be4d351e9583|(commit)]]
+ * RDMA: cxgb3: Doorbell overflow avoidance and recovery [[http://git.kernel.org/linus/e998f245c4b2d36ae2c35446e54ccbf1fb29d9de|(commit)]], nes: Add support for KR device id 0x0110 [[http://git.kernel.org/linus/09124e1913cf2140941f60ab4fdf8576e1e8fd8d|(commit)]]
+ * ar9170usb: add Sphairon Homelink 1202 USB ID [[http://git.kernel.org/linus/5b6e2f12edd6c46e87a2775321f1912d19be4b35|(commit)]]
+ * ath9k: add support for 802.11n bonded out AR2427 [[http://git.kernel.org/linus/5ffaf8a361b4c9025963959a744f21d8173c7669|(commit)]]
+ * atl1c: Add support for Atheros AR8152 and AR8152 [[http://git.kernel.org/linus/496c185c9495629ef1c65387cb2594578393cfe0|(commit)]]
+ * can: add support for CAN interface cards based on the PLX90xx PCI bridge [[http://git.kernel.org/linus/24c4a3b29255f9f8bc48d93597a58256b5a1f83f|(commit)]], add support for the MPC512x processor [[http://git.kernel.org/linus/bf3af54732bea5894ccc2cbde3ab566f0af7da56|(commit)]]
+ * CAPI: Dynamically register minor devices [[http://git.kernel.org/linus/40fb2d0da77df5d39f1ba8878502725ebb806554|(commit)]]
+
+== Input ==
+ * Add driver for TWL4030 vibrator device [[http://git.kernel.org/linus/3dd1b39497b6820219581af16e6a8831a582bb3a|(commit)]]
+ * Add imx-keypad driver to support the IMX Keypad Port [[http://git.kernel.org/linus/76cdc083f4d1a2a12a961634672fb9ca7adca29c|(commit)]]
+ * usbtouchscreen: add NEXIO (or iNexio) support [[http://git.kernel.org/linus/5197424cdcccd2b0b1922babb93969b2515c43ce|(commit)]]
+ * Add support for ADP5587 devices [[http://git.kernel.org/linus/5a9003db1faa34c0560561f66b263f288d623324|(commit)]]
+ * ads7846: add support for AD7843 parts [[http://git.kernel.org/linus/06a09124b5ec65f81df66c56695d9a9ae04a0114|(commit)]]
+ * gamecon: add rumble support for N64 pads [[http://git.kernel.org/linus/7aa9e0e8263259f4517ba1788f4fbaa88e878400|(commit)]]
+ * Mac button emulation - implement as an input filter [[http://git.kernel.org/linus/99b089c3c38a83ebaeb1cc4584ddcde841626467|(commit)]]
+ * Implement input filters [[http://git.kernel.org/linus/ef7995f4e46b1677f3eaaf547316e1a910b38dcb|(commit)]]
+ * gpio-keys: add support for disabling gpios through sysfs [[http://git.kernel.org/linus/9e3af04f8787315f63f55b191bb9a06741dbf183|(commit)]]
+
+== USB ==
+ * Implement autosuspend [[http://git.kernel.org/linus/088f7fec8a0e683db72fd8826c5d3ab914e197b1|(commit)]]
+ * cdc_acm: Add support for pbLua console port [[http://git.kernel.org/linus/7c5d8c394a077a686cfa646cd85dc159a2a940cc|(commit)]]
+ * convert to the runtime PM framework [[http://git.kernel.org/linus/9bbdf1e0afe771ca7650f9f476769310bee9d8f3|(commit)]]
+ * cp210x: Add 81E8 (Zephyr Bioharness) [[http://git.kernel.org/linus/bd07c551aae5d2200c7b195142e5ba63f26424da|(commit)]]
+ * ehci-fsl: Add power management support [[http://git.kernel.org/linus/1af107744253b01b4cf119a9bb3369376b01658b|(commit)]]
+ * gadget: introduce g_nokia gadget driver [[http://git.kernel.org/linus/f358f5b40af67caf28b627889d007294614170b2|(commit)]]
+ * musb: Add context save and restore support [[http://git.kernel.org/linus/4f712e010b2da1cc01c178922f2eb5aaeae461b6|(commit)]]
+ * MXC: Add i.MX21 specific USB host controller driver. [[http://git.kernel.org/linus/23d3e7a6598066ed39771cf2030c6bbb581c7812|(commit)]]
+ * OHCI: DA8xx/OMAP-L1x glue layer [[http://git.kernel.org/linus/efe7daf2231a6beb59f0f641461d19fa62fb83ab|(commit)]]
+ * option: add Longcheer/Longsung vendor ID [[http://git.kernel.org/linus/ac7d4ca9e0b27d7705d273f17afd29828db35ee6|(commit)]]
+ * pl2303: initial TIOCGSERIAL support [[http://git.kernel.org/linus/67b9946dd07eeef8188e4cab816d2c370bcaa7b2|(commit)]]
+ * qcaux: driver for auxiliary serial ports on Qualcomm devices [[http://git.kernel.org/linus/019ccc73201e933fe7d8119c90a812d347e325f9|(commit)]]
+ * serial: add support for serial port on the moschip 7715 [[http://git.kernel.org/linus/fb088e335d78f866be2e56eac6d500112a96aa11|(commit)]], add support for ViVOtech ViVOpay devices. [[http://git.kernel.org/linus/5272098365514ab232fa6a695d58c3961fec6b7a|(commit)]]
+ * vstusb.c: removal of driver for Vernier Software & Technology, Inc., devices and spectrometers [[http://git.kernel.org/linus/6d61ae9112960a2b3ed3360602dfb3bfd357954f|(commit)]]
+ * Remove the berry_charge driver [[http://git.kernel.org/linus/a8d4211f33a9573f7b1bdcfd9c9c48631d1515ee|(commit)]]
+ * Remove unsupported usb gadget drivers [[http://git.kernel.org/linus/90f7976880bbbf9968629500972f8e2f80401217|(commit)]]
+
+== Sound ==
+ * HDA:  Add ALC269VB support [[http://git.kernel.org/linus/84898e87cc0fff976202d5b91656f2db949fc2dd|(commit)]],add ALC670 codec support [[http://git.kernel.org/linus/6227cdced0328b0c4322c3170a727af5249393ce|(commit)]], add/fix ALC269 FSC and Quanta models [[http://git.kernel.org/linus/61c2d2b5e7241d4410ab8227ef4f76c1aba8210b|(commit)]], add Macmini 3,1 support [[http://git.kernel.org/linus/e458b1fadf9239d1fdb165ff4c4ea0d807041bec|(commit)]], add support for IDT 92HD88 family codecs [[http://git.kernel.org/linus/36706005d90642bccabfaacbb24d135155e984a8|(commit)]], add support for Lenovo IdeaPad U150 [[http://git.kernel.org/linus/cfd3d8dcf7b4fc783db0806ac3936a7b44735bf7|(commit)]], add support for Medion WIM2160 [[http://git.kernel.org/linus/7ad7b218f4aae4f395b3b4cef261572556bbd20a|(commit)]], add support for more the 8 streams [[http://git.kernel.org/linus/ccc5df058da70d1c26c72cd1c24072a89998d735|(commit)]], add support for Toshiba Satellite M300 [[http://git.kernel.org/linus/faddaa5d1c0cd29629c9c7e7a9d41ecb3149a064|(commit)]], add support of ALC665 [[http://git.kernel.org/linus/cec27c891b805b2ab2302f9fcbdacb6f179ac0d4|(commit)]], configure XO-1.5 microphones at capture time [[http://git.kernel.org/linus/75f8991d0e6969407d51501d5a0537f104075c99|(commit)]], new Intel HDA controller [[http://git.kernel.org/linus/c602c8ad45d6ee6ad91fc544513cc96f70790983|(commit)]], support NVIDIA MCP89 and GT21x hdmi audio [[http://git.kernel.org/linus/25045705d4053925a617ed71c5e4b6888e468765|(commit)]], support OLPC XO-1.5 DC input [[http://git.kernel.org/linus/c4cfe66c4c2d5a91b3734ffb4e2bad0badd5c874|(commit)]]
+ * Add Edirol UA-101 support [[http://git.kernel.org/linus/63978ab3e3e963db28093b53bb4598f2702e1ad7|(commit)]]
+ * virtuoso: add Xonar DS support [[http://git.kernel.org/linus/d1db38c015a392b0ea8c15ab95abb3ee768b8d47|(commit)]]
+ * Add support for Macbook Air 2,1 internal speaker [[http://git.kernel.org/linus/76e6f5a9efc919f9179163c66403451a789d47ab|(commit)]]
+ * USB MIDI support for Access Music VirusTI [[http://git.kernel.org/linus/d39e82db73eb876c60d00f00219d767b3be30307|(commit)]]
+ * jazz16: Add support for Media Vision Jazz16 chipset [[http://git.kernel.org/linus/ad8decb7f5dfd556e4a8400e37b127cd20d8e4c5|(commit)]]
+ * ua101: add Edirol UA-1000 support [[http://git.kernel.org/linus/e584bc3cf6865e005bbb4dbabae0bf4b3df59500|(commit)]]
+ * dt019x: merge into the als100 driver [[http://git.kernel.org/linus/14ff3e78304e3f7fe18f950c3aa0686e6800b3fb|(commit)]]
+
+ * ASoC
+  * AC97: S3C2443: Remove unused driver [[http://git.kernel.org/linus/7beba4d50d5f70c3851f608927882959d532671c|(commit)]]
+  * AC97: S3C: Add controller driver [[http://git.kernel.org/linus/fc93ea2f9315eda2ec8645c2f8bcc30f75a6b88e|(commit)]]
+  * AC97: SMDK: Add wm9713 machine driver [[http://git.kernel.org/linus/ff6e64dabf66b8e4e7def21857320085fc68db6b|(commit)]]
+  * Add a new imx-ssi sound driver [[http://git.kernel.org/linus/8380222ec9458d38a4e0cc3cb688ad7fff311df4|(commit)]]
+  * add a WM8978 codec driver [[http://git.kernel.org/linus/0d34e91596ef537c2893a031f0483014bb82adf3|(commit)]]
+  * Add DA7210 codec device support for ALSA [[http://git.kernel.org/linus/98615454f66175e923f239ab1d1bd85cd618363e|(commit)]]
+  * add DAI and platform / DMA drivers for SH SIU [[http://git.kernel.org/linus/895d4509d069f0706427ca75fcf0929ed136d0d7|(commit)]]
+  * Add FSI-DA7210 sound support for SuperH [[http://git.kernel.org/linus/038494059f795849012a96adba2ab73e65b94ba5|(commit)]]
+  * Add initial WM8955 CODEC driver [[http://git.kernel.org/linus/b35a28af0a64a1e8e389bc009b76253256d8fe7b|(commit)]]
+  * add support for the sh7722 Migo-R board [[http://git.kernel.org/linus/9f5b64b767203131a7a3a280859e70d4413c9672|(commit)]]
+  * Add WM2000 driver [[http://git.kernel.org/linus/3a66d3877eaa4ab9818000a15c07326adaa9ca79|(commit)]]
+  * Add WM8912 DAC support [[http://git.kernel.org/linus/8c1264740e7c9688c5d11b96d26e4393618ef60e|(commit)]]
+  * Add WM8994 CODEC driver [[http://git.kernel.org/linus/9e6e96a197a03752d39a63e4f83e0b707ccedad7|(commit)]]
+  * Initial WM8904 CODEC driver [[http://git.kernel.org/linus/a91eb199e4dc8a2ab3fb7a53f1a23ce82b29fc04|(commit)]]
+  * OMAP4: Add McPDM platform driver [[http://git.kernel.org/linus/db72c2f89790f919d65d0adbee390958005c40fc|(commit)]]
+  * OMAP4: Add support for McPDM [[http://git.kernel.org/linus/b3b0b4580bcb771d1d53b3d5acf689cba9907392|(commit)]]
+  * pandora: Add DAC regulator support [[http://git.kernel.org/linus/c50749de02f272be6e09b9016e13a17307d29066|(commit)]]
+  * Remove old i.MX driver code [[http://git.kernel.org/linus/e919c24b6422a095bed3929074bd74ae1dbf251f|(commit)]]
+
+
+== V4L/DVB ==
+ * Add Prof 7500 DVB-S2 USB card [[http://git.kernel.org/linus/cd79d33e168dba0d7de32c5bf010e20cff184b2a|(commit)]]
+ * gspca - benq: New subdriver for camera 04a5:3035. [[http://git.kernel.org/linus/0a71d9cec238dd953e1e31df6ad28f69dee16fcc|(commit)]]
+ * gspca_sn9c2028: New gspca subdriver [[http://git.kernel.org/linus/5bdd00b93e368acc793748340c15cd2811fdd02b|(commit)]]
+ * gspca_cpai1: New gspca subdriver for CPIA CPiA version 1 cams [[http://git.kernel.org/linus/54e8bc5d64a651e2fb8b2366637e6a7d920a4c70|(commit)]]
+ * Add driver for Telegent tlg2300 [[http://git.kernel.org/linus/5b3f03f044ad6dffc8cd8c9c50bc5d7769cbd89f|(commit)]]
+ * AZ6027: Initial import of the driver [[http://git.kernel.org/linus/76f9a820c8672ada12ffa0903652c9e6f2429462|(commit)]]
+ * gspca - sonixj: Add sensor adcm1700 and webcam 0c45:614a. [[http://git.kernel.org/linus/64677573a28c354828343741bc177e5543f5077e|(commit)]]
+ * em28xx: add PAL support for VBI [[http://git.kernel.org/linus/66d9cbad5330d6df30c82f10ee18b62b096b84ef|(commit)]]
+ * Add Support for DVBWorld DVB-S2 PCI 2004D card [[http://git.kernel.org/linus/b4a0e816fbe2af815674c514588b6cb444ec5fd9|(commit)]]
+ * Add support for SMT7020 to cx88 [[http://git.kernel.org/linus/4f3ca2f152844c5f6ea853077f56d0db877d1f7a|(commit)]]
+ * af9015: support for DigitalNow TinyTwin v2 [[http://git.kernel.org/linus/fa1df55c3f99d32eccf3eeb3c9dad4456ebcf1f4|(commit)]], support for Leadtek WinFast DTV2000DS [[http://git.kernel.org/linus/809c1e8ae8310a863b147c8571adfb6addeddd43|(commit)]]
+ * cx18: add cx18-alsa module to Makefile [[http://git.kernel.org/linus/700b8aecc99f3bef09bc20c745d20bb2868047cc|(commit)]]
+ * cx23885: Add support for LEADTEK WinFast PxTV1200 [[http://git.kernel.org/linus/0b32d65cd7938d31eebd9c62aab6a59a3c4cf0f8|(commit)]]
+ * em28xx: add Dikom DK300 hybrid USB tuner [[http://git.kernel.org/linus/7ca7ef6011e92b52a365ddc78f6668e01793c572|(commit)]]
+ * gspca_mr97310a: add support for the Sakar 1638x CyberPix [[http://git.kernel.org/linus/9d3103d061224e939272d05d54192038f66ffd54|(commit)]]
+ * m920x: Add support for Pinnacle PCTV310e card [[http://git.kernel.org/linus/3d36f5c652d9d1b4406b0f8f32d9452eaad8e33a|(commit)]]
+ * mfd: Add support for the timberdale FPGA [[http://git.kernel.org/linus/8edbede9ebf5959ec9951175a239925225440f5f|(commit)]]
+ * ngene: Initial check-in [[http://git.kernel.org/linus/dae52d009fc950b5c209260d50fcc000f5becd3c|(commit)]]
+ * radio: Add radio-timb [[http://git.kernel.org/linus/d44d1f3bfaef71ce27b4fd2284ec528b52617977|(commit)]]
+ * radio: add support for SAA7706H Car Radio DSP [[http://git.kernel.org/linus/ee4b9dbb83c73c5408d7f479a501551a63ec57d3|(commit)]]
+ * TVP7002 driver for DM365 [[http://git.kernel.org/linus/0b67553657330b5ad5c78a974ce84273a515fe4e|(commit)]], [[http://git.kernel.org/linus/1952c9bd5d75e65453bfb823098bd63e11723b05|(commit)]]
+ * vpfe ISIF HW module[[http://git.kernel.org/linus/00cb9f6920aaeb34bcef146085ae57e363641a85|(commit)]]
+
+== Staging ==
+ * Add Broadcom Crystal HD driver [[http://git.kernel.org/linus/7963eb432be2ebbf7e740bcdf6b385cc68fb7627|(commit)]]
+ * Add dt3155 driver [[http://git.kernel.org/linus/aa337ef1fbc9650f8b5b9087af1dac33f71eb01c|(commit)]]
+ * udlfb: add dynamic modeset support [[http://git.kernel.org/linus/59277b679f8b5ce594e367759256668eba652d0d|(commit)]], improved rendering performance [[http://git.kernel.org/linus/530f43a8a69d9fa10ec6d30652244bb5e2a29694|(commit)]]
+ * vme: add ca91cx42 dma support [[http://git.kernel.org/linus/4860ab74d4d577d21fbfe0da3bd0925f3efc8907|(commit)]], add ca91cx42 rmw support [[http://git.kernel.org/linus/04e10e15f9509d08c5e2194ea2ae680c013d5b63|(commit)]], add location monitor support for ca91cx42 [[http://git.kernel.org/linus/2b82beb8c1bc81b3dde69d16cacbc22546681acf|(commit)]], enable drivers to handle more than one bridge [[http://git.kernel.org/linus/29848ac9f3b33bf171439ae2d66d40e6a71446c4|(commit)]], VMIVME-7805 board support [[http://git.kernel.org/linus/3c2aabc41da7e9f957bc826363115a54764fb396|(commit)]]
+ * sm7xx: remove the buggy 2D acceleration support [[http://git.kernel.org/linus/3af805735a2538c38ec16014f19d19030544aaef|(commit)]]
+ * Octeon Ethernet: Convert to NAPI. [[http://git.kernel.org/linus/3368c784bcf77124aaf39372e627016c36bd4472|(commit)]]
+ * p9auth: remove driver from tree [[http://git.kernel.org/linus/2d629030ca649bd4a7356befedbe7bbefa840b21|(commit)]]
+ * altpciechdma: remove driver [[http://git.kernel.org/linus/ca1f29c01aaa37d522dc6ce311769731f5f1919e|(commit)]]
+ * mimio: remove the mimio driver [[http://git.kernel.org/linus/e37bcc0de040127281de13a84a608570355c20eb|(commit)]]
+ * remove the b3dfg driver [[http://git.kernel.org/linus/a945db65436a2666927b555d752e67a1bd193a9c|(commit)]]
+
+== HWMON ==
+ * Add driver for ADT7411 voltage and temperature sensor [[http://git.kernel.org/linus/d84ca5b345c2b77ebf053d534ada6af2332a43b6|(commit)]]
+ * Driver for Andigilog aSC7621 family monitoring chips [[http://git.kernel.org/linus/d58de038728221f780e11d50b32aa40d420c1150|(commit)]]
+ * applesmc: Add iMac9,1 and MacBookPro2,2 support [[http://git.kernel.org/linus/e1741712e85cec8004c7eeeea81186618f78eff1|(commit)]]
+ * it87: Add support for beep on alarm [[http://git.kernel.org/linus/d9b327c310030fa80abbbc9eaaca9f1a6228dbf3|(commit)]], add support for old automatic fan speed control [[http://git.kernel.org/linus/4f3f51bc21d434f8d91a79438a1957ec0baa9e30|(commit)]]
+ * lm90: Add SMBus alert support [[http://git.kernel.org/linus/53de33427fa3d7dd62cc5ec75ce0d4e6c6d602dd|(commit)]], add support for the Winbond/Nuvoton W83L771AWG/ASG [[http://git.kernel.org/linus/6771ea1fff988651593f78c122bc02e80f5100a0|(commit)]]
+ * w83793: Add watchdog functionality [[http://git.kernel.org/linus/5852f9609d21794c45964129b03365883150a6d0|(commit)]]
+ * Remove the deprecated adt7473 driver [[http://git.kernel.org/linus/a0a5e3488a51c46f383c5faa86b53828e30ce153|(commit)]]
+
+== HID ==
+ * Add a device driver for the Apple Magic Mouse. [[http://git.kernel.org/linus/128537cea464d919febeaea2000e256749f317eb|(commit)]]
+ * Add driver for the Logitech Flight System G940 [[http://git.kernel.org/linus/74f292ca8c7a2b9370f80d97a49e48174f4c7635|(commit)]]
+ * Add pressure support for the Stantum multitouch panel [[http://git.kernel.org/linus/580363db92572cccbe6226bf83321e50a9ea50ea|(commit)]]
+ * Add RGT Clutch Wheel clutch device id [[http://git.kernel.org/linus/3ee8f0a2b1c81f0472b25d40aa5c1c7c6a0edc2a|(commit)]]
+ * Add support for Acer T230H multitouch [[http://git.kernel.org/linus/49e4739a0cf681cbfe08c72232c1dcc130b66dde|(commit)]]
+ * Add support for Ortek WKB-2000 [[http://git.kernel.org/linus/cd9ec30da58bcd8ab154eba9eb54d16c67e7ef3b|(commit)]]
+ * Add support for Pixart Imaging Optical Touch Screen [[http://git.kernel.org/linus/f54405db66fbec11679241daefd16fd8291a5762|(commit)]]
+ * Add support for Stantum multitouch panel [[http://git.kernel.org/linus/d3fb5454a8474d5d22c8f8fe4d043b05732d91d5|(commit)]]
+ * Enable Sixaxis controller over Bluetooth [[http://git.kernel.org/linus/f9ce7c283c16538955d5d094101889792bcde109|(commit)]]
+ * Support for 3M multitouch panel [[http://git.kernel.org/linus/b6353f4f36f03a12edaf3fa5365b475a28106035|(commit)]]
+ * Support for MosArt multitouch panel [[http://git.kernel.org/linus/77f720b71d88a3cbf574c113566a31c93099f97d|(commit)]]
+ * Use multi input quirk for TouchPack touchscreen [[http://git.kernel.org/linus/c2c3489c5b0fdb8fbf0f5e9424905c2994ab5660|(commit)]]
+
+== RTC ==
+ * Add MPC5121 Real time clock driver [[http://git.kernel.org/linus/50aae7241eb94e02d97e03cd88be425ef09e6ab4|(commit)]]
+ * Enable rtc in max8925 [[http://git.kernel.org/linus/a39069f6ce6500a5ca39e534108247f25169d8e0|(commit)]]
+ * AM3517: Enable RTC driver support for AM3517EVM [[http://git.kernel.org/linus/f2afbbb82e263086d02a772e43f5290b1a6f673e|(commit)]]
+
+== Serial ==
+ * 8250_pci: add support for MCS9865 / SYBA 6x Serial Port Card [[http://git.kernel.org/linus/ac6ec5b1de5d1d5afcbe88d73c05df71dca0ac39|(commit)]]
+ * Add support for Korenix JetCard [[http://git.kernel.org/linus/2a52fcb54fdf4b557730022aefcc794d567591fb|(commit)]]
+
+== I2C ==
+ * Add SMBus alert support [[http://git.kernel.org/linus/b5527a7766f0505dc72efe3cefe5e9dea826f611|(commit)]]
+ * Add support for Ux500/Nomadik I2C controller [[http://git.kernel.org/linus/3f9900f17cdb0366d234c0487df80a6b0d18c852|(commit)]]
+ * Add support for Xilinx XPS IIC Bus Interface [[http://git.kernel.org/linus/e1d5b6598cdc33257fe68302ae9db81d2f7bb883|(commit)]]
+ * i2c-i801: Add Intel Cougar Point device IDs [[http://git.kernel.org/linus/393764340beb595c1ad7dd2d2243c2b6551aaa71|(commit)]]
+ * i2c-mpc: add support for the MPC512x processors from Freescale [[http://git.kernel.org/linus/f00d738f04899534e2c372b2ad8b670050a945e2|(commit)]]
+ * i2c-parport: Add SMBus alert support [[http://git.kernel.org/linus/35859254483bce479024781885bc02d860552995|(commit)]]
+ * i2c-parport-light: Add SMBus alert support [[http://git.kernel.org/linus/927ab2f80745ec26f1e83e6ca15a5b29e134c8e5|(commit)]]
+
+== Various ==
+ * UIO: Add a driver for Hilscher netX-based fieldbus cards [[http://git.kernel.org/linus/8f314cfc1259d3f5039b142ce6fdc90367c22d82|(commit)]]
+ * UIO: Remove SMX Cryptengine driver [[http://git.kernel.org/linus/d6e976c0d258c9547a308bd8a9a82ec93e2bc6e2|(commit)]]
+ * spi: Add Freescale/Motorola Coldfire QSPI driver [[http://git.kernel.org/linus/34b8c66173666025020e3a6f8d4a5c238b19cde5|(commit)]]
+ * spi: Add SPI master driver for DaVinci/DA8xx [[http://git.kernel.org/linus/358934a60d2180dcd1ed20691dbb66d4fb977ab2|(commit)]]
+ * Regulator: Add max8925 support [[http://git.kernel.org/linus/08ff6f2a9908c87b0adffe6453291be22db3a62f|(commit)]], add voltage selection capability to mc13783 regulators v2 . [[http://git.kernel.org/linus/1bd588fd9d2611d2573066f49477fb5be2aa13de|(commit)]], add WM8994 regulator support [[http://git.kernel.org/linus/69dc16c325bef32b0a1a1abf15ae4047174cafc1|(commit)]], enable max8649 regulator driver [[http://git.kernel.org/linus/a71b797fdc672714bfff1fdc142042a95e97d7ba|(commit)]]
+ * pps: LinuxPPS clients support [[http://git.kernel.org/linus/697fb85fcf21b5229a3072440222d14b05ef2abe|(commit)]], serial clients support [[http://git.kernel.org/linus/a0880df0ccde8d551fc4d88c455acb2ee0801e26|(commit)]]
+ * power_supply: bq27x00: add BQ27500 support [[http://git.kernel.org/linus/e20908d95e89d04b9537aefecc0734d2e4f7faed|(commit)]], enable power supply of max8925 [[http://git.kernel.org/linus/28db38888b2a53b6bdd70104c2d2a199632ca507|(commit)]]
+ * mfd: Add HTCPLD driver [[http://git.kernel.org/linus/6048a3dd2371c58611ea0ab8b306f8f1469399ae|(commit)]]
+ * mfd: Add initial WM8994 support [[http://git.kernel.org/linus/9e50108668a70a9927257298bd4e679300124420|(commit)]]
+ * mfd: Add WM8994 register definitions [[http://git.kernel.org/linus/1c4d3b70a40c666331052adf77933e6994590b74|(commit)]]
+ * mfd: Initial max8925 support [[http://git.kernel.org/linus/d50f8f339f6901fccc9d4292b65ce8b69d7413d4|(commit)]]
+ * mfd: Support 88pm8606 in 860x driver [[http://git.kernel.org/linus/53dbab7af9ca13fa95605e9a5c31bb803dcba363|(commit)]]
+ * Memory-mapped dw_spi driver [[http://git.kernel.org/linus/f7b6fd6d1d3833529f1626c761ba7e338586d35e|(commit)]]
+ * leds: Add Dell Business Class Netbook LED driver [[http://git.kernel.org/linus/72dcd8d08aca4ac6154dc37243880ee306c7ea73|(commit)]]
+ * hwrng: nomadik - Add hardware RNG driver [[http://git.kernel.org/linus/bc85b25e5de17d714e8001cb3dc0feb66eac2750|(commit)]]
+ * gpio: add driver for MAX7300 I2C GPIO extender [[http://git.kernel.org/linus/e952805d2d2e706aed182723e5ab3ec0b1f91de3|(commit)]]
+ * gpio: add Intel SCH GPIO controller driver [[http://git.kernel.org/linus/be9b06b2d80fe661491138c6993f944babb26260|(commit)]]
+ * gpio: introduce it8761e_gpio driver for IT8761E Super I/O chip [[http://git.kernel.org/linus/9cc0cb3c7d54f320b9eede6f4a49072ecadd864d|(commit)]]
+ * gpiolib: Add support for WM8350 GPIO controller [[http://git.kernel.org/linus/38f6ce45f0bca04ac653c57cacd375c469995321|(commit)]]
+ * dma: Add MPC512x DMA driver [[http://git.kernel.org/linus/0fb6f739bb612bc989d295056877374b749e721b|(commit)]]
+ * eeepc-wmi: new driver for WMI based hotkeys on Eee PC laptops [[http://git.kernel.org/linus/ee027e4aed3077c4bb3b585c67528eec0e7222df|(commit)]]
+ * edac: e752x: add dram scrubbing support [[http://git.kernel.org/linus/8004fd2ad6042ae24d3913cf5089909781db3a25|(commit)]]
+ * compal-laptop: Add support for known Compal made Dell laptops [[http://git.kernel.org/linus/34325b9d2a7d36e2ba74a6652f2e3e8d57dfb145|(commit)]]
+ * backlight: Add Epson L4F00242T03 LCD driver [[http://git.kernel.org/linus/e7fb9c4ad351a8da7c09e182bd2e7ccd043daf08|(commit)]], enable max8925 backlight [[http://git.kernel.org/linus/4f811ef0d40048ae80b6ea77080b814725bffc58|(commit)]]
+== MTD ==
+ * Remove no longer used OMAP flash map [[http://git.kernel.org/linus/cc87edb173effdf74e680ee6d622a935ff0c1d6f|(commit)]]
+== WATCHDOG ==
+ * ep93xx: implemented watchdog timer driver for TS-72xx SBCs [[http://git.kernel.org/linus/c90bf2aa94c08a0f48874f64ebdeb5fe973cf02e|(commit)]]
+
+== Other news sources tracking the kernel changes ==
+ * LWN
+  * [[http://lwn.net/Articles/376508/|2.6.34 Merge window, part 1]]
+  * [[http://lwn.net/Articles/377766/|2.6.34 Merge window, part 2]]
+ * H-Online [[http://www.h-online.com/open/features/Linux-Kernel-2-6-34-tracking-962586.html|Linux Kernel 2.6.34 tracking]]
+  * [[http://www.h-online.com/open/features/Kernel-Log-Ceph-file-system-in-2-6-34-kernel-and-KVM-presentations-at-the-CLT2010-961429.html|Kernel Log: Ceph file system in 2.6.34, kernel and KVM presentations at the CLT2010]]
+  * [[http://www.h-online.com/open/features/Kernel-Log-Coming-in-2-6-34-Part-1-Network-Support-975937.html|Kernel Log: Coming in 2.6.34 (Part 1) - Network Support]]
+  * [[http://www.h-online.com/open/features/Kernel-Log-Coming-in-2-6-34-Part-2-File-Systems-985128.html|Kernel Log: Coming in 2.6.34 (Part 2) - File Systems]]
+  * [[http://www.h-online.com/open/features/Kernel-Log-Coming-in-2-6-34-Part-3-Graphics-994262.html|Kernel Log: Coming in 2.6.34 (Part 3) - Graphics]]
+  * [[http://www.h-online.com/open/features/Kernel-Log-Coming-in-2-6-34-Part-4-Architecture-and-virtualisation-998583.html|Kernel Log: Coming in 2.6.34 (Part 4): Architecture and Virtualisation]]
+  * [[http://www.h-online.com/open/features/Kernel-Log-Coming-in-2-6-34-Part-5-Drivers-999566.html|Kernel Log: Coming in 2.6.34 (Part 5) - Drivers]]

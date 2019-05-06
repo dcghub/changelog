@@ -1,0 +1,34 @@
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.10 development
+
+
+= 2.6.10 =
+  * Released December 24, 2004 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.10|changelog]]
+  * Accounting: report single record for multithreaded process. In kernels before 2.6.10, a separate process accounting record was written for each thread created using NTPL. Since 2.6.10, a single accounting record is written for the entire process [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=fa4c8b605c3313de9e3170b68b9e4576a6a5d45e|(commit)]]
+  * x86-64 clustered APIC support [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=7f8b8c2a84d1098aec520d1f701c752f10bc5396|(commit)]]
+  * Make rlimit settings per-process instead of per-thread for POSIX compliance [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=f1a81f9149ac2321978e1357eb697f95cc31e989|(commit)]]
+  * POSIX compliant CPU clocks [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=5842ca68fe016d84f5e9a247fa4d7bdd54ff4ee4|(commit)]]
+  * Show aggregate per-process counters in /proc/$PID/stat: Add up resource usage counters for live and dead threads to show aggregate per-process usage. This mirrors the new getrusage() semantics. /proc/$PID/task/$TID/stat still has the per-thread usage [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=99ae4bcef104d602d790eb7da7cfc241ca6eefee|(commit)]]
+  * Report the pages used for pagetables in /proc/$PID/status [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=713a7e3b7505f501892f031c5a51f7d6c0b89c11|(commit)]]
+  * Display committed memory limit (per the current overcommit ratio) and the amount of memory remaining under this limit in meminfo [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=2fdc35b54263b69e695334e465210a8db55a4cfa|(commit)]]
+  * Thrashing control tuning [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=146f46fa1ec0b76fa76bced34b4849934791532c|(commit)]]
+  * Big Kernel Lock preemption
+  * IRQ subsystem code rework [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=133bb1db6e22ec5c8b4d0d015deed5b2fa3e447c|(commit)]]
+  * Removal of the "BIO walking" helper functions
+  * Generic circular buffer type [[http://lwn.net/Articles/107314/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=2dbf22c09c31b815202b2ffd6ba2efbfa66c0f72|(commit)]]
+  * Ext3 block reservation [[http://lwn.net/Articles/81357/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=75e03cd329884cf024993a2d61c4c32bf7bf6c49|(commit)]]
+  * Ext3 online resizing patches [[http://lwn.net/Articles/89560/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=05a7a2e19ecde7b7c559bdf5009327cff3504d9b|(commit)]]
+  * Add I/O error handling to journal operations in reiserfs [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=ee0bc517002dcc9e80de36ba0a75bba39d951da9|(commit)]]
+  * sysfs backing store [[http://lwn.net/Articles/69523/|(LWN article)]]
+  * I/O space write barriers [[http://lwn.net/Articles/103183/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=50ff053344ac1afbed10f2d5ef0749f816401890|(commit)]]
+  * Modular, on-the-fly switchable I/O schedulers [[http://lwn.net/Articles/102976/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=d35eec28b8b0da58d9e7d16548fc9105535fa7fe|(commit)]]
+  * CFQ v2 update [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=579eef5fa2be5ed12bc8d3df3555f4e2d725af64|(commit)]]
+  * BSD secure levels module [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=05f59528b1256613657b6f7fdd7d5bd4b20cb902|(commit)]]
+  * In-kernel cryptographic key management [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=33a2761288241488ccccedc24688cf33acfba0c9|(commit)]]
+  * DVD+RW support [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=dcc573b12a9d623a13ef156bbde6b116507b437a|(commit)]]
+  * CDRW packet writing support [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=23cabaea5ba85ddaba415e1d5e12073e2ce7f8e3|(commit)]]
+  * kernel events notification mechanism
+  * Lock initializater unification [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=e09813fb9c74241a00883e6411e6e3cf66d63339|(commit)]]
+  * Panick blinking: Makes the keyboard blink when a oops happens - useful to know if the kernel has really oopsed or not (ej: X.org bugs) [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=5234bcafa9747f78ef723cb8bad14635cf17a811|(commit)]]
+  * Reworking of spin lock initialization [[http://lwn.net/Articles/109505|(LWN article)]]
+  * Configurable /proc/kcore [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=71f16058e2ff1a154e6ed685a66819322c4cdf21|(commit)]]

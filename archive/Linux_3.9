@@ -1,0 +1,234 @@
+#pragma section-numbers on
+#pragma keywords Linux, kernel, operating system, changes, changelog, file system, Linus Torvalds, open source, device drivers
+#pragma description Summary of the changes and new features merged in the Linux kernel during the 3.9 development cycle
+
+Linux 3.9 was [[https://lwn.net/Articles/548799/|released]] on April 28, 2013.
+
+This Linux release includes support for experimental RAID5/6 modes and better defragmentation in files shared by snapshots in Btrfs; support for the "goldfish" emulator used by the Android SDK, ability to SSD storage as cache device; two new architecture ports: Synopsys ARC 700 and Meta Imagination processors; KVM virtualization support in the ARM architecture, a Intel driver that "injects" idle states to improve performance-per-watt, support for Chrome OS laptops, a new suspend power state, and the removal of the obsolete CONFIG_EXPERIMENTAL configuration option. Many small features and new drivers and fixes are also available. 
+
+<<TableOfContents>>
+= Prominent features in Linux 3.9 =
+== Experimental RAID 5/6 support and snapshot-aware defragmentation in Btrfs ==
+
+ * Btrfs has got [[https://en.wikipedia.org/wiki/Standard_RAID_levels#RAID_5|RAID 5]] and [[https://en.wikipedia.org/wiki/Standard_RAID_levels#RAID_6|RAID 6]] support. The support is experimental and it's still no crash-safe, so it's only intented for testing. Code: [[http://git.kernel.org/linus/4ae10b3a133e1147f3c818fe2ebaf005b217b7bf|(commit 1]], [[http://git.kernel.org/linus/53b381b3abeb86f12787a6c40fee9b2f71edc23b|2]], [[http://git.kernel.org/linus/6ac0f4884eaad28441c6e0f9d1400a08c2149049|3)]]
+
+ * Snapshot-aware defragmentation: Due to the copy-on-write design of Btrfs varios snapshots can share the same data blocks. This sharing could be undone by defragmentation, in this release defragmentation no longer breaks. Code: [[http://git.kernel.org/linus/38c227d87c49ad5d173cb5d4374d49acec6a495d|(commit)]]
+
+
+== Android "goldfish" emulator ==
+
+The Android development environment provides a QEMU-based ARM virtualized platform called "goldfish". This platform provides a virtual CPU and drivers for battery, MMC, audio, graphics, etc. This release includes support for the Goldfish platform, which makes possible to develop for Android with out-of-the-box kernels.
+
+Code: [[http://git.kernel.org/linus/ddd70cf93d784af3698c86315aa0ded87ca0a0c5|(commit 1]], [[http://git.kernel.org/linus/84d7b768748943db2bb658b43931fdab04c224cc|2]], [[http://git.kernel.org/linus/c89f2750e9845aa115ca30c062edd569da619cad|3]], [[http://git.kernel.org/linus/e809c22b8fb0282048fc008cfcdd017186090dbc|4]], [[http://git.kernel.org/linus/2e82b83dc30e515ca3e03e79d4a398f30d796903|5]], [[http://git.kernel.org/linus/c289ba2d26cf872570ba23fceee8d80ae64be351|6]], [[http://git.kernel.org/linus/666b7793d4bfa9f150b5c2007ab48c755ddc53ca|7]], [[http://git.kernel.org/linus/85c34d2e7b0e0425cd3efc243ffc4e3631daa0b5|8)]]
+
+== SSD cache devices ==
+
+The device mapper has added a target (dm-cache) that allows a fast device such as an SSD to be used as a cache for a slower device such as a rotating disk. Different 'policy' plugins can be used to change the algorithms used to select which blocks are promoted, demoted, cleaned etc. It supports writeback and writethrough modes. 
+
+Documentation: [[https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/Documentation/device-mapper/cache.txt?id=c6b4fcbad044e6fffcc75bba160e720eb8d67d17|Documentation/device-mapper/cache.txt]]
+
+Code: [[http://git.kernel.org/linus/c6b4fcbad044e6fffcc75bba160e720eb8d67d17|(commit 1]], [[http://git.kernel.org/linus/8735a8134786fa4ef36dee65d7fa779b99ba5fe3|2]], [[http://git.kernel.org/linus/f283635281132af7bc7b90af3c105b8c0f73b9c7|3)]]
+
+
+== New architecture: Synopsys ARC 700 processors ==
+
+This release introduces the Linux kernel port to the ARC700 processor family (750D and 770D) from Synopsys.
+
+ARC700 is highly configurable and power-efficient 32-bit RISC core with MMU. It is embedded in SoCs deployed in TV set top boxes, digital media players, all the way to network-on-chips. More information is available [[http://www.synopsys.com/IP/ProcessorIP/ARCProcessors/Pages/default.aspx|here]]. More info about the kernel port can also be found in the [[https://raw.github.com/vineetgarc/publish/master/ELCE-2012-ARC-Linux.pdf|ELCE-Barclone '12 talk]] on the same topic.
+
+The GNU toolchain, based off of GCC 4.4 + uClibc 0.9.30.3 is also available [[http://github.com/foss-for-synopsys-dwc-arc-processors/linux.git|at GitHub]]
+
+Code: [[https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/arch/arc|arch/arc/]]
+
+== New architecture: Meta Imagination processors ==
+
+This release introduces the Linux kernel port to the Meta ATP (Meta 1) and HTP (Meta 2) processor cores from Imagination Technologies.
+
+Meta cores are 32-bit, hardware multithreaded, general purpose, embedded processors which also feature a DSP instruction set, and can be found in many digital radios. They are capable of running different operating systems on different hardware threads, for example a digital radio might run RTOSes for DAB decoding and audio decoding on three hardware threads, and run Linux on the fourth hardware thread to manage the user interface, networking etc. HTPs are also capable of running SMP Linux on multiple hardware threads.
+
+Instruction set and architecture overview documents can be [[http://www.imgtec.com/downloads.asp|found here]].
+
+Code: [[https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/arch/metag|arch/metag/]]
+
+== KVM support in ARM architectures ==
+
+The ARM architecture port now supports the KVM virtualization system. This brings virtualization capabilities to the Linux ARM ecosystem.
+
+Code: [[http://git.kernel.org/linus/749cf76c5a363e1383108a914ea09530bfa0bd43|(commit)]]
+
+== Intel PowerClamp idle injection for improved power efficiency ==
+
+Related LWN article: [[https://lwn.net/Articles/528124/|The PowerClamp driver]]
+
+The Intel Powerclamp driver performs synchronized idle injection across all online CPUs. The goal is to maintain a given package level C-state ratio. Compared to other throttling methods already exist in the kernel, such as ACPI PAD (taking CPUs offline) and clock modulation, this is often more efficient in terms of performance per watt. 
+
+
+Documentation: [[https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/Documentation/thermal/intel_powerclamp.txt?id=d6d71ee4a14ae602db343ec48c491851d7ec5267|Documentation/thermal/intel_powerclamp.txt]]
+
+Code: [[http://git.kernel.org/linus/d6d71ee4a14ae602db343ec48c491851d7ec5267|(commit)]]
+
+== New "suspend-freeze" suspend state:  ==
+
+This release includes a new suspend mode, suspend-freeze. It equals to frozen processes + suspended devices + idle processors. This state is useful for 1) platforms that do not have STR, or have a broken STR 2) platforms that have an extremely low power idle state which can be used to replace STR
+    
+Compared with memory suspend, suspend-freeze saves less power because the system is still in a running state, but has less resume latency because it does not touch BIOS and the processors are in idle state. Compared with RTPM/idle, suspend-freeze saves more power because the processor has longer sleep time once the processes are frozen, and it can get more power saving from the devices that does not have good RTPM support.
+
+To enable this suspend mode, echo freeze > /sys/power/state
+
+Code: [[http://git.kernel.org/linus/7e73c5ae6e7991a6c01f6d096ff8afaef4458c36|(commit)]]
+
+== Chrome OS laptop support ==
+
+Complete support for all the devices present in the Chrome laptops sold by many companies has been added in this release. Code [[http://git.kernel.org/linus/d1381f45ad54e0bb40ef19f99e87187ff3458bdb|(commit)]], [[http://git.kernel.org/linus/261f171f571a82c1f990d484c374aa3f7236fe5e|(commit)]], [[http://git.kernel.org/linus/e65a624b86241405b51cadc8e36944966b8c36b7|(commit)]], [[http://git.kernel.org/linus/33a84f8a7694e442a624556ef3ae40e91e31bd11|(commit)]], [[http://git.kernel.org/linus/8016bcbc380f952bfccb82fde3bb8b4b9cbd6400|(commit)]]
+
+
+== Removal of CONFIG_EXPERIMENTAL ==
+
+CONFIG_EXPERIMENTAL was a configuration option which was supposed to be used to enable experimental features that normal people shouldn't use. But the changes in the development model and the staging directory have made it obsolete, these days almost all distros enable it by default, so it has been removed. Developers will now add a "(EXPERIMENTAL)" tag in the title of their configuration option to warn users.
+
+
+Code: [[http://git.kernel.org/linus/5a958db311c416345a61b7bddc62a5c6c7112c7f|(commit)]]
+
+= Driver and architecture-specific changes =
+All the driver and architecture-specific changes can be found in the [[http://kernelnewbies.org/Linux_3.9_DriverArch|Linux_3.9_DriverArch page]]
+
+= Various core changes =
+ * Add a CONFIG_TTY option to allow removal of the TTY layer [[http://git.kernel.org/linus/4f73bc4dd3e8563ef4109f293a092820dff66d92|(commit)]]
+ * Module signing
+  * Add -s <signature> option to sign-file [[http://git.kernel.org/linus/1c37c054a7493e0537ea3d15a59dac3a0aa63a05|(commit)]]
+  * Add option to not sign modules during modules_install [[http://git.kernel.org/linus/d9d8d7ed498ec65bea72dd24be7b9cd35af0c200|(commit)]]
+ * PCI-Express Non-Transparent Bridge Support [[http://git.kernel.org/linus/fce8a7bb5b4bfb8a27324703fd5b002ee9247e90|(commit)]]
+ * Remove deprecated power trace API [[http://git.kernel.org/linus/43720bd6014327ac454434496cb953edcdb9f8d6|(commit)]]
+
+ * [[http://kernelnewbies.org/Linux_2_6_21#head-8547911895fda9cdff32a94771c8f5706d66bba0|Dynamic ticks]] full CPU time accounting. This is infrastructure used by the full dynticks that will be implemented in future kernels [[http://git.kernel.org/linus/3f4724ea85b7d9055a9976fa8f30b471bdfbca93|(commit)]], [[http://git.kernel.org/linus/abf917cd91cbb73952758f9741e2fa65002a48ee|(commit)]]
+
+ * NTP: Add a CONFIG_RTC_SYSTOHC configuration that allow ARM/etc systems that rely on the class RTC subsystem to have the same kind of automatic NTP based synchronization that we have on PC platforms [[http://git.kernel.org/linus/023f333a99cee9b5cd3268ff87298eb01a31f78e|(commit)]]
+ * Make madvise(MADV_WILLNEED) support swap file prefetch [[http://git.kernel.org/linus/1998cc048901109a29924380b8e91bc049b32951|(commit)]]
+ * cpufreq / highbank: add support for highbank cpufreq [[http://git.kernel.org/linus/6754f556103be5bd172263b1075ddbb7157afbad|(commit)]]
+ * kdb: Remove the ll command [[http://git.kernel.org/linus/1b2caa2dcb8f18d2be9c5c3c992cb6da03f1a70a|(commit)]], and the ssb command [[http://git.kernel.org/linus/36dfea42cc35509b481377980338cc3b89d79256|(commit)]]
+ * ksm: allow trees per NUMA node [[http://git.kernel.org/linus/90bd6fd31c8097ee4ddcb74b7e08363134863de5|(commit)]]
+ * ksm: make KSM page migration possible [[http://git.kernel.org/linus/c8d6553b9580188a1324486173d79c0f8642e870|(commit)]]
+
+ * ima: add policy support for file system uuid [[http://git.kernel.org/linus/85865c1fa189fcba49089e6254a0226f2269bebc|(commit)]], added policy support for 'security.ima' type [[http://git.kernel.org/linus/0e5a247cb37a97d843ef76d09d5f80deb7893ba3|(commit)]], digital signature verification using asymmetric keys [[http://git.kernel.org/linus/e0751257a64ea10cca96ccb06522bfb10e36cb5b|(commit)]], per hook cache integrity appraisal status [[http://git.kernel.org/linus/d79d72e02485c00b886179538dc8deaffa3be507|(commit)]]
+
+ * rwsem-spinlock: Implement writer lock-stealing for better scalability [[http://git.kernel.org/linus/41ef8f826692c8f65882bec0a8211bd4d1d2d19a|(commit)]]
+ * rwsem: Implement writer lock-stealing for better scalability [[http://git.kernel.org/linus/ce6711f3d196f09ca0ed29a24dfad42d83912b20|(commit)]]
+ * sched: Add a tuning knob to allow changing SCHED_RR timeslice [[http://git.kernel.org/linus/ce0dbbbb30aee6a835511d5be446462388ba9eee|(commit)]]
+ * smp: make smp_call_function_many() use logic similar to smp_call_function_single() [[http://git.kernel.org/linus/9a46ad6d6df3b547d057c39db13f69d7170a99e9|(commit)]]
+ * softirq: reduce latencies [[http://git.kernel.org/linus/c10d73671ad30f54692f7f69f0e09e75d3a8926a|(commit)]]
+ * suspend: enable freeze timeout configuration through sys [[http://git.kernel.org/linus/957d1282bb8c07e682e142b9237cd9fcb8348a0b|(commit)]]
+ * tools/power turbostat: support Haswell [[http://git.kernel.org/linus/70b43400bc290764b49ff3497a9824604c66c409|(commit)]]
+ * userns: Allow the unprivileged users to mount mqueue fs [[http://git.kernel.org/linus/bc1b69ed22a704fb1cc83d75b2eb46508a06c820|(commit)]]
+ * userns: Allow the userns root to mount of devpts [[http://git.kernel.org/linus/ec2aa8e8dd7d35524a68c89b9e7ceb07fb002561|(commit)]]
+ * userns: Allow the userns root to mount ramfs. [[http://git.kernel.org/linus/b3c6761d9b5cc82deea7416d11c2118f6380e99c|(commit)]]
+ * userns: Allow the userns root to mount tmpfs. [[http://git.kernel.org/linus/2b8576cb09a7b1b581c253554bf9e05d3adce7d6|(commit)]]
+ * userns: Allow unprivileged reboot [[http://git.kernel.org/linus/923c7538236564c46ee80c253a416705321f13e3|(commit)]]
+ * memory-hotplug: remove /sys/firmware/memmap/X sysfs [[http://git.kernel.org/linus/46c66c4b7ba0f9bb3e2ae3a3cfd40cd3472c8f80|(commit)]]
+ * page_alloc: add movable_memmap kernel parameter [[http://git.kernel.org/linus/34b71f1e04fcba578e719e675b4882eeeb2a1f6f|(commit)]]
+ * firmware: Make user-mode helper optional [[http://git.kernel.org/linus/7b1269f778782d2f42994a74bf4014d0cbebbf9f|(commit)]]
+ * evm: add file system uuid to EVM hmac [[http://git.kernel.org/linus/74de66842473bdafa798010e58f1999ec70a8983|(commit)]]
+
+ * crypto: omap-sham - Add OMAP4/AM33XX SHAM Support [[http://git.kernel.org/linus/0d373d603202b8bfecc87b9b3602e6ffbf9e4feb|(commit)]]
+ * crypto: omap-sham - Add SHA224 and SHA256 Support [[http://git.kernel.org/linus/d20fb18be246d196225ed151c126832b2dab6506|(commit)]]
+ * aerdrv: Enhanced AER logging [[http://git.kernel.org/linus/1d5210008bd3a26daf4b06aed9d6c330dd4c83e2|(commit)]], [[http://git.kernel.org/linus/1ca1d8d54f925ad0eb6d9806ecd4309738f25301|(commit)]]
+
+= Filesystems =
+ * Btrfs
+  * Add a new ioctl to get the label of a mounted file system [[http://git.kernel.org/linus/867ab667e74377160c4a683375ee5b8bf8801724|(commit)]] and set/change it [[http://git.kernel.org/linus/a8bfd4abea3da0e28f215e2a2b8c2f1ca27ebe80|(commit)]]
+  * add cancellation points to defrag [[http://git.kernel.org/linus/210549ebe9047ae5a8cc47487203d3ee16a7749b|(commit)]]
+  * Implement unlocked direct-io write [[http://git.kernel.org/linus/38851cc19adbfa1def2b47106d8050a80e0a3673|(commit)]]
+  * Reduce CPU contention while waiting for delayed extent operations [[http://git.kernel.org/linus/bb721703aa551e98dc5c7fb259cf90343408baf2|(commit)]]
+  * Reduce lock contention on extent buffer locks [[http://git.kernel.org/linus/242e18c7c1a8ff3aa05c9fbb6e0bb427511152a6|(commit)]]
+
+ * XFS
+  * Limit speculative prealloc near ENOSPC thresholds [[http://git.kernel.org/linus/4d559a3bcb7383f34334092af07e68fb60910684|(commit)]]
+  * Limit speculative prealloc size on sparse files [[http://git.kernel.org/linus/a1e16c26660b301cc8423185924cf1b0b16ea92b|(commit)]]
+
+ * Ext4
+  * Add punching hole support for non-extent-mapped files [http://git.kernel.org/linus
+  * Track the delay between when we first request that the commit begin and when it actually begins, so we can see how much of a gap exists [[http://git.kernel.org/linus/9fff24aa2c5c504aadead1ff9599e813604c2e53|(commit)]], [[http://git.kernel.org/linus/8bad6fc813a3a5300f51369c39d315679fd88c72|(commit)]]
+ * f2fs: add un/freeze_fs into super_operations [[http://git.kernel.org/linus/d6212a5f18c8f9f9cc884070a96e11907711217f|(commit)]]
+ * fuse: implement NFS-like readdirplus support [[http://git.kernel.org/linus/0b05b18381eea98c9c9ada95629bf659a88c9374|(commit)]]
+ * hfsplus: add support of manipulation by attributes file [[http://git.kernel.org/linus/324ef39a8a4f693035d63527f16100ed27310ecc|(commit)]]
+
+= Block layer =
+ * Enable full blkcg hierarchy support in the CFQ IO scheduler [[http://git.kernel.org/linus/d02f7aa8dce8166dbbc515ce393912aa45e6b8a6|(commit)]]
+ * Fix the performance regressions introduced by the "stable pages" work. [[https://lwn.net/Articles/528031/|Related LWN article]] [[http://git.kernel.org/linus/7d311cdab663f4f7ab3a4c0d5d484234406f8268|(commit)]]
+ * MD RAID10: Improve redundancy for 'far' and 'offset' algorithms [[http://git.kernel.org/linus/475901aff15841fb0a81e7546517407779a9b061|(commit)]], [[http://git.kernel.org/linus/9a3152ab024867100f2f50d124b998d05fb1c3f6|(commit)]]
+ * DM: allows the administrator to reduce the rate at which kcopyd issues I/O. The parameter can be set in /sys/module/*/parameters [[http://git.kernel.org/linus/df5d2e9089c7d5b8c46f767e4278610ea3e815b9|(commit)]]
+ * DM: Add support for MD's RAID10 "far" and "offset" algorithms [[http://git.kernel.org/linus/fe5d2f4a15967bbe907e7b3e31e49dae7af7cc6b|(commit)]]
+ * Remove CONFIG_MULTICORE_RAID456 [[http://git.kernel.org/linus/51acbcec6c42b24482bac18e42befc822524535d|(commit)]]
+
+= Networking =
+ * TCP
+  * Add a per-socket timestamp offset [[http://git.kernel.org/linus/ceaa1fef65a7c2e017b260b879b310dd24888083|(commit)]]
+  * Remove Appropriate Byte Count support [[http://git.kernel.org/linus/ca2eb5679f8ddffff60156af42595df44a315ef0|(commit)]]
+  * Send packets with a socket timestamp [[http://git.kernel.org/linus/ee684b6f2830047d19877e5547989740f18b1a5d|(commit)]], [[http://git.kernel.org/linus/93be6ce0e91b6a94783e012b1857a347a5e6e9f2|(commit)]]
+ * team: add ethtool support [[http://git.kernel.org/linus/7f51c58731dfb0ef88ff283851a4710cc3335788|(commit)]]
+ * bridge
+  * Add netlink interface to configure vlans on bridge ports [[http://git.kernel.org/linus/407af3299ef1ac7e87ce3fb530e32a009d1a9efd|(commit)]]
+  * Add the ability to configure pvid [[http://git.kernel.org/linus/552406c488ec2cf1aaf8b5bd24d1750c9fd6d8cc|(commit)]]
+  * Add vlan filtering infrastructure [[http://git.kernel.org/linus/243a2e63f5f47763b802e9dee8dbf1611a1c1322|(commit)]]
+  * Add vlan id to multicast groups [[http://git.kernel.org/linus/b0e9a30dd669a844bb4f74515f8bcd307018ffd0|(commit)]]
+  * Add vlan support for local fdb entries [[http://git.kernel.org/linus/bc9a25d21ef8bad30e259af5114ccfb845c066db|(commit)]]
+  * Add vlan support to static neighbors [[http://git.kernel.org/linus/1690be63a27b20ae65c792729a44f5970561ffa4|(commit)]]
+  * Add vlan to unicast fdb entries [[http://git.kernel.org/linus/2ba071ecb6d41ce172f9ccb3996f28cb337b3576|(commit)]]
+  * Dump vlan information from a bridge port [[http://git.kernel.org/linus/6cbdceeb1cb12c7d620161925a8c3e81daadb2e4|(commit)]]
+  * Implement vlan ingress/egress policy with PVID. [[http://git.kernel.org/linus/7885198861fc9a3dfdc6bb90dc0ba12689d6cd57|(commit)]]
+ * can: add tx/rx LED trigger support [[http://git.kernel.org/linus/996a953de02ffb852c9ac736f4e892008ed68884|(commit)]]
+ * cfg80211: configuration for WoWLAN over TCP [[http://git.kernel.org/linus/2a0e047ed62f20664005881b8e7f9328f910316a|(commit)]]
+ * mac80211: add radar detection command/event [[http://git.kernel.org/linus/164eb02d070af987890e1db1c12b8ae0394b19f7|(commit)]]
+ * mac80211: improve latency and throughput while software scanning [[http://git.kernel.org/linus/3f892b61a8cf6a85bc389c8d13209d686a4f6403|(commit)]]
+ * mac80211: mesh power save basics [[http://git.kernel.org/linus/3f52b7e328c526fa7a592af9bf5772c591ed38a4|(commit)]]
+ * macvlan: add multicast filter [[http://git.kernel.org/linus/cd431e738509e74726055390c9e5e81e8e7e03ec|(commit)]]
+ * 8021q: Implement Multiple VLAN Registration Protocol (MVRP) [[http://git.kernel.org/linus/86fbe9bb599fcaf7e92e38dbfdad0414a2d68f7d|(commit)]]
+ * 802: Implement Multiple Registration Protocol (MRP) [[http://git.kernel.org/linus/febf018d22347b5df94066bca05d0c11a84e839d|(commit)]]
+ * vxlan: Add ethtool drvinfo [[http://git.kernel.org/linus/1b13c97fae9c61dc20db8e0d0a72a29df29ac377|(commit)]]
+ * Allow to change carrier via sysfs [[http://git.kernel.org/linus/fdae0fde5352790030d89edd09f1b43b9bed97f8|(commit)]]
+ * netfilter: add connlabel conntrack extension [[http://git.kernel.org/linus/c539f01717c239cfa0921dd43927afc976f1eedc|(commit)]]
+ * netfilter: ctnetlink: deliver labels to userspace [[http://git.kernel.org/linus/0ceabd83875b72a29f33db4ab703d6ba40ea4c58|(commit)]]
+ * netfilter: nf_ct_sip: support Cisco 7941/7945 IP phones [[http://git.kernel.org/linus/7266507d89991fa1e989283e4e032c6d9357fe26|(commit)]]
+ * netfilter: xt_CT: add alias flag [[http://git.kernel.org/linus/5474f57f7d686ac918355419cb71496f835aaf5d|(commit)]]
+ * netpoll: add IPv6 support [[http://git.kernel.org/linus/b3d936f3ea1c97c32680e0cd235474cf9dadb762|(commit)]]
+ * nl80211/cfg80211: add radar detection command/event [[http://git.kernel.org/linus/04f39047af2a6df64b763ea5a271db24879d0391|(commit)]]
+ * nl80211: allow user-space to set address for P2P_DEVICE [[http://git.kernel.org/linus/1c18f1452a772dfe884ed25677bddb3ecaf9c43a|(commit)]]
+ * ipv4: introduce address lifetime [[http://git.kernel.org/linus/5c766d642bcaffd0c2a5b354db2068515b3846cf|(commit)]]
+
+ * soreuseport: infrastructure [[http://git.kernel.org/linus/055dc21a1d1d219608cd4baac7d0683fb2cbbe8a|(commit)]], TCP/IPv4 implementation [[http://git.kernel.org/linus/da5e36308d9f7151845018369148201a5d28b46d|(commit)]], TCP/IPv6 implementation [[http://git.kernel.org/linus/5ba24953e9707387cce87b07f0d5fbdd03c5c11b|(commit)]], UDP/IPv4 implementation [[http://git.kernel.org/linus/ba418fa357a7b3c9d477f4706c6c7c96ddbd1360|(commit)]], UDP/IPv6 implementation [[http://git.kernel.org/linus/72289b96c943757220ccc681fe2e22b46e21aced|(commit)]], 
+ * Add TCP segmentation offload for GRE [[http://git.kernel.org/linus/68c331631143f5f039baac99a650e0b9e1ea02b6|(commit)]]
+xfrm: Add a state resolution packet queue [[http://git.kernel.org/linus/a0073fe18e718a1c815fe8b0120f1ac3c60284ba|(commit)]]
+mcast: add multicast proxy support (IPv4 and IPv6) [[http://git.kernel.org/linus/660b26dc1a8aeb33c2a2246ebf1b3684449a74b7|(commit)]]
+
+= Virtualization =
+ * VMware VMCI (Virtual Machine Communication Interface). It enables high-speed communication between host and guest in a virtual environment via the VMCI virtual device. 
+VMCI: Some header and config files. Code: [[https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/drivers/misc/vmw_vmci|drivers/misc/vmw_vmci/]]
+ * VMware VM sockets. VM Sockets allows communication between virtual machines and the hypervisor and are designed to work on top of the VMCI transport. A socket address family, "AF_VSOCK", is provided. Today, VM Sockets is used by various VMware Tools and various applications. For additional information about the use of VM Sockets, please refer to the [[https://www.vmware.com/support/developer/vmci-sdk/|VM Sockets Programming Guide]] [[http://git.kernel.org/linus/d021c344051af91f42c5ba9fdedc176740cbd238|(commit)]]
+ * KVM: add virtual x2apic support [[http://git.kernel.org/linus/8d14695f9542e9e0195d6e41ddaa52c32322adf5|(commit)]]
+ * Xen
+  * xen-netback: allow changing the MAC address of the interface [[http://git.kernel.org/linus/4a633a602c26497b8285a202830829d3be007c7b|(commit)]]
+  * ACPI cpu hotplug [[http://git.kernel.org/linus/39adc483d378f79711f291539f20e3797337892d|(commit)]]
+  * ACPI memory hotplug [[http://git.kernel.org/linus/ef92e7caf9901884f19fdeb4d7a24333b33c5f37|(commit)]]
+  * Driver for memory hotplug [[http://git.kernel.org/linus/dcb93b96cec723783a81e8cac7df62feaf964792|(commit)]]
+
+ * tcm_vhost: Multi-queue support [[http://git.kernel.org/linus/1b7f390eb3bfc197c979c5478eadbc2a90f07667|(commit)]], multi-target support [[http://git.kernel.org/linus/67e18cf9ab21648a477e91e0d3cb6dbdb1330262|(commit)]]
+
+= perf =
+ * perf buildid-cache: Add --update option [[http://git.kernel.org/linus/eeb49845425375481f14c0e5721f88242642e88e|(commit)]]
+ * perf evlist: Add --group option [[http://git.kernel.org/linus/e6ab07d027d47e55d8a5c0f33b16dfdd3e18c96f|(commit)]]
+ * perf hists browser: Add option for runtime switching perf data file [[http://git.kernel.org/linus/341487ab561f3937a5283dd77c5660b1ee3b1f9e|(commit)]]
+ * perf hists browser: Add support to display whole group data for raw columns [[http://git.kernel.org/linus/0c5268bf2218144469dde3228f14898fadbbcdcd|(commit)]]
+ * perf report: Add --group option [[http://git.kernel.org/linus/01d14f1615dfe1c6d040541501445967ac716009|(commit)]]
+ * perf report: Add report.group config option [[http://git.kernel.org/linus/00c7e1f10c6b8ae8a031f5c6a58ecd15d20c52cb|(commit)]]
+ * perf stat: Add per processor socket count aggregation [[http://git.kernel.org/linus/d7e7a451c13e784f497c054f1bd083d77be87498|(commit)]]
+ * perf tools: Add support for wildcard in tracepoint system name [[http://git.kernel.org/linus/f35488f97b4b49cb76d87bb7e8da9e93fc70b4e9|(commit)]]
+ * perf ui/gtk: Implement basic GTK2 annotation browser [[http://git.kernel.org/linus/2b676bf068916046151277f27113f80828e33001|(commit)]]
+ * perf/POWER7: Make generic event translations available in sysfs [[http://git.kernel.org/linus/1c53a270724df91276d28d66f8e5a302fc6a5d74|(commit)]]
+ * perf/POWER7: Make some POWER7 events available in sysfs [[http://git.kernel.org/linus/886c3b2d677fe248cce8101fa66a1b3e05c3ba16|(commit)]]
+ * perf/x86/amd: Enable northbridge performance counters on AMD family 15h [[http://git.kernel.org/linus/e259514eef764a5286873618e34c560ecb6cff13|(commit)]]
+ * perf/x86: Add Intel IvyBridge event scheduling constraints [[http://git.kernel.org/linus/69943182bb9e19e4b60ea5033f683ec1af1703a9|(commit)]]
+ * perf: Add 'perf bench numa mem' NUMA performance measurement suite [[http://git.kernel.org/linus/1c13f3c9042f9d222959af7c9da6db93ea9f7e4c|(commit)]]
+
+= Other news sites that track the changes of this release =
+
+ * LWN: [[https://lwn.net/Articles/539179/|3.9 Merge window part 1]], [[https://lwn.net/Articles/539892/|3.9 Merge window, second episode]], [[https://lwn.net/Articles/540994/|The conclusion of the 3.9 merge window]]
+ * H-Open: Kernel Log: Coming in 3.9 [[http://www.h-online.com/open/features/Kernel-Log-Coming-in-3-9-part-1-Filesystems-and-storage-1831197.html|Part 1]], [[http://www.h-online.com/open/features/Kernel-Log-Coming-in-3-9-Part-2-Infrastructure-1838358.html|Part 2]], [[http://www.h-online.com/open/features/Kernel-Log-Coming-in-3-9-Part-3-Drivers-and-networking-1842493.html|Part 3]]

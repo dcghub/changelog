@@ -1,0 +1,27 @@
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.6 development
+
+= 2.6.6 =
+  * Released May 10, 2004 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.6|changelog]]
+  * Removal of (struct page)->list and page dirty/clean/free lists, replaced by radix-tree tagging [[http://lwn.net/Articles/80472/|(LWN article)]]
+  * Network packet timestamping optimization
+  * Binary Increase Control (BIC) TCP developed by NCSU. It is yet another TCP congestion control algorithm for handling big fat pipes. For normal size congestion windows it behaves the same as existing TCP Reno, but when window is large it uses additive increase to ensure fairness and when window is small it uses binary search increase [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=d009df2d52345441873340c5b75ecc09b9343a22|(commit)]]
+  * [[http://www.geocities.com/wronski12/posix_ipc/index.html|POSIX message queues]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=3bc45e612c620d7477b9ed3f285c9222b3bb558b|(commit)]]
+  * fsync() and fdatasync() speed improvements to ext2/3 [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=c67ebc7f2644d612f7838a7f3aee1b766ce11e69|(commit)]]
+  * Addition of the fcntl() method to the file_operations structure [[http://lwn.net/Articles/77190/|(LWN article)]]
+  * Laptop Mode [[http://lwn.net/Articles/65437/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=166054344dda21795e3735af51edf1a261177e7e|(commit)]]
+  * Oprofile for s390 [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=f42022413a50489115f36c5e9a16f5d13e4831a4|(commit)]]
+  * 4KB kernel stacks option for the i386 architecture [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=f061c2ccd81f62b777327aa3696d652b5fb34c6f|(commit)]]
+  * Non-executable stack support for several architectures [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=9abd312fda38fb2ba7b3dfe147ecbadf5cf8f57f|(commit)]]
+  * Make sysfs configurable [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=7aa1fb8cb5813bfe0a33e49975f1cceb0740251f|(commit)]]
+  * Reiserfs updates: data=ordered support, space preallocation, laptop mode support, logging rework, support for nested transactions [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=d4265dd282789d98d47f2febea1e60ff2a494b82|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=502c984ae4ddae1964c5aae6625e56516106c396|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=050ff9c100d0a9e9cb45f575783ca801d2ca42c3|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=3b0970c6144b4e5cb777d8b54926c1dbeb2e2b64|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=46d1f3648ddccf15793a057f7aef3e2ce5be4f0e|(commit)]]
+  * Reiserfs and ext3 "commit=0 support": Restores commit interval to the default value [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=9a9b4f749ce975a57994207e7c0c5fe57148ef60|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=a4fe3fb94e6ea2e27d61abd8b141856f9d662fbd|(commit)]]
+  * Ext3 journalled quotas [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=c69e3890a7a5d8c0587d958e618d303fad9d941a|(commit)]]
+  * NFS v4: Implement server-side reboot recovery (mostly) [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=82107aa303e744b0e67f9daa44748c5abbf01d69|(commit)]]
+  * IPv6 support in SELinux [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=bdee92e07efd44da1dc87d47485c3f9ffaf0d976|(commit)]]
+  * The lightweight auditing framework [[http://lwn.net/Articles/79326/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=4527a30f157fca45c102ea49a2fb34a4502264eb|(commit)]]
+  * A mechanism which allows block drivers to respond to queries about the congestion state of their queues
+  * "per-device unplugging patch" [[http://lwn.net/Articles/75233/|(LWN article)]]
+  * CFQ scheduler [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=a7c3e7eee4fe04953547e408f8db0d615c4c1afe|(commmit)]]
+  * External module support [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=eeb0e992ae01bc7c68628c20df6df0bdc1c7fd28|(commit)]]
+  * Generic snapshot support code for filesystems (taken from XFS) [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=9a6f9f9177e7403e661eb876500d57d139c0d034|(commit)]]

@@ -1,0 +1,261 @@
+#pragma section-numbers on
+#pragma keywords Linux, kernel, operating system, changes, changelog, file system, Linus Torvalds, open source, device drivers
+#pragma description Summary of the changes and new features merged in the Linux kernel during the 4.1 development cycle
+
+Linux 4.1 [[https://lkml.org/lkml/2015/6/22/8|has been released]] on Sun, 21 Jun 2015
+
+Summary: This release adds support for Ext4 encryption, experimental support for managing clustered raid arrays, a new device mapper target that logs all writes to the devices and allows to replay them, a driver to turn the memory in persistent memory systems in a block device, support for disabling multi-user support, support for the Multiprotocol Label Switching which routes packets based on path labels rather than long network addresses, allow to attach BPF programs to kprobes for better probing, ACPI support for the ARM64 architecture, and a virtual GEM driver that allows improved software rasterizers. There are also new drivers and many other small improvements.
+
+<<TableOfContents>>
+= Prominent features =
+== Ext4 encryption support ==
+
+Linux already has support for data encryption facilities such as dm-crypt or ecryptfs, but they have performance and memory consumption costs. The Ext4 filesystem now supports encryption support: both data and file names can be encrypted with a key provided by the user. The key is used for the files of a directory and all the subdirectories. When reading, if a valid key is not provided, only the encrypted file names can be read, but not the decrypted ones, and the encrypted data can not be read.
+
+To use this feature, you need e2fsprogs version 1.43, the keyutils software. A small howto can be found [[http://askubuntu.com/questions/643577/how-to-create-ext4-encrypted-partition-on-ubuntu-15-04-with-new-4-1-kernel|here]].
+
+For details about the internal design of this feature, see [[https://docs.google.com/document/d/1ft26lUQyuSpiu6VleP70_npaWdRfXFoNnB8JYnykNTg|here]]
+
+Recommended LWN article: [[http://lwn.net/Articles/639427/|Ext4 encryption]]
+
+Code: [[https://git.kernel.org/torvalds/c/6162e4b0bedeb3dac2ba0a5e1b1f56db107d97ec|(merge)]]
+
+== Experimental cluster support for MD ==
+
+This release adds clustering support for [[http://linux.die.net/man/4/md|MD]] (Linux software RAID). Cluster MD is a shared-device RAID for a
+cluster. It enables locking and synchronization across multiple systems on the cluster, so all nodes in the cluster can access the MD devices simultaneously, bringing the redundancy (and uptime) of RAID levels across the nodes of the cluster. Currently, the implementation is limited to RAID1 but with further work (and some positive feedback), it could be extend to other RAID levels. The code in this version is is high experimental and not recommended to use except for experimentation.
+
+Small howto: [[http://marc.info/?l=linux-raid&m=141935561418770&w=2|howto]]
+Design Documentation: [[https://git.kernel.org/torvalds/c/b8d834488fd7c0c5a79cd2bab112c37a3d3292b9|commit]]
+
+Code: [[https://git.kernel.org/torvalds/c/d51e4fe6d68098d4361a6b6d41d8da727b1f1af4|merge]]
+
+== Device mapper: new target that logs writes ==
+
+The device mapper layer introduces a new target that  log all write operations to a separate device, for later replay. The motivation behind this is to give file system developers a tool to verify that the file system is always consistent at particular points in the life of a file system by allowing them to replay the log in a variety of ways
+
+Code: [[https://git.kernel.org/torvalds/c/0e9cebe724597a76ab1b0ebc0a21e16f7db11b47|commit]]
+
+== Single user support ==
+
+It may be strange that a multi-user system such as Linux would consider a return to the past, such a single-user opearting mode, a feature. But it turns out that embedded targets that want to make Linux as small as possible and don't care about multi-user separation. In this release, it's possible to configure the kernel without multi-user support, under this option UID and GID are zero in any possible case and processes always have all capabilities
+
+Code: [[https://git.kernel.org/torvalds/c/2813893f8b197a14f1e1ddb04d99bce46817c84a|commit]]
+
+Recommended LWN article: [[http://lwn.net/Articles/631853/|Linux as a single-user system]]
+
+== Virtual GEM driver for improved software rasterizers ==
+
+The vGEM (virtual graphics memory manager) DRM driver allows to import a GEM object from other graphic drivers and mmap them to user-space, which can use it as a GEM shared memory handler. This makes it a lot easier to do certain things when you have no GPU but still have to deal with DRI expectations. It's used by Mesa's software renderer for enhanced performance.
+
+Code: [[https://git.kernel.org/torvalds/c/502e95c6678505474f1056480310cd9382bacbac|commit]]
+
+== Block device for persistent memory ==
+
+There are new types of memory that can be accessed almost as fast as RAM, but don't lose data after powering off the system. This kind of memory is called persistent memory. In this release Linux includes PMEM, a driver that presents a reserved range of memory as a block device, which can be used by file systems. This is useful for developing with non-volatile DIMMs, and can be used with volatile memory as a development platform.
+
+Recommended LWN article: [[http://lwn.net/Articles/640113/|Persistent memory support progress]]
+
+Code: [[https://git.kernel.org/torvalds/c/9e853f2313e5eb163cb1ea461b23c2332cf6438a|commit]]
+
+== Multiprotocol Label Switching ==
+
+This release adds support for [[https://en.wikipedia.org/wiki/Multiprotocol_Label_Switching#Deployment|Multiprotocol Label Switching (MPLS)]]. MPLS is a scalable, protocol-independent networking transport that directs data from one network node to the next based on short path labels rather than long network addresses, avoiding complex lookups in a routing table, because packet-forwarding decisions are made solely on the contents of the label, without the need to examine the packet itself. The labels identify virtual links (paths) between distant nodes rather than endpoints. MPLS can encapsulate packets of various network protocols. 
+
+
+Code: [[https://git.kernel.org/torvalds/c/ee23393b40062362feb220b32629624c1d3c402c|(merge)]], [[https://git.kernel.org/torvalds/c/27db730c4f5ed524235b06523f2dae4961d3aa98|(merge)]]
+
+== BPF programs can be attached to kprobes ==
+
+In this release, Linux allow to attach small BPF programs to kprobes, providing a safe way to execute user-defined BPF byte-code programs without being able to crash or hang the kernel in any way. The BPF engine makes sure that such programs have a finite execution time and that they cannot break out of their sandbox. This allows user-defined instrumentation on a live kernel image that can never crash, hang or interfere with the kernel negatively. In this release, it's limited to root only
+
+Code: [[https://git.kernel.org/torvalds/c/2541517c32be2531e0da59dfd7efc1ce844644f5|commit]]
+
+== ACPI support for the ARM64 architecture ==
+
+For a long time, ACPI has mostly been a x86 feature. Despite the controversies, some parts of the ARM world have been pushing for ACPI support. In this release, Linux adds preliminary ACPI 5.1 support to the arm64 architecture.
+
+Documentation: [[http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/Documentation/arm64/arm-acpi.txt?id=dc81f2cfaa7f536e9900080cdc63e403440b670b|Documentation/arm64/arm-acpi.txt]]
+
+Recommended LWN article: [[http://lwn.net/Articles/574439/|ACPI for ARM?]]
+
+Merge: [[https://git.kernel.org/torvalds/c/836ee4874e201a5907f9658fb2bf3527dd952d30|commit]]
+
+
+= Drivers and architectures =
+ All the driver and architecture-specific changes can be found in the [[http://kernelnewbies.org/Linux_4.1-DriversArch|Linux_4.1-DriversArch]] page 
+
+= Core (various) =
+
+ * Users can change the maximum number of threads by writing to /proc/sys/kernel/threads-max [[https://git.kernel.org/torvalds/c/16db3d3f1170fb0efca652c9378ce7c5f5cb4232|commit]]
+ * Add support FALLOC_FL_INSERT_RANGE for fallocate(). It is the opposite command of FALLOC_FL_COLLAPSE_RANGE. It will create space for writing new data within a file after shifting extents to right as given length [[https://git.kernel.org/torvalds/c/dd46c787788d5bf5b974729d43e4c405814a4c7d|commit]]
+ * Power management: add configurable delay for pm_test, so users can determine how long to wait in this pseudo-suspend state before resuming the system [[https://git.kernel.org/torvalds/c/1d4a9c17d4d204a159139361e8d4db7f9f267879|commit]]
+ * Show locks in /proc/pid/fdinfo/X [[https://git.kernel.org/torvalds/c/6c8c90319c0bb1c9e0b68e721359b89ae4f28465|commit]]
+ * rcu: Add option to expedite grace periods during boot [[https://git.kernel.org/torvalds/c/ee42571f4381f184e2672dd34ab411e5bf5bd5e0|commit]]
+ * rcu: Provide diagnostic option to slow down grace-period initialization [[https://git.kernel.org/torvalds/c/37745d281069682d901f00c0121949a7d224195f|commit]]
+ * vfs: Add support for a new quota type PRJQUOTA to enforce project quota limits [[https://git.kernel.org/torvalds/c/847aac644e92e5624f2c153bab409bf713d5ff9a|commit]]
+ * kbuild: add generic mergeconfig target, %.config [[https://git.kernel.org/torvalds/c/63a91033d52e64a22e571fe84924c0b7f21c280d|commit]]
+ * Add new build support in  [[https://git.kernel.org/torvalds/c/c819e2cf2eb6f65d3208d195d7a0edef6108d533|commit]]
+ * Remove execution domain support, a old feature which allowed to execute files compiled for other operating systems [[https://git.kernel.org/torvalds/c/973f911f55a0e510dd6db8bbb29cd82ff138d3c0|commit]]
+
+
+
+= File systems =
+ * XFS
+  * Add fallocate's support FALLOC_FL_INSERT_RANGE [[https://git.kernel.org/torvalds/c/a904b1ca5751faf5ece8600e18cd3b674afcca1b|commit]]
+  * Add support for Q_SETINFO so that time limits can be set through Q_SETINFO quotactl [[https://git.kernel.org/torvalds/c/c14cad9eed11343014f73aae4a77278239b201b8|commit]]
+  * Add RENAME_WHITEOUT support (used by overlayfs) [[https://git.kernel.org/torvalds/c/7dcf5c3e4527cfa2807567b00387cf2ed5e07f00|commit]]
+  * Remove deprecated mount options [[https://git.kernel.org/torvalds/c/444a702231412e82fb1c09679adc159301e9242c|commit]]
+
+ * F2FS
+  * Add an optional rb-tree based extent cache, an improvement over the original extent info cache. It can be used with the "-o extent_cache" mount option [[https://git.kernel.org/torvalds/c/1dcc336b02bff3d38f173feac55a2b6c25a5fb54|commit]], [[https://git.kernel.org/torvalds/c/8967215954a50947fbd9c2996232548bf6dd9062|commit]]
+  * Enable inline data by default [[https://git.kernel.org/torvalds/c/75342797988a0f9ebec400a2dde8d4de581c4079|commit]]
+  * Support fs shutdown [[https://git.kernel.org/torvalds/c/1abff93d01eddaab7ccdcf15f8cda4d91cbbcd9a|commit]]
+
+ * HFS+
+  * Don't store special "osx" xattr prefix on-disk [[https://git.kernel.org/torvalds/c/db579e76f06e78de011b2cb7e028740a82f5558c|commit]]
+
+
+= Block =
+ * dm: add full support of the multiqueue block layer to request-based DM, which improves performance [[https://git.kernel.org/torvalds/c/bfebd1cdb497a57757c83f5fbf1a29931591e2a4|commit]], [[https://git.kernel.org/torvalds/c/17e149b8f73ba116e71e25930dd6f2eb3828792d|commit]]
+ * dm verity: add different error handling modes (return -EIO, log the error, or trigger a reboot) for corrupted blocks [[https://git.kernel.org/torvalds/c/65ff5b7ddf0541f2b6e5cc59c47bfbf6cbcd91b8|commit]]
+ * md: RAID 5/6 can now batch multiple (4K wide) stripe_heads so as to handle a full (chunk wide) stripe as a single unit [[https://git.kernel.org/torvalds/c/59fc630b8b5f9f21c8ce3ba153341c107dce1b0c|commit]]
+ * md: raid6 can now perform read-modify-write cycles which should help performance on larger arrays [[https://git.kernel.org/torvalds/c/584acdd49cd2472ca0f5a06adbe979db82d0b4af|commit]], [[https://git.kernel.org/torvalds/c/d06f191f8ecaef4d524e765fdb455f96392fbd42|commit]]
+ * md /raid5: allow the stripe_cache to grow and shrink. [[https://git.kernel.org/torvalds/c/edbe83ab4c27ea6669eb57adb5ed7eaec1118ceb|commit]]
+
+
+
+= Cryptography =
+ * algif: add AEAD support [[https://git.kernel.org/torvalds/c/400c40cf78da00c16e561a3a253ca272455c42ef|commit]], [[https://git.kernel.org/torvalds/c/44cac4fce9b820c37a8792df52a0e4ce33201949|commit]]
+
+= Memory management =
+ * Allow compaction of unevictable pages [[https://git.kernel.org/torvalds/c/5bbe3547aa3ba5242366a322a28996872301b703|commit]], [[https://git.kernel.org/torvalds/c/922c0551a795dccadeb1dadc756d93fe3e303180|commit]]
+
+ * Contiguous memory allocator: Provides a userspace interface to trigger a CMA allocation and/or release the allocated memory [[https://git.kernel.org/torvalds/c/26b02a1f9670862c51b3ff63a6128589866f5c71|commit]], [[https://git.kernel.org/torvalds/c/28b24c1fc8c22cabe5b8a16ffe6a61dfce51a1f2|commit]], [[https://git.kernel.org/torvalds/c/17e0db822b00cff96c1b662ac0dc0449cb70e0ec|commit]], [[https://git.kernel.org/torvalds/c/8325330b026509127d4541e0f511c0c10648c2d5|commit]]
+ * Incorporate zero pages into transparent huge pages. This improves transparent hugepage collapse rates [[https://git.kernel.org/torvalds/c/ca0984caa8235762dc4e22c1c47ae6719dcc4064|commit]]
+
+ * hugetlbfs: Add 'min_size=<value>' moun option. This option takes the same value as the 'size' option. min_size can be specified without specifying size.  If both are specified, min_size must be less that or equal to size else the mount will fail. If min_size is specified, then at mount time an attempt is made to reserve min_size pages.  If the reservation fails, the mount fails. At umount time, the reserved pages are released [[https://git.kernel.org/torvalds/c/7ca02d0ae586fe7df59632966a64f3f1a756ef05|commit]], [[https://git.kernel.org/torvalds/c/8c9b97033547834404a58ea88da7226ed5167726|commit]]
+
+ * zsmalloc: support compaction [[https://git.kernel.org/torvalds/c/312fcae227037619dc858c9ccd362c7b847730a2|commit]]
+ * zram: deprecate zram attrs sysfs nodes, replace them with new sys attrs [[https://git.kernel.org/torvalds/c/8f7d282c717acaae25245c61b6b60e8995ec4ef4|commit]], [[https://git.kernel.org/torvalds/c/2f6a3bed7347ee94fe57b3501fddaa646a26d890|commit]], [[https://git.kernel.org/torvalds/c/4f2109f60881585dc04fa0b5657a60556576625c|commit]], [[https://git.kernel.org/torvalds/c/77ba015f9d5c584226a634753e9b318cb272cd41|commit]]
+ * zram: support compaction [[https://git.kernel.org/torvalds/c/4e3ba87845420e0bfa21e6c4f7f81897aed38f8c|commit]]
+
+
+
+= Security =
+ * SELinux
+  * Improve the performance of SELinux rules lookup in the in-kernel stored policy through various optimizations [[https://git.kernel.org/torvalds/c/ba39db6e0519aa8362dbda6523ceb69349a18dc3|commit]], [[https://git.kernel.org/torvalds/c/33ebc1932a07efd8728975750409741940334489|commit]], [[https://git.kernel.org/torvalds/c/cf7b6c0205f11cdb015384244c0b423b00e35c69|commit]]
+  * Add missing netlink commands [[https://git.kernel.org/torvalds/c/5bdfbc1f19d047a182d2bab102c22bbf2a1ea244|1]], [[https://git.kernel.org/torvalds/c/387f989a60db00207c39b9fe9ef32c897356aaba|2]], [[https://git.kernel.org/torvalds/c/2b7834d3e1b828429faa5dc41a480919e52d3f31|3]], [[https://git.kernel.org/torvalds/c/5e6deebafb45fb271ae6939d48832e920b8fb74e|4]], [[https://git.kernel.org/torvalds/c/5b5800fad072133e4a9c2efbf735baaac83dec86|5]], [[https://git.kernel.org/torvalds/c/b0b59b0056acd6f157a04cc895f7e24692fb08aa|6]], [[https://git.kernel.org/torvalds/c/8d465bb777179c4bea731b828ec484088cc9fbc1|7]], [[https://git.kernel.org/torvalds/c/bd2cba07381a6dba60bc1c87ed8b37931d244da1|8]], [[https://git.kernel.org/torvalds/c/cf890138087a6da2f56a642acb80476370b04332|9]]
+ * Smack
+  * Allow an unconfined label in bringup mode [[https://git.kernel.org/torvalds/c/bf4b2fee99799780ea3dbb6d79d1909b3e32be13|commit]]
+  * Getting the Smack security context of keys: implements the LSM side part of the system call keyctl with the action code KEYCTL_GET_SECURITY ([[https://git.kernel.org/torvalds/c/7fc5f36e980a8f4830efdae3858f6e64eee538b7|commit]]).
+
+ * Audit: Fix a race that could truncate audit log reports after the comm field ([[https://git.kernel.org/torvalds/c/5deeb5cece3f9b30c8129786726b9d02c412c8ca|commit]]).
+
+
+= Tracing & perf =
+ * tracing: Automatically mount tracefs on debugfs/tracing [[https://git.kernel.org/torvalds/c/f76180bc07abc399977bfbe8c43bf58c4570e893|commit]]
+ * Add new tracefs file system. It was part of debugfs, but that was starting to show its limits. It will appear in /sys/kernel/tracing [[https://git.kernel.org/torvalds/c/4282d60689d4f21b40692029080440cc58e8a17d|commit]], [[https://git.kernel.org/torvalds/c/f76180bc07abc399977bfbe8c43bf58c4570e893|commit]], [[https://git.kernel.org/torvalds/c/8434dc9340cd2e117fc944cf7526263bf490a52a|commit]], [[https://git.kernel.org/torvalds/c/cc31004a4aa784d89054ec07b87eae05cecf7121|commit]]
+ * Add new 'perf data' command to provide operations over data files [[https://git.kernel.org/torvalds/c/2245bf1410d2d719f3bfce729b07ab83fe6142f7|commit]]
+ * Add a new call chain recording option "lbr" (--call-graph lbr) into the perf tool to get the call stack information from hardware [[https://git.kernel.org/torvalds/c/384b60557b5522fcb99646f0eb6e7a344cdb94c6|commit]], [[https://git.kernel.org/torvalds/c/aad2b21c151273fa7abc419dac51a980eff1dd17|commit]]
+ * perf trace: Support --events foo:bar --no-syscalls [[https://git.kernel.org/torvalds/c/726f3234dd125633438922a07a80f933f13daf82|commit]], [[https://git.kernel.org/torvalds/c/77c92582a52308868b6ef30a7e551eaceb0fc246|commit]]
+ * perf record: Support recording running/enabled time [[https://git.kernel.org/torvalds/c/85c273d2b6569706762cf400079ca0699e007d81|commit]]
+ * perf annotate: Allow annotation for compressed kernel modules [[https://git.kernel.org/torvalds/c/2c7da8c590ad719796f46c875a096eb45ef971c7|commit]], [[https://git.kernel.org/torvalds/c/80a32e5b498a7547073e5e4b2b804edc7219979d|commit]]
+ * perf diff: Support for different binaries [[https://git.kernel.org/torvalds/c/94ba462d69efeba2f97111321a9ba1aa8141da57|commit]]
+ * perf diff: Add kallsyms option [[https://git.kernel.org/torvalds/c/6b1f342354d45c651cabd2ae0f61f55846f33e10|commit]]
+ * Support using -f to override perf.data file ownership in perf evlist [[https://git.kernel.org/torvalds/c/9e3b6ec17374299516d83c2e36135b958a895aa3|commit]] and perf inject [[https://git.kernel.org/torvalds/c/ccaa474c8a0983d26ecb3eac755672b546b997c3|commit]]
+ * perf kmem: Allow --verbose option [[https://git.kernel.org/torvalds/c/bd72a33ebae8b4d37e3d2a3f0f3f3333ac9654dd|commit]]
+ * perf kmem: perf kmem records and analyze kernel memory allocation only for SLAB objects. A new option has been added, --page, implements a simple page allocator analyzer using kmem:mm_page_alloc and kmem:mm_page_free events. The SLAB analysis is available in the --slab option [[https://git.kernel.org/torvalds/c/0d68bc92c48167130b61b449f08be27dc862dba2|commit]]
+ * Support using -f to override perf.data file ownership in perf kmem [[https://git.kernel.org/torvalds/c/d1eeb77c1811fd178442ccb8f58004a19ec40dd3|commit]], perf kvm [[https://git.kernel.org/torvalds/c/8cc5ec1f754355ed788838390e86389c9ffb7590|commit]], perf lock [[https://git.kernel.org/torvalds/c/c4ac732a0377d1544a8385393a9877b693ff0652|commit]], perf mem [[https://git.kernel.org/torvalds/c/62a1a63a77451dee8fd318a5106ca108d6a8ebcb|commit]], perf script [[https://git.kernel.org/torvalds/c/06af0f2c919d7c8f05efebe0d96a6f22297aafd4|commit]], perf timechart [[https://git.kernel.org/torvalds/c/44f7e432e3dc8a13f5661e8b722f53645df083d1|commit]], perf trace [[https://git.kernel.org/torvalds/c/e366a6d8949f3cfab01906b42c591098d59f3f35|commit]]
+ * perf probe: Support multiple probes on different binaries [[https://git.kernel.org/torvalds/c/7afb3fab390871b1d20b1dbb94e03b8a3861cb0d|commit]]
+ * perf trace: Allow mixing with other events [[https://git.kernel.org/torvalds/c/14a052df1cfa563093f20847d52caad4be5d2adc|commit]]
+ * perf trace: Dump stack on segfaults [[https://git.kernel.org/torvalds/c/4d08cb80ef5199258c01a3444fd29d94a36a0343|commit]]
+ * perf trace: Introduce --filter-pids [[https://git.kernel.org/torvalds/c/f078c3852c7367b78552be432bc24ca93ebbd4cf|commit]]
+ * perf buildid-cache: Add --purge FILE to remove all caches of FILE [[https://git.kernel.org/torvalds/c/8d8c8e4cb3014fcc51f0e127b4316043306f5bb0|commit]]
+
+= Virtualization =
+ * Add virtio-input driver, which is basically an "evdev-events-over-virtio" driver [[https://git.kernel.org/torvalds/c/271c865161c57cfabca45b93eaa712b19da365bc|commit]]
+ * user-mode linux
+  * Remove SKAS3/4 mode support [[https://git.kernel.org/torvalds/c/d0b5e15f0c0fdd759dd3dd48dc2dc2e7199e0da0|commit]]
+  * Remove broken SMP support [[https://git.kernel.org/torvalds/c/28fa468f53163bc0b867b4cc75a9e36e7ed4dbbd|commit]]
+  * Remove broken highmem support [[https://git.kernel.org/torvalds/c/a98a6d864d3b84219a6ec6213b00c260fb52f9f4|commit]]
+
+ * Xen
+  * Provide a "Xen PV" APIC driver to support >255 VCPUs [[https://git.kernel.org/torvalds/c/feb44f1f7a4ac299d1ab1c3606860e70b9b89d69|commit]]
+  * netback: making the bandwidth limiter runtime settable [[https://git.kernel.org/torvalds/c/edafc132baac4f5331b7bffd99a7af371776f2b5|commit]]
+  * privcmd: improve performance of MMAPBATCH_V2 [[https://git.kernel.org/torvalds/c/4e8c0c8c4bf3a5b5c98046e146ab3884bf7a7d0e|commit]]
+  * Support suspend/resume in pvscsi frontend [[https://git.kernel.org/torvalds/c/85617dc7ee1caa68a8d078b5dd4328d0ef373282|commit]]
+
+ * vfio
+  * Support for AMBA devices [[https://git.kernel.org/torvalds/c/36fe431f2811fa3b5fed15d272c585d5a47977aa|commit]]
+  * Add VGA arbiter client [[https://git.kernel.org/torvalds/c/ecaa1f6a01544604de5f9531379a303eee886162|commit]]
+  * Add module option to disable VGA region access [[https://git.kernel.org/torvalds/c/88c0dead9fb2cc66962b64064770558eecf3eafd|commit]]
+  * Allow PCI IDs to be specified as module options [[https://git.kernel.org/torvalds/c/80c7e8cc2aaa36944acdfbce46f373101b9f21ff|commit]]
+  * Support for platform devices with VFIO. This is required to make use of platform devices present on the system using the VFIO framework [[https://git.kernel.org/torvalds/c/53161532394b3b3c7e1ec9c80658edd75446ac77|commit]]
+
+= Networking =
+ * 6lowpan: Add generic next header compression layer interface [[https://git.kernel.org/torvalds/c/92aa7c65d295f3cbb96904afe335f683e55584b8|commit]], add udp compression via nhc layer [[https://git.kernel.org/torvalds/c/cc6ed2684751b0a1074b37c080983b6ce737ed22|commit]], add other known rfc6282 compressions [[https://git.kernel.org/torvalds/c/ff0fcc2987b42857d233e8a72c7476fb1e520110|commit]]
+ * Extends the "classic" BPF programmable tc classifier by extending its scope also to native eBPF code, thus allowing userspace to implement own custom, 'safe' C like classifiers that can then be compiled with the LLVM eBPF backend to an eBPF elf file and loaded into the kernel via iproute2's tc, and be JITed in the kernel [[https://git.kernel.org/torvalds/c/e2e9b6541dd4b31848079da80fe2253daaafb549|commit]], [[https://git.kernel.org/torvalds/c/a8cb5f556b567974d75ea29c15181c445c541b1f|commit]], [[https://git.kernel.org/torvalds/c/c24973957975403521ca76a776c2dfd12fbe9add|commit]], [[https://git.kernel.org/torvalds/c/9bac3d6d548e5cc925570b263f35b70a00a00ffd|commit]]
+ * bonding: Implement port churn-machine (802.3ad standard 43.4.17) [[https://git.kernel.org/torvalds/c/14c9551a32eba086c9f20c9d6a8e378481f15333|commit]]
+
+ * bridge: Extend Proxy ARP design to allow optional set of rules that are needed to meet the IEEE 802.11 and Hotspot 2.0 requirements for ProxyARP [[https://git.kernel.org/torvalds/c/842a9ae08a25671db3d4f689eed68b4d64be15b5|commit]]
+ * ipv4: Create probe timer for tcp PMTU as per RFC4821. Default is 10 minutes, it can be changed in sysctl tcp_probe_interval [[https://git.kernel.org/torvalds/c/05cbc0db03e82128f2e7e353d4194dd24a1627fe|commit]]
+ * ipv4: Raise tcp PMTU probe mss base size from 512 to 1024 bytes [[https://git.kernel.org/torvalds/c/dcd8fb8533ceb493146ce030d15f7965b82d0c27|commit]]
+ * ipv6: expose RFC4191 route preference via rtnetlink [[https://git.kernel.org/torvalds/c/c78ba6d64c78634a875d1e316676667cabfea256|commit]]
+ * ipv6: generation of stable privacy addresses for link-local and autoconf as specified in RFC7217 [[https://git.kernel.org/torvalds/c/622c81d57b392cc9be836670eb464a4dfaa9adfe|commit]]
+ * ipvs: allow rescheduling of new connections when port reuse is detected. Currently, when TCP/SCTP port reusing happens, IPVS will find the old entry and use it for the new one, behaving like a forced persistence. A new sysctl has been introduced, conn_reuse_mode, that allows controlling how to proceed when port reuse is detected [[https://git.kernel.org/torvalds/c/d752c364571743d696c2a54a449ce77550c35ac5|commit]]
+ * multicast: Extend "ip address" command with option "autojoin" to enable multicast group join/leave on [[https://git.kernel.org/torvalds/c/93a714d6b53d87872e552dbb273544bdeaaf6e12|commit]]
+ * 9p: add a privport option for RDMA transport. [[https://git.kernel.org/torvalds/c/f569d3ef8254d4b3b8daa4f131f9397d48bf296c|commit]]
+ * dcb: Add IEEE QCN attribute, as specified in 802.1Qau spec, to the DCB netlink layer [[https://git.kernel.org/torvalds/c/c93682477bd861744589215515a63b81fdbd8948|commit]]
+
+ * Add tx_maxrate attribute to the tx queue sysfs entry allowing for max-rate limiting for the queue [[https://git.kernel.org/torvalds/c/822b3b2ebfff8e9b3d006086c527738a7ca00cd0|commit]]
+ * Add real socket cookies, instead of using kernel socket addresses as cookies [[https://git.kernel.org/torvalds/c/33cf7c90fe2f97afb1cadaa0cfb782cb9d1b9ee2|commit]]
+ * Allow network devices to specify port names and export the name via sysfs [[https://git.kernel.org/torvalds/c/db24a9044ee191c397dcd1c6574f56d67d7c8df5|commit]]
+ * sockets: add support for async operations [[https://git.kernel.org/torvalds/c/0345f93138b2224e0d7ce91fcffdb3dd23f364d7|commit]]
+ * tcp: RFC7413 option support for Fast Open client [[https://git.kernel.org/torvalds/c/2646c831c00c5d22aa72b79d24069c1b412cda7c|commit]] and server [[https://git.kernel.org/torvalds/c/7f9b838b71eb78a27de27a12ca5de8542fac3115|commit]]
+ * tcp: add TCP_CC_INFO socket option to get flow information from Congestion Control modules [[https://git.kernel.org/torvalds/c/6e9250f59ef9efb932c84850cd221f22c2a03c4a|commit]]
+ * tipc: add ip/udp media type [[https://git.kernel.org/torvalds/c/d0f91938bede204a343473792529e0db7d599836|commit]]
+ * tipc: add support for connect() on dgram/rdm sockets [[https://git.kernel.org/torvalds/c/f2f8036e391eb82ee78764483f869f2feafb5da8|commit]]
+ * vlan: Add features for stacked vlan device [[https://git.kernel.org/torvalds/c/8d463504c191c2126d097ac94fb258aabe6d3e62|commit]]
+
+
+
+ * netfilter
+  * Add support for arptables extensions from nft_compat [[https://git.kernel.org/torvalds/c/5f15893943bfdc804e8703c5aa2c8dd8bf7ddf3f|commit]]
+  * nf_tables: add set extensions  infrastructure for maintaining variable sized and optional per element data [[https://git.kernel.org/torvalds/c/3ac4c07a24007f0f45d2082b745508768a8e21cf|commit]]
+  * nf_tables: implement set transaction support [[https://git.kernel.org/torvalds/c/cc02e457bb86f7b6ffee3651bab22d104b60effb|commit]]
+  * nf_tables: add set element timeout support [[https://git.kernel.org/torvalds/c/761da2935d6e18d178582dbdf315a3a458555505|commit]], [[https://git.kernel.org/torvalds/c/c3e1b005ed1cc068fc9d454a6e745830d55d251d|commit]]
+  * nft_hash: add support for timeouts [[https://git.kernel.org/torvalds/c/9d0982927e79049675cb6c6c04a0ebb3dad5a434|commit]]
+  * nf_tables: add support for dynamic set updates [[https://git.kernel.org/torvalds/c/22fe54d5fefcfa98c58cc2f4607dd26d9648b3f5|commit]]
+  * nf_tables: support optional userdata for set elements [[https://git.kernel.org/torvalds/c/68e942e88add0ac8576fc8397e86495edf3dcea7|commit]]
+  * nf_tables: Support instantiating stateful expressions based on a template that are associated with dynamically created set entries. The expressions are evaluated when adding or updating the set element. This allows to maintain per flow state using the existing set infrastructure and expression types, with arbitrary definitions of a flow [[https://git.kernel.org/torvalds/c/3e135cd499bfbec15684fe9c756162d58df4dc77|commit]]
+
+ * Wireless
+  * Add Very High Throughput support for IBSS [[https://git.kernel.org/torvalds/c/ffc1199122d83d60ad99f9c55df32feb650b7bff|commit]], [[https://git.kernel.org/torvalds/c/abcff6ef01f9ffa6958e50457574132f8f786308|commit]]
+  * Tunneled Direct Link Setup: support Very High Throughput between peers [[https://git.kernel.org/torvalds/c/fb28ec0ce4acd54cb1972d224e2caf287b60d9c9|commit]]
+  * Add API to change the indoor regulatory setting [[https://git.kernel.org/torvalds/c/05050753602626ed4c46271c689929b625f409e7|commit]]
+
+
+
+ * Bluetooth
+  * Include a Add/Remove Advertising API [[https://git.kernel.org/torvalds/c/203fea0178d7e165dbe834d1bdd9d243018fd5bf|commit]], [[https://git.kernel.org/torvalds/c/841a6664f213f76a9bc1bfd07a466d3dbe281a88|commit]], [[https://git.kernel.org/torvalds/c/495099962138732c28449d07f3b1988836659851|commit]], [[https://git.kernel.org/torvalds/c/912098a6308e37208b8dcc46c57c66d0778a854b|commit]], [[https://git.kernel.org/torvalds/c/4117ed70a55128273f1b6d00c7725e4c8a5c0031|commit]], [[https://git.kernel.org/torvalds/c/24b4f38fc9ebf93af223c67169a946d6baf9db61|commit]], [[https://git.kernel.org/torvalds/c/da929335f27d955172539bf56bed1ac9ff9b8d45|commit]], [[https://git.kernel.org/torvalds/c/4453b006538d02ada8294a195bb2dc2ada498436|commit]]
+  * Add local SSP OOB data to OOB ext data mgmt command [[https://git.kernel.org/torvalds/c/40f66c05c360777e847033ddbe076d88123719d1|commit]]
+  * Add simple version of Read Advertising Features command [[https://git.kernel.org/torvalds/c/d3d5305bfd1cb48c8f44207abb567276a1e09cc7|commit]]
+  * Add simple version of Read Local OOB Extended Data command [[https://git.kernel.org/torvalds/c/4f0f155ceaf7e1b59d210a8afb24d4ea63ce13cc|commit]]
+  * Add support for AES-CMAC hash for security manager device [[https://git.kernel.org/torvalds/c/6e2dc6d1133f5f8bfd028ba7d1c3fb0b3fa717e9|commit]]
+  * Add support for Local OOB Extended Data Update events [[https://git.kernel.org/torvalds/c/72000df2c01d6927319ad7e3f43460f6d0227de5|commit]]
+  * Add simultaneous dual mode scan [[https://git.kernel.org/torvalds/c/07d2334ae747772fc4426077340aa3efe499f50b|commit]]
+  * Add support for extended index management command [[https://git.kernel.org/torvalds/c/96f1474af040a4ec267efe141cbf264891e67e5a|commit]], [[https://git.kernel.org/torvalds/c/ced85549c3a769dfb9d084bb8d6d9ca8075f8728|commit]]
+  * Add support for trust verification of management commands [[https://git.kernel.org/torvalds/c/c927a10487477eeed0441e5c88147700e69e5db9|commit]]
+  * Add support for untrusted access to management commands [[https://git.kernel.org/torvalds/c/c91041dc4efff71f29f1dd4c9a4a5e80b841395c|commit]]
+  * Introduce trusted flag for management control sockets [[https://git.kernel.org/torvalds/c/50ebc055fa758c731e6e1ce174608327aab07aec|commit]]
+  * Open management interface for untrusted users [[https://git.kernel.org/torvalds/c/1195fbb8d03e5a6d7e7e49a73592caeb113a0f70|commit]]
+  * Support the "connectable mode" adv flag [[https://git.kernel.org/torvalds/c/e7a685d316e7d4b64cd3b2811687b0270d590386|commit]], support the "discoverable" adv flag [[https://git.kernel.org/torvalds/c/b44133ff03be30b55f23036e62f403a3f7784fce|commit]], support the "limited-discoverable" adv flag [[https://git.kernel.org/torvalds/c/807ec772bf484a8e93bc9a2a681e49cb8f2c4d69|commit]], support the "managed-flags" adv flag [[https://git.kernel.org/torvalds/c/67e0c0cd8f5afea17689f7688041e9d215df6875|commit]], support the "tx-power" adv flag [[https://git.kernel.org/torvalds/c/5507e358112af307c1c8595a04a0ef172d197f3c|commit]]
+
+
+= List of merges =
+= Other news sites =
+
+ * LWN merge window [[http://lwn.net/Articles/640297/|part 1]], [[http://lwn.net/Articles/641016/|part 2]], [[http://lwn.net/Articles/642039/|part 3]]
+ * [[http://www.phoronix.com/scan.php?page=news_item&px=Linux-4.1-Kernel-Feature-View|The Big Features Of The Linux 4.1 Kernel]]
+ * In french: [[http://linuxfr.org/news/sortie-du-noyau-linux-4-1|Sortie du noyau Linux 4.1]]

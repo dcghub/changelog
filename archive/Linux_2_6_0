@@ -1,0 +1,5 @@
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.0 development
+
+= 2.6.0 =
+  * Released December 18, 2003 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.0|changelog]]

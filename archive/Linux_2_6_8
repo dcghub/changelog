@@ -1,0 +1,36 @@
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.8 development
+
+
+= 2.6.8 =
+  * Released August 14, 2004 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.8|changelog]]
+  * Allow x86 to reenable interrupts on lock contention [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=e61229e7fab63f09bcab5f6d54477453ca98684c|(commit)]]
+  * VFS shrinkage tuning: This adds /proc/sys/vm/vfs_cache_pressure, which tunes the vfs cache versus pagecache scanning pressure. At vfs_cache_pressure=0 we don't shrink dcache and icache at all, at vfs_cache_pressure=100 there is no change in behaviour, at vfs_cache_pressure > 100 we reclaim dentries and inodes harder [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=95afb3658a8217ff2c262e202601340323ef2803|(commit)]]
+  * Conversion to the new symbolic link resolution code (which will eventually allow an increase in the maximum link depth) [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=c989bc66ec92aabcf88f429da52a798003edc505|(commit)]]
+  * Add O_NOATIME open flag support (GNU extension): If this bit is set, read will not update the access time of the file. It is useful if you want to do something with the file atime (for instance, moving files that have not been accessed in a while to somewhere else, or something like Debian's popularity-contest) but you also want to read all files periodically (for instance, tripwire or debsums) [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=037c5577398a9d87f0b9f8d68cbf17324b5b05fe|(commit)]]
+  * MNT_EXPIRE for umount(): Intrinsic automount and mountpoint degradation support. This adds support for a filesystem (such as kAFS) to perform automounting intrinsically without the need for a userspace daemon. It also adds support for such mountpoints to be degraded at the filesystem's behest until they've been untouched long enough that they'll be removed [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=92b2af55e9bd44724700c8eef889c7b368df6c94|(commit)]]
+  * Process Accounting Version 3 format added [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=f0743e893fb6ede7126ee6bb9ebad092fc2e346c|(commit)]]
+  * RLIMIT_SIGPENDING added, introducing per user rlimits for both queued signals and POSIX message queues [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=05eecc7a8a3765f2dd4b4d5d8a2e928f27c620f0|(commit)]], and remove unused queued_signals global accounting - rtsig-max and rtsig-nr /proc interfaces went away [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=31c7f302112bb18a7fd93cf07f52478a2688f62b|(commit)]]
+  * support for 64-bit Super-H hardware
+  * Removal of the PC9800 subarchitecture (lack of mainteinance) [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=3f7da6b29ad4612b09ddb39dd7938d11e9551ba6|(commit)]]
+  * Preemptible kernel support for the PPC64 architecture [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=5cc01b3b2ec3228457146904098dbaed01fbe0f8|(commit)]]
+  * Oprofile support for ppc32 [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=1383f594343b33211e1755524ecfd6c70ea8d1c9|(commit)]]
+  * Support for new Apple Powerbooks [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=eb5b2db2e449555fb06da1a6c81506f7593a7ad3|(commit)]]
+  * x86 no-execute support [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=3d543a2d0ce112d99d584fa99a5005629bc3c871|(commit)]]
+  * Asynchronous I/O support for USB gadgets
+  * HPET (High Precision Event Timer) support [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=d4e2cce3c8d7a766e474e9643514f1e6be7d758d|(commit)]]
+  * Reworked symbolic link lookup implementation [[http://lwn.net/Articles/91959/|(LWN article)]]
+  * Lockless loopback [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=b2079a04d5b73b7cf82bb88897e86e2aee91bbc4|(commit)]]
+  * New "CPU mask" implementation
+  * RCU performance improvements [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=48adcee8afd0838517a7e3150daa617f5b0a0c25|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=2321dce287dbaf69028be4678956451c9f1157b1|(commit)]]
+  * New wait_event_interruptible_exclusive() macro
+  * Sysfs knobs for tuning the CFQ I/O scheduler [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=cde1f64d5ecbc78bc605937540421914b4f8cb8f|(commit)]]
+  * Mirroring, snapshot and dm-zero targets for the device mapper [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=82fe372266fddf32677a7e0b4e2908bbcecf90dd|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=9665bd2e2f0ac296d7e4c40a50978dfa9f6dce07|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=db40a292b7da5640a8a464b1e8a8251eaf175fd8|(commit)]]
+  * Reiserfs data=journal support [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=e4861db92ba98c0280abf75bbbe344a14254997b|(commit)]]
+  * Added permissions checking on raw SCSI commands from user space [[http://lwn.net/Articles/98379/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=edfbc0a1c7df14728a31734ecafbbcacac85ac20|(commit)]]
+  * Removal of the fcntl() file operations method
+  * New internal infrastructure for handling file positioning and seekability [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=9286c49cc35e0a5a4ed240a80ae9ef17b37948d8|(commit)]]
+  * Removal of the (non-functional) "fastroute" networking option
+  * TEA, XTEA, Khazad crypto algorithms [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=ca28e25885ef28aeb01553d46e225805f9f26b10|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=1dbd347b7c1f8d879361609eabed7100b5f30754|(commit)]]
+  * Add deb-pkg build option [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=4c25efaec1f969b16102dea37a38f33a2848cca5|(commit)]]
+  * TCP/IP congestion control changes from Reno to BIC

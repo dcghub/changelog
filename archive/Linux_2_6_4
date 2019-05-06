@@ -1,0 +1,20 @@
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.4 development
+
+= 2.6.4 =
+  * Released March 11, 2004 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.4|changelog]]
+  * NGROUPS_MAX, which sets the maximum number of groups a user can belong to has increased the value to 65536 (was previously 32). This limit is also visible via the read-only /proc/sys/kernel/ngroups_max file. [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=60f095f22d9325fc88f128df204242f932c261dc|(commit)]]
+  * HFS rewrite and HFS+ support [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=b20f09ad0ab9e8ef215b5c6e0ead9effc6b80aee|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=367a470ffe60c58c69ae8bf288cbb4615002729b|(commit)]]
+  * Add SOCK_SEQPACKET for Unix domain sockets [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=32b46f96d41dfc67ad9d81c39487242ecc84be16|(commit)]]
+  * Support for the Intel "ia32e" arch
+  * PPC64 iommu and TBL flush rework [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=aeb9bd1688d76c938acc4b17da8db33e8cbe1133|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=7fb3b50550a866099fc8ea34b8565f12a104e2fa|(commit)]]
+  * UTF-8 tty mode [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=8026954da2b98a1a97af65d82c492816681c0faa|(commit)]]
+  * Dynamic PTY allocation (up to a million PTY devices)
+  * Sysfs support for SCSI tapes and bluetooth devices
+  * ARC4 crypto module Support for large numbers of groups
+  * Generic kernel thread infrastructure [[http://lwn.net/Articles/65178/|(LWN article)]]
+  * Groundwork for the hotplug CPU code
+  * ARC4 crypto module [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=d0119535d80f4f46d831fb48f1747e732c539c79|(commit)]]
+  * Add dm-crypto crypto module [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=f3abc91effde1fd547e6005f36c94313fe970dd2|(commit)]]
+  * Enable coredumps > 2 GB [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=0d274048bea986c7498a52ea5152d66833cd2cec|(commit)]]
+  * Add -mregparm=3 config option [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=cef3796e3aa0003e818a64374f439d353c49d574|(commit)]]

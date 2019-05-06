@@ -1,0 +1,221 @@
+#pragma section-numbers on
+#pragma keywords Linux, Kernel, Operative System, Changes, changelog, File system, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 3.1 development cycle
+
+Linux 3.1 [[http://lkml.org/lkml/2011/10/24/212|released]] on 24 Oct 2011
+
+'''''Summary''''': Support for the OpenRISC opensource CPU, performance improvements to the writeback throttling, some speedups in the slab allocator, a new iSCSI implementation, support for Near-Field Communication chips used to enable mobile payments, bad block management in the generic software RAID layer, a new "cpupowerutils" userspace utility for power management, file system barriers enabled by default in ext3, Wii Remote controller support and new drivers and many small improvements.
+
+<<TableOfContents>>
+= Prominent features in the 3.1 kernel =
+== New architecture: OpenRISC ==
+OpenRISC is an Open Source CPU from the OpenCores project that brings to the world of hardware all the same advantages that Open Source software has known for so long. The aim of [[http://opencores.org/openrisc|the project]] is to create free and open source computing platforms available under the GNU (L)GPL license, and a set of free, open source implementations of the architecture and open source software development tools, libraries, operating systems and applications. The implementation merged in this release is the 32-bit OpenRISC 1000 family (or1k). Details about the CPU can be [[http://opencores.org/or1k/OR1200_OpenRISC_Processor|found here]]
+
+Code: [[http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=tree;f=arch/openrisc;hb=HEAD|arch/openrisc]]
+
+== Dynamic writeback throttling ==
+Recommended LWN article: [[https://lwn.net/Articles/405076/|"Dynamic writeback throttling"]]
+
+"Writeback" is the process of writing data from the RAM to the disk, and in this context throttling means blocking processes temporally to avoid them creating new data that needs to be written, until the current data has been written to the disk. The writeback code was suboptimal, because in certain situations it throttled various processes and forced them to write their data to the disk simultaneously, creating random IO patterns which are not good for performance. The new code avoids these situations and helps to create more linear IO patterns. Also, the new code tries to detect the available disk bandwidth, which is used to improve the heuristics that decide which processes should be throttled, which should lead overall to improved throughput. The writeback<->filesystems coupling has also been improved, and a SMP scaling problem has also been fixed.
+
+Code: [[http://git.kernel.org/linus/f758eeabeb96f878c860e8f110f94ec8820822a9|(commit)]], [[http://git.kernel.org/linus/424b351fe1901fc909fd0ca4f21dab58f24c1aac|(commit)]], [[http://git.kernel.org/linus/e98be2d599207c6b31e9bb340d52a231b2f3662d|(commit)]], [[http://git.kernel.org/linus/c42843f2f0bbc9d716a32caf667d18fc2bf3bc4c|(commit)]], [[http://git.kernel.org/linus/ffd1f609ab10532e8137b4b981fdf903ef4d0b32|(commit)]], [[http://git.kernel.org/linus/1a12d8bd7b2998be01ee55edb64e7473728abb9c|(commit)]]
+
+== File system barriers enabled by default in ext3 ==
+
+Hard disks have a memory buffer were they temporally store the instructions and data issued from the OS while the disk processes it. The internal software of modern disks changes the order of the instructions to improve performance, which means that instructions may or may not be committed to the disk in the same order the OS issued them. This breaks many of the assumptions that file systems need to reliably implement things like journaling or COW, so disks provide a "cache flush" instruction that the OS uses when it needs it. In the Linux world, when a file system issues that instruction, it is called a "barrier". File systems such as XFS, Btrfs and ext4 already use and enable barriers by default; ext3 supports them but until this release it did not enable them by default: while the data safety guarantees are higher, their performance impact in Ext3 is noticeable in many common workloads, and it considered that it was an unacceptable performance regression to enable them by default. However, Linux distributions like Red Hat have enabled barriers by default in Ext3 for a long time, and now the default for mainline has been changed as well. 
+
+In other words: if you use Ext3 and you note performance regressions with this release, try disabling barriers ("barrier=0" mount option).
+
+Code: [[http://git.kernel.org/linus/00eacd66cd8ab5fff9df49aa3f261ad43d495434|(commit)]]
+
+== Support for Near-Field Communication ==
+Near-field communication ([[http://en.wikipedia.org/wiki/Near_field_communication|Wiki article]]) allows for simplified wireless exchange of data between two devices in close proximity to each other, usually by no more than a few centimeters. Co-invented by NXP Semiconductors and Sony in 2002, NFC chips can be found in many smartphones already available in the market and more are planning to add them.
+
+NFC is expected to become a widely used system for making payments by smartphone in the US: shoppers who have their credit card information stored in their NFC smartphones can pay for purchases by waving their smartphones near or tapping them on the reader, rather than bothering with the actual credit card. A smartphone or tablet with an NFC chip could make a credit card payment or serve as keycard or ID card. NFC devices can also read NFC tags on a museum or retail display to get more information or an audio or video presentation. NFC can also be used to share contacts, photos, songs, applications, or videos.
+
+This release adds a NFC subsystem and a new NFC socket family.
+
+Code: [[http://git.kernel.org/linus/3e256b8f8dfa309a80b5dece388d85d9a9801a29|(commit 1]], [[http://git.kernel.org/linus/4d12b8b129f170d0fc3188de1e51a2a1b0f87730|2]], [[http://git.kernel.org/linus/c7fe3b52c1283b8ba810eb6ecddf1c8a0bcc13ab|3]], [[http://git.kernel.org/linus/23b7869c0fd08d73c9f83a2db88a13312d6198bb|4]], [[http://git.kernel.org/linus/c46ee38620a2aa2b25b16bc9738ace80dbff76a4|5]], [[http://git.kernel.org/linus/14205aa21c8041d7e940ee9bcde87824dc00a08a|6)]]
+
+
+== Slab allocator speedups ==
+In this release, the "slub" slab allocator (the default one) implements wider lockless operations in most of the slowpaths in architectures that support CMPXCHG (compare and exchange). In particular the patch decreases the overhead in the performance critical section that frees the slabs, which speeds up slab-intensive workloads
+
+Code: [[http://git.kernel.org/linus/7e0528dadc9f8b04e4de0dba48a075100c2afe75|(commit 1]], [[http://git.kernel.org/linus/50d5c41cd151b21ac1dfc98f048210456ccacc20|2]], [[http://git.kernel.org/linus/8cb0a5068f4108e8ca60d5e0bcfbe6901adcfaef|3]], [[http://git.kernel.org/linus/3824abd1279ef75f791c43a6b1e3162ae0692b42|4]], [[http://git.kernel.org/linus/fc9bb8c768abe7ae10861c3510e01a95f98d5933|5]], [[http://git.kernel.org/linus/b789ef518b2a7231b0668c813f677cee528a9d3f|6]], [[http://git.kernel.org/linus/5cc6eee8a8c1aefe9c86fe7345a2aa1c4ca70dc6|7]], [[http://git.kernel.org/linus/61728d1efc927eccfa64c50ede4998a8765805c3|8]], [[http://git.kernel.org/linus/2cfb7455d223ab24b23df44be430faf92e12390f|9]], [[http://git.kernel.org/linus/881db7fb03a77af0bcd460fd1de1f4062d5c18fe|10]], [[http://git.kernel.org/linus/5c2e4bbbd60623f1024a753c291b666068f8a6e7|11]], [[http://git.kernel.org/linus/e36a2652d7d1ad97f7636a39bdd8654d296cc36b|12]], [[http://git.kernel.org/linus/80f08c191f6c9563641291bea80657a3b9faabf0|13]], [[http://git.kernel.org/linus/fc59c05306fe1dcfa3fb8ba34ed45407fba4689c|14]], [[http://git.kernel.org/linus/4eade540fc35353813097bfdb39465c9b8847a15|15]], [[http://git.kernel.org/linus/03e404af26dc2ea0d278d7a342de0aab394793ce|16]], [[http://git.kernel.org/linus/9da4714a2d44ff48618a8d375dd81873e858803d|17)]]
+
+== VFS scalability improvements ==
+Like it happened in past releases, this release has a new round of VFS scalability improvements:
+ * Convert the inode_stat.nr_unused counter to a per-cpu counter [[http://git.kernel.org/linus/fcb94f72d3e0f4f34b326c2986da8e5996daf72c|(commit)]]
+ * Convert the global LRU list of unused inodes to a per-superblock LRU list [[http://git.kernel.org/linus/98b745c647a5a90c3c21ea43cbfad9a47b0dfad7|(commit)]], [[http://git.kernel.org/linus/09cc9fc7a7c3d872065426d7fb0f0ad6d3eb90fc|(commit)]], [[http://git.kernel.org/linus/b0d40c92adafde7c2d81203ce7c1c69275f41140|(commit)]], [[http://git.kernel.org/linus/0e1fdafd93980eac62e778798549ce0f6073905c|(commit)]], [[http://git.kernel.org/linus/8ab47664d51a69ea79fe70bb07ca80664f74f76b|(commit)]]
+ * As a consequence of the per-superblock LRU list of unused inodes, remove the iprune_sem semaphore [[http://git.kernel.org/linus/4f8c19fdf3f97402b68f058b1c72a6c7166c9e59|(commit)]]
+ * Kill i_alloc_sem and replace its functionality with a simpler scheme (see commit for details) [[http://git.kernel.org/linus/bd5fe6c5eb9c548d7f07fe8f89a150bb6705e8e3|(commit)]]
+ * Mount lock scalability for file systems that don't have a mount point (e.g. sockfs and pipefs) [[http://git.kernel.org/linus/423e0ab086ad8b33626e45fa94ac7613146b7ffa|(commit)]]
+ * Avoid taking inode_hash_lock on pipes and sockets [[http://git.kernel.org/linus/f2ee7abf4c40c8e6bffced923a7c01ea2d1f6c97|(commit)]]
+
+
+== New iSCSI implementation ==
+
+Recommended LWN article: [[https://lwn.net/Articles/424004/|A tale of two SCSI targets]]
+
+The current iSCSI implementation used in the kernel, SCST, has been obsoleted with the inclusion of the Linux-iSCSI.org SCSI target. The Linux-iSCSI.org target module is a full featured in-kernel software implementation of iSCSI target mode (RFC-3720). More information can be found [[http://linux-iscsi.org/wiki/ISCSI|here]].
+
+
+Code: [[http://git.kernel.org/linus/e48354ce078c079996f89d715dfa44814b4eba01|(commit)]]
+
+					
+
+== cpupowerutils ==
+
+cpupowerutils is a [[http://lkml.org/lkml/2011/3/11/105|new project]] derived from cpufrequtils and extended with other features, like a powerful HW monitoring tool. Why a new project? The announcement explains it:
+
+"CPU power consumption vs performance tuning is not about CPU frequency switching anymore for quite some time. Deep sleep states, traditional dynamic frequency scaling and hidden turbo/boost frequencies are tight close together and depend on each other. The first two exist on different architectures
+like PPC, Itanium and ARM the latter only on x86. On x86 the APU (CPU+GPU) will only run most efficiently if CPU and GPU has proper power management in place. Users and Developers want to have *one* tool to get an overview what their system supports and to monitor and debug CPU power management in detail". cpupowerutils is that tool.
+
+The code is available in [[http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=tree;f=tools/power/cpupower;hb=HEAD|tools/power/cpupower/]]
+
+
+== Software RAID: Bad block management ==
+The MD layer (aka "Multiple Devices", aka software raid) has gained bad block management support: bad blocks will be added to a list, and the system will try not to use them. This feature requires an updated mdadm version.
+
+Code: [[http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=shortlog;h=58c54fcca3bac5bf9290cfed31c76e4c4bfbabaf|many commits]]
+
+
+== Personality to report 2.6.x version numbers ==
+There are some programs which broke with the new Linux 3.0 version. Some of those were binary only (for example, all kind of management software from a certain printer manufacturer). sys.platform in Python is also [[http://bugs.python.org/issue12326|know]] to return "linux3" under 3.0, which breaks things that were checking for sys.platform == "linux2". To solve this problem, a UNAME26 personality has been added to report 2.6.x version numbers [[http://git.kernel.org/linus/be27425dcc516fd08245b047ea57f83b8f6f0903|(commit)]]
+
+
+
+== Wii Remote controller support ==
+
+The driver for the Nintendo Wii Remote controller (wiimote) has been added
+
+Code: [[http://git.kernel.org/linus/fb51b44385a0ded0d629d5cf4a2095f80fb01b56|(commit)]]
+
+= Driver and architecture-specific changes =
+All the driver and architecture-specific changes can be found in the [[http://kernelnewbies.org/Linux_3.1_DriverArch|Linux_3.1_DriverArch page]]
+
+
+= Memory management =
+ * Memory control group: add memory.vmscan_stat [[http://git.kernel.org/linus/82f9d486e59f588c7d100865c36510644abda356|(commit)]]
+ * Extend memory hotplug API to allow memory hotplug in virtual machines [[http://git.kernel.org/linus/9d0ad8ca43ce8023bb834a409c2258bd7197fb05|(commit)]]
+ * page allocator: fix significant stalls while copying large amounts of data on NUMA machines [[http://git.kernel.org/linus/cd38b115d5ad79b0100ac6daa103c4fe2c50a913|(commit)]], [[http://git.kernel.org/linus/76d3fbf8fbf6cc78ceb63549e0e0c5bc8a88f838|(commit)]]
+ * tmpfs: Increase the file size limit [[http://git.kernel.org/linus/285b2c4fdd69ea73b4762785d8c6be83b6c074a6|(commit)]]
+
+'' "Slub" slab allocator ''
+ * Add method to verify memory is not freed with slub_debug [[http://git.kernel.org/linus/d18a90dd85f8243ed20cdadb6d8a37d595df456d|(commit)]]
+ * Reduce overhead of slub_debug [[http://git.kernel.org/linus/c4089f98e943ff445665dea49c190657b34ccffe|(commit)]]
+
+
+= Networking =
+ * AF_PACKET: add 'cpu' fanout policy. [[http://git.kernel.org/linus/95ec3eb417115fbb2c73b59e2825f6dd5d2f6cf6|(commit)]], [[http://git.kernel.org/linus/dc99f600698dcac69b8f56dda9a8a00d645c5ffc|(commit)]], [[http://git.kernel.org/linus/7736d33f4262d437c51ed7a28114eacbfca236ff|(commit)]]
+ * B.A.T.M.A.N: improved client announcement mechanism [[http://git.kernel.org/linus/a73105b8d4c765d9ebfb664d0a66802127d8e4c7|(commit)]], [[http://git.kernel.org/linus/cc47f66e6b9ec7e7d465f74739a6fc9844593894|(commit)]]
+ * Add support for skb zero-copy buffers [[http://git.kernel.org/linus/1cdebb423202e255366a321814fc6df079802a0d|(commit)]], [[http://git.kernel.org/linus/a6686f2f382b13f8a7253401a66690c3633b6a74|(commit)]], [[http://git.kernel.org/linus/97bc3633bec7ed0fdfbda6b9cf86c51e4f58f8e2|(commit)]]
+ * Compute protocol sequence numbers and fragment IDs using MD5 instead of MD4, as is inline with both RFC1948 and other OS [[http://git.kernel.org/linus/6e5714eaf77d79ae1c8b47e3e040ff5411b717ec|(commit)]]
+ * Add multicast group for DCB [[http://git.kernel.org/linus/314b4778ed579f29b6d46ba90dbf31314c13805f|(commit)]]
+
+ * Netfilter
+  * BPF 'JIT' compiler for PPC64 [[http://git.kernel.org/linus/0ca87f05ba8bdc6791c14878464efc901ad71e99|(commit)]]
+  * Add SELinux context support to AUDIT target [[http://git.kernel.org/linus/131ad62d8fc06d9d0a5c61d9526876352c2f2bbd|(commit)]]
+  * ipset: support range for IPv4 at adding/deleting elements for hash:*net* types [[http://git.kernel.org/linus/d0d9e0a5a8db05b2179c2ffb25d1c2850cce3c8e|(commit)]]
+
+ * Lower the default initRTO from 3secs to 1sec, as per RFC2988bis. It falls back to 3secs if the SYN or SYN-ACK packet has been retransmitted, AND the TCP timestamp option is not on [[http://git.kernel.org/linus/9ad7c049f0f79c418e293b1b68cf10d68f54fcdb|(commit)]]
+ * SCTP: Add Auto-ASCONF (RFC5061) support [[http://git.kernel.org/linus/9f7d653b67aed2d92540fbb0a8adaf32fcf352ae|(commit)]], [[http://git.kernel.org/linus/dd51be0f5484b450b8d48c9226ed86ce3dd5102e|(commit)]], [[http://git.kernel.org/linus/8a07eb0a50aebc8c95478d49c28c7f8419a26cef|(commit)]], [[http://git.kernel.org/linus/7dc04d712203eecdc1435a4cd135935c4a297be5|(commit)]]
+ * inetpeer microoptimization: reduce the false sharing effect by reordering the members of a struct [[http://git.kernel.org/linus/2b77bdde97ae8241dcc23110a4e837acfbc83438|(commit)]]
+ * ipv4 microoptimization: save cpu cycles from check_leaf(), with route cache disabled this saves ~2% of cpu in udpflood bench [[http://git.kernel.org/linus/5c74501f76360ce6f410730b9b5e5976f38e8504|(commit)]]
+ * ethtool: remove support for ETHTOOL_GRXNTUPLE [[http://git.kernel.org/linus/bff55273f98dea0ceb78e28eb69462fe5f72ef3d|(commit)]]
+ * 9P: Add 9P2000.L renameat operation [[http://git.kernel.org/linus/9e8fb38e7d7a00e5f63bbb331f0ea4c02286d5e6|(commit)]], add 9P2000.L unlinkat operation [[http://git.kernel.org/linus/48e370ff93769ee6e592ddef3bb38686b8147c67|(commit)]]
+
+= File systems =
+'' Btrfs''
+ * Improve ls readdir() performance significantly [[http://git.kernel.org/linus/44396f4b5cb8566f7118aec55eeac99be7ad94cb|(commit)]], [[http://git.kernel.org/linus/b4aff1f874f679320c03e3d97b60fc7babfd4623|(commit)]]
+ * Switch the btrfs tree locks to reader/writer (see commit link for details) [[http://git.kernel.org/linus/bd681513fa6f2ff29aa391f01e413a2d1c59fd77|(commit)]]
+
+'' NFS ''
+ * NFS 4.1: pnfs IPv6 support [[http://git.kernel.org/linus/c9895cb69b07a4b17d8fdae26667f9a9fba5183b|(commit)]]
+ * Remove deprecated nfsctl system call and related code. [[http://git.kernel.org/linus/49b28684fdba2c84a3b8e54aaa0faa9ce2e4f140|(commit)]]
+
+'' XFS ''
+ * Performance improvements [[http://git.kernel.org/linus/8daaa83145ef1f0a146680618328dbbd0fa76939|(commit)]], [[http://git.kernel.org/linus/1d8c95a363bf8cd4d4182dd19c01693b635311c2|(commit)]]
+
+'' REISERFS ''
+ * Default to barrier=flush [[http://git.kernel.org/linus/b4d5b10fb2e3a4327838c07d8ebd9e350fcc133d|(commit)]]
+
+'' FAT ''
+ * Fat16 support maximum 4GB file/vol size as WinXP or 7 [[http://git.kernel.org/linus/710d4403a45c4040a9aa86971d50958f5ae6ed40|(commit)]]
+
+'' HFSplus ''
+ * Lift the 2TB size limit [[http://git.kernel.org/linus/c6d5f5fa658f2569a7baaff5acda261a1316cee9|(commit)]]
+
+'' SquashFS''
+ * Make zlib compression support optional [[http://git.kernel.org/linus/cc6d3497141adedb71de8ddce62bf4cd4817832d|(commit)]]
+
+= Block layer =
+ * Strict CPU affinity, by writing the value 2 to /sys/block/<bdev>/queue/rq_affinity [[http://git.kernel.org/linus/5757a6d76cdf6dda2a492c09b985c015e86779b1|(commit)]]
+ * CFQ I/O scheduler: performance tuning [[http://git.kernel.org/linus/7700fc4f675fa38094e78e345b594363a2fd895b|(commit)]], [[http://git.kernel.org/linus/f5f2b6ceb23e02ff35c6dbc6a39aa776ace99cda|(commit)]]
+ * loop: add BLK_DEV_LOOP_MIN_COUNT=%i to allow distros 0 pre-allocated loop devices [[http://git.kernel.org/linus/d134b00b9acca3fb054d7c88a5f5d562ecbb42d1|(commit)]], [[http://git.kernel.org/linus/770fe30a46a12b6fb6b63fbe1737654d28e84844|(commit)]]
+
+'' Device Mapper''
+ * flakey target: add corrupt_bio_byte feature [[http://git.kernel.org/linus/a3998799fb4df0b0af8271a7d50c4269032397aa|(commit)]], add drop_writes [[http://git.kernel.org/linus/b26f5e3d7127487e934758c1fbe05d683b082cb0|(commit)]]
+ * Support the MD RAID1 personality through the dm-raid target [[http://git.kernel.org/linus/327372797c88b24953f454cd51a3734c02697bdd|(commit)]]
+ * raid: Support metadata devices [[http://git.kernel.org/linus/b12d437b73d32203a41fde0d407e91812c866844|(commit)]]
+
+= Crypto =
+ * Add ablkcipher support [[http://git.kernel.org/linus/acdca31dba86c4f426460aa000d13930a00549b7|(commit)]]
+ * s390: support hardware accelerated SHA-224 [[http://git.kernel.org/linus/e3b4f515c43553a9950017d8d052541ccb8081fa|(commit)]]
+ * eCryptfs: Add mount option to check uid of device being mounted = expect uid [[http://git.kernel.org/linus/764355487ea220fdc2faf128d577d7f679b91f97|(commit)]]
+ * encrypted-keys: add key format support [[http://git.kernel.org/linus/4e561d388feff18e4b798cef6a1a84a2cc7f20c2|(commit)]], add eCryptfs format support [[http://git.kernel.org/linus/79a73d188726b473ca3bf483244bc96096831905|(commit)]]
+
+
+= Virtualization =
+
+'' KVM ''
+ * Nested VMX (Intel virtualization) support [[http://git.kernel.org/linus/823e396558e509b7c3225cd76806f3d6643ff5f8|(commit)]]
+ * Enable ERMS feature support (can enhance fast strings attempts to move as much of the data with larger size load/stores as possible) [[http://git.kernel.org/linus/a01c8f9b4e266df1d7166d23216f2060648f862d|(commit)]]
+ * "Steal time" guest/host interface [[http://git.kernel.org/linus/9ddabbe72e41ca6794cb4947c70929c9410e6752|(commit 1]], [[http://git.kernel.org/linus/3c404b578fab699c4708279938078d9404b255a4|2]], [[http://git.kernel.org/linus/c9aaa8957f203bd6df83b002fb40b98390bed078|3]], [[http://git.kernel.org/linus/e6e6685accfa81f509fadfc9624bc7c3862d75c4|4]], [[http://git.kernel.org/linus/d910f5c1064d7ff09c31b0191564f9f99e210f91|5)]]
+ * vhost TX zero-copy support [[http://git.kernel.org/linus/bab632d69ee48a106e779b60cc01adfe80a72807|(commit)]]
+ * Lockless walking shadow page table [[http://git.kernel.org/linus/c2a2ac2b563ccc3a69540965b5a994c19e3817d7|(commit)]]
+ * MMIO page fault support [[http://git.kernel.org/linus/ce88decffd17bf9f373cc233c961ad2054965667|(commit)]]
+ * PPC: e500: Add shadow PID support [[http://git.kernel.org/linus/dd9ebf1f94354b010f2ac7a98bf69168636cb08e|(commit)]], add support for Book3S processors in hypervisor mode [[http://git.kernel.org/linus/de56a948b9182fbcf92cb8212f114de096c2d574|(commit)]], book3s_hv: Add support for PPC970-family processors [[http://git.kernel.org/linus/9e368f2915601cd5bc7f5fd638b58435b018bbd7|(commit)]]
+
+'' Xen ''
+ * Memory hotplug support for Xen balloon driver [[http://git.kernel.org/linus/080e2be7884322daffe75a831e879fbe7de383ab|(commit)]]
+ * Xen PCI backend driver. [[http://git.kernel.org/linus/30edc14bf39afde24ef7db2de66c91805db80828|(commit)]]
+
+'' VMware''
+ * vmxnet3: Enable GRO support. [[http://git.kernel.org/linus/213ade8ca8c854435d99e4d2927655b2ae4191e9|(commit)]]
+
+''Others''
+ * Introduce Freescale hypervisor management driver [[http://git.kernel.org/linus/6db7199407ca56f55bc0832fb124e1ad216ea57b|(commit)]]
+
+
+= Security =
+'' TOMOYO ''
+ * Add auditing interface. [[http://git.kernel.org/linus/eadd99cc85347b4f9eb10122ac90032eb4971b02|(commit)]]
+ * Add ACL group support. [[http://git.kernel.org/linus/32997144fd9925fc4d506a16990a0c405f766526|(commit)]]
+ * Add policy namespace support. [[http://git.kernel.org/linus/bd03a3e4c9a9df0c6b007045fa7fc8889111a478|(commit)]]
+ * Add built-in policy support. [[http://git.kernel.org/linus/efe836ab2b514ae7b59528af36d452978b42d266|(commit)]]
+ * Make several options configurable. [[http://git.kernel.org/linus/0e4ae0e0dec634b2ae53ac57d14141b140467dbe|(commit)]]
+ * Allow using the following properties as conditions: argv[]/envp[] of execve() [[http://git.kernel.org/linus/5b636857fee642694e287e3a181b523b16098c93|(commit)]], executable's realpath and symlink's target [[http://git.kernel.org/linus/2ca9bf453bdd478bcb6c01aa2d0bd4c2f4350563|(commit)]], owner/group etc. of file objects [[http://git.kernel.org/linus/8761afd49ebff8ae04c1a7888af090177441d07d|(commit)]], UID/GID etc. of current thread [[http://git.kernel.org/linus/2066a36125fcbf5220990173b9d8e8bc49ad7538|(commit)]]
+
+= Tracing/profiling =
+ * perf probe: Support adding probes on offline kernel modules [[http://git.kernel.org/linus/614243181050436785f5a621749a7da2336a7916|(commit)]], [[http://git.kernel.org/linus/14a8fd7ceea6915c613746203d6e9a2bf273f16c|(commit)]]
+ * perf: Add model 45 Intel Sandy Bridge support [[http://git.kernel.org/linus/a34668f6beb4ab01e07683276d6a24bab6c175e0|(commit)]]
+ * perf report/annotate/script: Add option to specify a CPU range [[http://git.kernel.org/linus/5d67be97f8903d05ce53597fb5f3bc25a45e8026|(commit)]]
+ * perf tools: Add inverted call graph report support. [[http://git.kernel.org/linus/d797fdc5c5c245fbb05f553e68cb95d962fbdd01|(commit)]]
+
+
+= Various core changes =
+ * Add lock-less NULL terminated single list [[http://git.kernel.org/linus/f49f23abf3dd786ddcac1c1e7db3c2013b07413f|(commit)]]
+ * crc8: add new library module providing crc8 algorithm [[http://git.kernel.org/linus/7150962d637cf38617924f7f72ea00612283eb89|(commit)]]
+ * Make gen_pool memory allocator lockless. This makes it safe to use in NMI handlers and other special unblockable contexts that could otherwise deadlock on locks [[http://git.kernel.org/linus/7f184275aa306046fe7edcbef3229754f0d97402|(commit)]]
+ * ptrace: implement PTRACE_INTERRUPT [[http://git.kernel.org/linus/fca26f260c528ee51a2e451b5b200aeb528f3e09|(commit)]], PTRACE_LISTEN [[http://git.kernel.org/linus/544b2c91a9f14f9565af1972203438b7f49afd48|(commit)]], PTRACE_SEIZE [[http://git.kernel.org/linus/3544d72a0e10d0aa1c1bd59ed77a53a59cdc12f7|(commit)]], TRAP_NOTIFY [[http://git.kernel.org/linus/fb1d910c178ba0c5bc32d3e5a9e82e05b7aad3cd|(commit)]]
+ * module: add /sys/module/<name>/uevent files [[http://git.kernel.org/linus/88bfa3247961fe5f3623f4d2cf1cd5dc72457598|(commit)]]
+ * Add SEEK_HOLE and SEEK_DATA flags in lseek() [[http://git.kernel.org/linus/982d816581eeeacfe5b2b7c6d47d13a157616eff|(commit)]]
+ * coredump: escape "/" in hostname and comm strings [[http://git.kernel.org/linus/2c563731fee0f625924f72e854957bc77601e8b3|(commit)]]
+ * ipc: introduce shm_rmid_forced sysctl. If set to 1, all shared memory objects will be automatically forced to use IPC_RMID. [[http://git.kernel.org/linus/b34a6b1da371ed8af1221459a18c67970f7e3d53|(commit)]]
+ * PM / Domains: Support for generic I/O PM domains (v8) [[http://git.kernel.org/linus/f721889ff65afa6243c463832c74dee3bed418d5|(commit)]]
+ * PM / Domains: System-wide transitions support for generic domains (v5) [[http://git.kernel.org/linus/596ba34bcd2978ee9823cc1d84df230576f8ffb9|(commit)]]
+ * PM / Domains: Wakeup devices support for system sleep transitions [[http://git.kernel.org/linus/d4f2d87a8b46c14c4307c690c92bd08229f66ecf|(commit)]]
+
+----
+CategoryReleases

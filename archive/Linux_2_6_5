@@ -1,0 +1,12 @@
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.5 development
+
+= 2.6.5 =
+  * Released April 4, 2004 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.5|changelog]]
+  * Adaptative lazy readahead [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=87698a351b86822dabbd8c1a34c8a6d3e62e5a77|(commit)]]
+  * CDROMREADAUDIO dma support: support DMA for extrating audio [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=6cea839a9cb769215c2a3cf2056ff1b09ea08378|(commit)]]
+  * Netpoll infrastructure [[http://lwn.net/Articles/75944|(LWN article)]]
+  * New "kref" reference counting mechanism [[http://lwn.net/Articles/75920|(LWN article)]]
+  * AIO support for reiserfs [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=71b95e3ebaa658cdb361c78b613267776957995b|(commit)]]
+  *  Read-only support for UFS2 [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=e935d5b963465e88c09896056578d8ece381dc9a|(commit)]]
+  * Display number of slab, mapped and pagetable pages in the sysrq-M output [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=53c3a164bde6946bb9ca65eb021b0cf96035b5d3|(commit)]]

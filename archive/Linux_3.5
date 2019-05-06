@@ -1,0 +1,238 @@
+#pragma section-numbers on
+#pragma keywords Linux, kernel, operating system, changes, changelog, file system, Linus Torvalds, open source, device drivers
+#pragma description Summary of the changes and new features merged in the Linux kernel during the 3.5 development cycle
+Linux 3.5 has [[https://lkml.org/lkml/2012/7/21/114|been released]] on 21 Jul 2012.
+
+'''''Summary''''': This release includes support for metadata checksums in ext4, userspace probes for performance profiling with tools like Systemtap or perf, a sandboxing mechanism that allows to filters syscalls, a new network queue management algorithm designed to fight bufferbloat, support for checkpointing and restoring TCP connections, support for TCP Early Retransmit (RFC 5827), support for Android-style opportunistic suspend, btrfs I/O failure statistics, and SCSI over Firewire and USB. Many small features and new drivers and fixes are also available.
+
+<<TableOfContents>>
+= Prominent features in Linux 3.5 =
+== ext4 metadata checksums ==
+Modern filesystems such as ZFS and Btrfs have proved that ensuring the integrity of the filesystem using checksums is a valuable feature. Ext4 has added the ability to store checksums of various metadata fields. Every time a metadata field is read, the checksum of the read data is compared with the stored checksums, if they are different it means that the medata is corrupted (note that this feature doesn't cover data, only the internal metadata structures, and it doesn't have "self-healing" capabilities). The amount of code added to implement this feature is: 1659 insertions(+), 162 deletions(-).
+
+Any ext4 filesystem can be upgraded to use checksums using the "tune2fs -O metadata_csum" command, or "mkfs -O metadata_csum" at creation time. Once this feature is enabled in a filesystem, older kernels with no checksum support will only be able to mount it in read-only mode.
+
+As far as performance impact goes, it shouldn't be noticeable for common desktop and server workloads. A mail server ffsb simulation show nearly no change. On a test doing only file creation and deletion and extent tree modifications, a performance drop of about 20 percent was measured. However, it's a workload very heavily oriented towards metadata, in most real-world workloads metadata is usually a small fraction of total IO, so unless your workload is metadata-oriented, the cost of enabling this feature should be negligible.
+
+Recommended LWN article: [[https://lwn.net/Articles/469805/|"Improving ext4: bigalloc, inline data, and metadata checksums"]]
+
+Implementation details: [[https://ext4.wiki.kernel.org/index.php/Ext4_Metadata_Checksums|Ext4 Metadata checksums]]
+
+Code: [[http://git.kernel.org/linus/e93376c20b70d1e62bb3246acd1bbe21fe58859f|(commit 1]], [[http://git.kernel.org/linus/dbe89444042ab6540bc304343cfdcbc8b95d003d|2]], [[http://git.kernel.org/linus/cc8e94fd126ab2d2e4bcb1b65c7316196f0cec8c|3]], [[http://git.kernel.org/linus/5c359a47e7d999a0ea7f397da2c15590d0a82815|4]], [[http://git.kernel.org/linus/fa77dcfafeaa6bc73293c646bfc3d5192dcf0be2|5]], [[http://git.kernel.org/linus/41a246d1ff75a95d2be3191ca6e6db139dc0f430|6]], [[http://git.kernel.org/linus/b0336e8d2108e6302aecaadd17c6c0bd686da22d|7]], [[http://git.kernel.org/linus/814525f4df50a196464ce2c7abe91f693203060f|8]], [[http://git.kernel.org/linus/a9c4731780544d52b243bf46e4dd635c67fa9f84|9]], [[http://git.kernel.org/linus/e615391896064eb5a0c760d086b8e1c6ecfffeab|10]], [[http://git.kernel.org/linus/f84891289e62a74e9b4942eaad80617368b2d778|11]], [[http://git.kernel.org/linus/0441984a3398970ab4820410b9cf4ff85bf3a6b0|12]], [[http://git.kernel.org/linus/feb0ab32a57e4e6c8b24f6fb68f0ce08efe4603c|13]], [[http://git.kernel.org/linus/01b5adcebb977bc61b64167adce6d8260c9da33c|14]], [[http://git.kernel.org/linus/d25425f8e0ed01fc0167c043aee7e619fc3f6ab2|15]], [[http://git.kernel.org/linus/7ac5990d5a3e2e465162880819cc46c6427d3b6f|16]], [[http://git.kernel.org/linus/8f888ef846d4481e24c74b4a91ece771d2bcbcb5|17]], [[http://git.kernel.org/linus/1f56c5890e3e815c6f4eabfc87a8a81f439b6f3d|18]], [[http://git.kernel.org/linus/c390087591dcbecd244c31d979ccdad49ae83364|19]], [[http://git.kernel.org/linus/3caa487f53f65fd1e3950a6b6ae1709e6c43b334|20]], [[http://git.kernel.org/linus/4fd5ea43bc11602bfabe2c8f5378586d34bd2b0a|21]], [[http://git.kernel.org/linus/42a7106de636ebf9c0b93d25b4230e14f5f2682e|22]], [[http://git.kernel.org/linus/25ed6e8a54df904c875365eebedbd19138a47328|23]], [[http://git.kernel.org/linus/2db938bee32e7469ca8ed9bfb3a05535f28c680d|24]]
+
+== Uprobes: userspace probes ==
+Uprobes, the user-space counterpart of kprobes, enables to place performance probes in any memory address of a user application, and collect debugging and performance information non-disruptively, which can be used to find performance problems. These probes can be placed dynamically in a running process, there is no need to restart the program or modify the binaries. The probes are usually managed with a instrumentation application, such as perf probe, systemtap or LTTng.
+
+A sample usage of uprobes with perf could be to profile libc's malloc() calls:
+
+    $ perf probe -x /lib64/libc.so.6 malloc -> Added new event: probe_libc:malloc    (on 0x7eac0)
+
+A probe has been created. Now, let's record the global usage of malloc across all the system during 1 second:
+
+    $ perf record -e probe_libc:malloc -agR sleep 1
+
+Now you can watch the results with the TUI interface doing "$ perf report", or watch a plain text output without the call graph info in the stdio output with "$ perf report -g flat --stdio"
+
+If you don't know which function you want to probe, you can get a list of probe-able funcions in libraries and executables using the -F parameter, for example: "$ perf probe -F -x /lib64/libc.so.6" or "$ perf probe -F -x /bin/zsh". You can use multiple probes as well and mix them with kprobes and regular PMU events or kernel tracepoints.
+
+The uprobes code is one of the longest standing out-of-the-tree patches. It originates from SystemTap and has been included for years in Fedora and RHEL kernels.
+
+Recommended LWN article: [[https://lwn.net/Articles/499190/|Uprobes in 3.5]]
+
+Code: [[http://git.kernel.org/linus/225466f1c2d816c33b4341008f45dfdc83a9f0cb|(commit 1]], [[http://git.kernel.org/linus/f3f096cfedf8113380c56fc855275cc75cd8cf55|2]], [[http://git.kernel.org/linus/2b144498350860b6ee9dc57ff27a93ad488de5dc|3]], [[http://git.kernel.org/linus/d4b3b6384f98f8692ad0209891ccdbc7e78bbefe|4]], [[http://git.kernel.org/linus/7b2d81d48a2d8e37efb6ce7b4d5ef58822b30d89|5]], [[http://git.kernel.org/linus/cbc91f71b51b8335f1fc7ccfca8011f31a717367|6]], [[http://git.kernel.org/linus/0326f5a94ddea33fa331b2519f4172f4fb387baa|7]], [[http://git.kernel.org/linus/7396fa818d6278694a44840f389ddc40a3269a9a|8]], [[http://git.kernel.org/linus/04a3d984d32e47983770d314cdb4e4d8f38fccb7|9]], [[http://git.kernel.org/linus/900771a483ef28915a48066d7895d8252315607a|10]], [[http://git.kernel.org/linus/e3343e6a2819ff5d0dfc4bb5c9fb7f9a4d04da73|11]], [[http://git.kernel.org/linus/3ff54efdfaace9e9b2b7c1959a865be6b91de96c|12]], [[http://git.kernel.org/linus/682968e0c425c60f0dde37977e5beb2b12ddc4cc|13]], [[http://git.kernel.org/linus/96379f60075c75b261328aa7830ef8aa158247ac|14]], [[http://git.kernel.org/linus/5cb4ac3a583d4ee18c8682ab857e093c4a0d0895|15)]]
+
+== Seccomp-based system call filtering ==
+Seccomp (alias for "secure computing") is a simple sandboxing mechanism added back in [[http://git.kernel.org/?p=linux/kernel/git/tglx/history.git;a=commit;h=d949d0ec9c601f2b148bed3cdb5f87c052968554|2.6.12]] that allows to transition to a state where it cannot make any system calls except a very restricted set (exit, sigreturn, read and write to already open file descriptors). Seccomp has now been extended: instead of a fixed and very limited set of system calls, seccomp has evolved into a filtering mechanism that allows processes to specify an arbitrary filter of system calls (expressed as a [[http://en.wikipedia.org/wiki/Berkeley_Packet_Filter|Berkeley Packet Filter]] program) that should be forbidden. This can be used to implement different types of security mechanisms; for example, the Linux port of the Chromium web browser [[http://src.chromium.org/viewvc/chrome/trunk/src/sandbox/linux/seccomp-bpf/|supports this feature]] to run plugins in a sandbox.
+
+The systemd init daemon has [[https://plus.google.com/115547683951727699051/posts/cb3uNFMNUyK|added support]] for this feature. A Unit file can use the SystemCallFilter to specify a list with the syscalls that will be allowed to run, any other syscall will not be allowed:
+
+{{{
+[Service]
+ExecStart=/bin/echo "I am in a sandbox"
+SystemCallFilter=brk mmap access open fstat close read fstat mprotect arch_prctl munmap write}}}
+
+Recommended links: [[http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=blob;f=Documentation/prctl/seccomp_filter.txt;hb=HEAD|Documentation]] and [[http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=tree;f=samples/seccomp;hb=HEAD|Samples]]).
+
+Recommended LWN article: [[https://lwn.net/Articles/475043/|Yet another new approach to seccomp]]
+
+Code: [[http://git.kernel.org/linus/e2cfabdfd075648216f99c2c03821cf3f47c1727|(commit 1]], [[http://git.kernel.org/linus/fb0fadf9b213f55ca9368f3edafe51101d5d2deb|2]], [[http://git.kernel.org/linus/bb6ea4301a1109afdacaee576fedbfcd7152fc86|3]], [[http://git.kernel.org/linus/acf3b2c71ed20c53dc69826683417703c2a88059|4]], [[http://git.kernel.org/linus/c6cfbeb4029610c8c330c312dcf4d514cc067554|5)]]
+
+== Bufferbloat fighting: CoDel queue management ==
+Codel (alias for "controlled delay") is a new queue management algorithm designed to fight the problems associated to excessive buffering across an entire network path - a problem know as "bufferbloat". [[http://gettys.wordpress.com/2012/05/22/a-milestone-reached-codel-is-in-linux/|According to Jim Gettys]], who coined the term bufferbloat, "this work is the culmination of their at three major attempts to solve the problems with AQM algorithms over the last 14 years"
+
+ACM paper detailing the algorithm, by Kathleen Nichols and Van Jacobson: [[http://queue.acm.org/detail.cfm?id=2209336|Controlling Queue Delay]]
+
+Codel bufferbloat project page: http://www.bufferbloat.net/projects/codel/wiki
+
+Recommended LWN article: [[https://lwn.net/Articles/496509/|The CoDel queue management algorithm]]
+
+Code: [[http://git.kernel.org/linus/76e3cc126bb223013a6b9a0e2a51238d1ef2e409|(commit 1]], [[http://git.kernel.org/linus/4b549a2ef4bef9965d97cbd992ba67930cd3e0fe|2)]]
+
+== TCP connection repair ==
+As part of an ongoing effort to implement [[http://criu.org|process checkpointing/restart]], Linux adds in this release support for stopping a TCP connection and restart it in another host. Container virtualization implementations will use this feature to relocate a entire network connection from one host to another transparently for the remote end. This is achieved putting the socket in a "repair" mode that allows to gather the necessary information or restore previous state into a new socket.
+
+Documentation: http://criu.org/TCP_connection
+
+Recommended LWN article: [[https://lwn.net/Articles/495304/|TCP connection repair]]
+
+Code: [[http://git.kernel.org/linus/ee9952831cfd0bbe834f4a26489d7dce74582e37|(commit 1]], [[http://git.kernel.org/linus/370816aef0c5436c2adbec3966038f36ca326933|2]], [[http://git.kernel.org/linus/b139ba4e90dccbf4cd4efb112af96a5c9e0b098c|3]], [[http://git.kernel.org/linus/c0e88ff0f256958401778ff692da4b8891acb5a9|4]], [[http://git.kernel.org/linus/5e6a3ce6573f0c519d1ff57df60e3877bb2d3151|5)]]
+
+== TCP Early Retransmit ==
+TCP (and STCP) Early Retransmit ([[http://tools.ietf.org/html/rfc5827|RFC 5827]]) allows to trigger fast retransmit, in certain conditions, to reduce the number of duplicate acknowledgments required to trigger a fast retransmission. This allows the transport to use fast retransmit to recover segment losses that would otherwise require a lengthy retransmission timeout. In other words, connections recover from lost packets faster, which improves latency. A large scale web server experiment on the performance impact of ER is summarized in section 6 of the paper "[[http://conferences.sigcomm.org/imc/2011/docs/p155.pdf|Proportional Rate Reduction for TCP]]"
+
+Early retransmit is enabled with the tcp_early_retrans sysctl, found at /proc/sys/net/ipv4/tcp_early_retrans. It accepts three values: "0" (disables early retransmit), "1" (enables it), and "2", the default one, which enables early retransmit but delays fast recovery and fast retransmit by a fourth of the RTT (this mitigates connection falsely recovers when network has a small degree of reordering)
+
+Code: [[http://git.kernel.org/linus/eed530b6c67624db3f2cf477bac7c4d005d8f7ba|(commit 1]], [[http://git.kernel.org/linus/750ea2bafa55aaed208b2583470ecd7122225634|2]], [[http://git.kernel.org/linus/1fbc340514fc3003514bd681b372e1f47ae6183f|3)]]
+
+== Android-style opportunistic suspend ==
+The most controversial issue in the merge of Android code into Linux is the functionality called "suspend blockers" or "wakelocks". They are part of a specific approach to power management, which is based on aggressive utilization of full system suspend as much as possible. The natural state of the system is a sleep state, in which energy is only used for refreshing memory and providing power to a few devices that can wake the system up. The system only uses the full power state when it has to do some real work, and when it finishes it goes back to a suspend state.
+
+This is a good idea, but the kernel developers didn't like Android's "suspend blockers" (a full technical analysis on the issue can be found [[https://lwn.net/images/pdf/suspend_blockers.pdf|here]]). Endless flames have been going on for years, and little progress was been made, which was a huge problem for the convergence of Android and Linux, because drivers of Android devices use the suspend blocker APIs, and the lack of such APIs in Linux makes impossible to merge them. But in this release, the kernel incorporates a similar functionality, called "autosleep and wake locks". It is expected/hoped that Android will be able to use it, and merging drivers from Android devices will be easier.
+
+Recommended LWN article: [[https://lwn.net/Articles/479841/|Autosleep and wake locks]]
+
+Code: [[http://git.kernel.org/linus/55850945e872531644f31fefd217d61dd15dcab8|(commit 1]], [[http://git.kernel.org/linus/b86ff9820fd5df69295273b9aa68e58786ffc23f|2]], [[http://git.kernel.org/linus/30e3ce6dcbe3fc29c343b17e768b07d4a795de21|3]], [[http://git.kernel.org/linus/7483b4a4d9abf9dcf1ffe6e805ead2847ec3264e|4)]]
+
+== Btrfs: I/O failure statistics, latency improvements ==
+Support for I/O failure statistics has been added. I/O errors, CRC errors, and generation checks of metadata blocks are tracked for each drive. The Btrfs command to retrieve and print the device stats, to be included in future btrfs-progs, should be "btrfs device stats".
+
+This release also includes fairly large changes that make Btrfs much friendly to memory reclaim and lowers latencies quite a lot for synchronous I/O.
+
+Code: [[http://git.kernel.org/linus/442a4f6308e694e0fa6025708bd5e4e424bbf51c|(commit 1]], [[http://git.kernel.org/linus/c11d2c236cc260b36ef644700fbe99bcc7e7da33|2]], [[http://git.kernel.org/linus/733f4fbbc1083aa343da739f46ee839705d6cfe3|3)]]
+
+== SCSI over FireWire and USB ==
+This release includes a driver for using an IEEE-1394 connection as a SCSI transport. This enables to expose SCSI devices to other nodes on the Firewire bus, for example hard disk drives. It's a similar functionality to Firewire [[http://en.wikipedia.org/wiki/Target_Disk_Mode|Target Disk Mode]] on many Apple computers.
+
+This release also adds a usb-gadget driver that does the same with USB. The driver supports two USB protocols are supported that is BBB or BOT (Bulk Only Transport) and UAS (USB Attached SCSI). BOT is advertised on alternative interface 0 (primary) and UAS is on alternative interface 1. Both protocols can work on USB 2.0 and USB 3.0. UAS utilizes the USB 3.0 feature called streams support.
+
+Code: [[http://git.kernel.org/linus/a511ce3397803558a3591e55423f3ae6aa28c9db|(commit)]], [[http://git.kernel.org/linus/c52661d60f636d17e26ad834457db333bd1df494|(commit)]]
+
+= Driver and architecture-specific changes =
+All the driver and architecture-specific changes can be found in the [[http://kernelnewbies.org/Linux_3.5_DriverArch|Linux_3.5_DriverArch page]]
+
+= Various core changes =
+ * Structured logging in /dev/kmsg [[http://git.kernel.org/linus/e11fea92e13fb91c50bacca799a6131c81929986|(commit 1]], [[http://git.kernel.org/linus/3b552b92817c63fdccfe9d5f3ce7424b57e9ee8f|2]], [[http://git.kernel.org/linus/7ff9554bb578ba02166071d2d487b7fc7d860d62|3]], [[http://git.kernel.org/linus/eb02dac93708f581c99858a19162af8ca2b6bfcb|4]], [[http://git.kernel.org/linus/43a73a50b352cd3df25b3ced72033942a6a0f919|5]], [[http://git.kernel.org/linus/5becfb1df5ac8e491338e64b1029685ccad4b39c|6)]]
+ * Introduce /proc/<pid>/task/<tid>/children entry, which provides information about task children. This is useful for process checkpointing/restore [[http://git.kernel.org/linus/818411616baf46ceba0cff6f05af3a9b294734f7|(commit)]]
+ * Report file/anon bit in /proc/pid/pagemap [[http://git.kernel.org/linus/052fb0d635df5d49dfc85687d94e1a87bf09378d|(commit)]]
+ * Add skew_tick boot option: offsets the periodic timer tick per CPU to mitigate xtime_lock contention on larger systems, and/or RCU lock contention on all systems with CONFIG_MAXSMP set. It increases power consumption, thus should only be enabled if running jitter sensitive (HPC/RT) workloads [[http://git.kernel.org/linus/5307c9556bc17e3cd26d4e94fc3b2565921834de|(commit)]]
+ * microoptimization: move inode stat information closer together [[http://git.kernel.org/linus/2f9d3df8aa1cc3c6db5cfa0bad3f0745e04cc27d|(commit)]]
+ * fuse: add fallocate() operation [[http://git.kernel.org/linus/05ba1f0823004e947748523782e9c2f07f3bff0d|(commit)]]
+ * process scheduler: remove stale power aware scheduling remnants and dysfunctional knobs [[http://git.kernel.org/linus/8e7fbcbc22c12414bcc9dfdd683637f58fb32759|(commit)]]
+ * epoll(): Add a flag, EPOLLWAKEUP, to prevent suspend while epoll events are ready [[http://git.kernel.org/linus/4d7e30d98939a0340022ccd49325a3d70f7e0238|(commit)]]
+
+ * Add Apple NLS (Native Language Support) tables [[http://git.kernel.org/linus/71ca97da9d027009d318d319cbacf54a72f666c1|(commit)]]
+ * ramoops: use pstore interface [[http://git.kernel.org/linus/9ba80d99c86f1b76df891afdf39b44df38bbd35b|(commit)]], add ECC support [[http://git.kernel.org/linus/39eb7e9791866973dbb7a3a6d2061d70356c7d90|(commit)]]
+ * Connect tools/ to the kernel build system. "make tools/<toolname>" will build the project [[http://git.kernel.org/linus/ea01fa9f63aeff3ac918868217aa94adf76ddcc7|(commit)]]
+
+ * RCU locking
+  * Reduce cache-miss initialization latencies for large systems introducing a new kernel parameter named RCU_FANOUT_LEAF that directly controls the leaf-level fanout [[http://git.kernel.org/linus/8932a63d5edb02f714d50c26583152fe0a97a69c|(commit)]]
+  * Direct algorithmic SRCU implementation [[http://git.kernel.org/linus/cef50120b61c2af4ce34bc165e19cad66296f93d|(commit)]]
+  * Implement a variant of Peter's SRCU algorithm [[http://git.kernel.org/linus/b52ce066c55a6a53cf1f8d71308d74f908e31b99|(commit)]]
+ * IPC mqueue
+  * Add rbtree node caching support, it improves the case where the queue is empty [[http://git.kernel.org/linus/ce2d52cc1364a22fc1a161781e60ee3cbb499a6d|(commit)]]
+  * Improve performance of send/recv [[http://git.kernel.org/linus/d6629859b36d953a4b1369b749f178736911bf10|(commit)]]
+  * Update maximums for the mqueue subsystem [[http://git.kernel.org/linus/5b5c4d1a1440e94994c73dddbad7be0676cd8b9a|(commit)]]
+
+= Memory Management =
+ * Frontswap support. Frontswap is so named because it can be thought of as the opposite of a "backing" store for a swap device.  The data is stored into "[[https://lwn.net/Articles/454795/|transcendent memory]]", memory that is not directly accessible or addressable by the kernel and is of unknown and possibly time-varying size.  When space in transcendent memory is available, a significant swap I/O reduction may be achieved.  When none is available, all frontswap calls are reduced to a single pointer-compare-against-NULL resulting in a negligible performance hit and swap data is stored as normal on the matching swap device [[http://git.kernel.org/linus/c3ba9698152b17fdc2c7cd0f7cbeb571e3367e9d|(commit 1]], [[http://git.kernel.org/linus/27c6aec214264992603526d47da9dabddf3521b3|2]], [[http://git.kernel.org/linus/29f233cfffe7fbc6672938117ce7e4154a2f515f|3]], [[http://git.kernel.org/linus/38b5faf4b178d5279b1fca5d7dadc68881342660|4)]]
+ * Add a Contiguous Memory Allocator (recommended LWN article: [[https://lwn.net/Articles/486301/|A deep dive into CMA]]). This is a memory allocator that attempts to provide big contiguous allocations of memory. It operates on memory regions where only movable pages can be allocated from. This way, kernel can use the memory for pagecache and when device driver requests [[http://git.kernel.org/linus/c64be2bb1c6eb43c838b2c6d57b074078be208dd|(commit)]]
+ * Remove swap token code and lumpy reclaim: they no longer fit in the current VM model [[http://git.kernel.org/linus/e709ffd6169ccd259eb5874e853303e91e94e829|(commit)]], [[http://git.kernel.org/linus/c53919adc045bf803252e912f23028a68525753d|(commit)]]
+
+= Block =
+ * dm thin target: provide userspace access to pool metadata [[http://git.kernel.org/linus/cc8394d86f045b86ff303d3c9e4ce47d97148951|(commit)]]
+ * dm thin: use dedicated slab caches prefixed with a "dm_" name rather than relying on kmalloc mempools backed by generic slab caches [[http://git.kernel.org/linus/a24c25696b7133dd534d7a9436e576af79d9ce3b|(commit)]]
+ * raid5: add AVX optimized RAID5 checksumming [[http://git.kernel.org/linus/ea4d26ae24e58fbd2c61de9242adab053cb982d8|(commit)]]
+ * raid6: Add SSSE3 optimized recovery functions [[http://git.kernel.org/linus/048a8b8c89dc427dd7a58527c8923224b1e66d83|(commit)]]
+ * md: allow a reshape operation to be reversed. [[http://git.kernel.org/linus/2c810cddc44d6f95cef75df3f07fc0850ff92417|(commit)]]
+ * raid10: add reshape support [[http://git.kernel.org/linus/3ea7daa5d7fde47cd41f4d56c2deb949114da9d6|(commit)]]
+
+= Perf/tracing =
+ * Create libtraceevent.a [[http://git.kernel.org/linus/f7d82350e597d76dc8765a55c7849843395728b0|(commit)]], [[http://git.kernel.org/linus/aaf045f72335653b24784d6042be8e4aee114403|(commit)]]
+ * annotate browser
+  * Support for navigating jump instructions [[http://git.kernel.org/linus/08be4eeda40ea813fa326036fdaf8fa7667eb021|(commit)]]
+  * loop detection [[http://git.kernel.org/linus/a3f895be1f1ed17f66e6e71adeef0cc7f937512c|(commit)]]
+  * string search [[http://git.kernel.org/linus/d3d1f61acf62204bb7b2b4509329247bffaedd7c|(commit)]]
+  * Allow printing objdump line addr in different color [[http://git.kernel.org/linus/058b4cc9af574c072988a38a7a5ee93df881e5aa|(commit)]]
+
+= Virtualization =
+ * KVM: Introduce direct MSI message injection for in-kernel irqchips [[http://git.kernel.org/linus/07975ad3b30579ca27d880491ad992326b930c63|(commit)]]
+
+= Security =
+ * SELinux
+  * Add default_type statements [[http://git.kernel.org/linus/eed7795d0a2c9b2e934afc088e903fa2c17b7958|(commit)]]
+  * Allow default source/target selectors for user/role/range [[http://git.kernel.org/linus/aa893269de6277b44be88e25dcd5331c934c29c4|(commit)]]
+  * Allow seek operations on the file exposing policy [[http://git.kernel.org/linus/47a93a5bcb131879d4425d4559e90ad82990825d|(commit)]]
+  * Audit failed attempts to set invalid labels [[http://git.kernel.org/linus/d6ea83ec6864e9297fa8b00ec3dae183413a90e3|(commit)]]
+  * Check OPEN on truncate calls [[http://git.kernel.org/linus/95dbf739313f09c8d859bde1373bc264ef979337|(commit)]]
+ * Smack
+  * Allow for significantly longer Smack labels v4 [[http://git.kernel.org/linus/f7112e6c9abf1c70f001dcf097c1d6e218a93f5c|(commit)]]
+  * Recursive tramsmute [[http://git.kernel.org/linus/2267b13a7cad1f9dfe0073c1f902d45953f9faff|(commit)]]
+ * TOMOYO: Accept manager programs which do not start with / . [[http://git.kernel.org/linus/77b513dda90fd99bd1225410b25e745b74779c1c|(commit)]]
+ * Yama: add additional ptrace scopes [[http://git.kernel.org/linus/389da25f93eea8ff64181ae7e3e87da68acaef2e|(commit)]]
+ * KEYS: Add support for invalidating a key [[http://git.kernel.org/linus/fd75815f727f157a05f4c96b5294a4617c0557da|(commit)]]
+
+= Networking =
+ * mac802154: hardware-independent IEEE 802.15.4 networking stack for SoftMAC devices (the ones implementing only PHY level of IEEE 802.15.4 standard) [[http://git.kernel.org/linus/1cd829c83eab8b899b85d597c767fcf8b4cf8fd6|(commit 1]], [[http://git.kernel.org/linus/5b641ebeec348761c9ebac9454c672d4d2d3ef91|2]], [[http://git.kernel.org/linus/1010f540181b00c7013eeb04d1bf8aedd5a56835|3]], [[http://git.kernel.org/linus/6e2128d42af43906d8bcbed7cf2207244fa4301e|4]], [[http://git.kernel.org/linus/0afd7ad9de6b85c0f7ad9edf787de854c8e2fbb5|5]], [[http://git.kernel.org/linus/ef2486f5538b886ad4f0d1ac0857b518291b48f7|6]], [[http://git.kernel.org/linus/74a02fcf77dd760176418e1641a8624b26b357a2|7]] ,[[http://git.kernel.org/linus/0606069d9ef538687957d41ed6387d665af7a643|8]], [[http://git.kernel.org/linus/4d23c9cc075e778584aa74da402f6bf968ad92b7|9]], [[http://git.kernel.org/linus/62610ad21870a8cf842d4a48f07c3a964e1d2622|10)]]
+ * TCP microoptimization: 10Gb+ TCP sender was dropping lot of incoming ACKs because of sk_rcvbuf limit in sk_add_backlog() [[http://git.kernel.org/linus/da882c1f2ecadb0ed582628ec1585e36b137c0f0|(commit)]]
+ * team: add binary option type [[http://git.kernel.org/linus/2615598fc100451c71b83d06bdf5faead619a40e|(commit)]], add loadbalance mode [[http://git.kernel.org/linus/01d7f30a9f962573b6c91ed520c73fb30658d826|(commit)]], add per-port option for enabling/disabling ports [[http://git.kernel.org/linus/acd69962341a956b5bcc5b4178b70fa527d7ce11|(commit)]], add support for per-port options [[http://git.kernel.org/linus/80f7c6683fe0e891ef1db7c967d538b5fdddd22c|(commit)]], allow to enable/disable ports [[http://git.kernel.org/linus/19a0b58e506b06fd41659d8734bba6a3e87980f4|(commit)]]
+ * Infiniband: Add raw packet QP type [[http://git.kernel.org/linus/c938a616aadb621b8e26b0ac09ac13d053c7ed1c|(commit)]]
+ * ipv6: treat ND option 31 as userland (DNSSL support) [[http://git.kernel.org/linus/e35f30c131a562bafd069820a6983fd4023e606e|(commit)]]
+ * 6lowpan: IPv6 link-local address [[http://git.kernel.org/linus/06a4c1c55dbe5d9f7a708e8f1a52fd2ac8e5874f|(commit)]]
+ * batman-adv: add basic bridge loop avoidance code [[http://git.kernel.org/linus/23721387c409087fd3b97e274f34d3ddc0970b74|(commit)]], [[http://git.kernel.org/linus/7a5cc24277b57ce38eb0afa6634b71d4d5cc671e|(commit)]], remove old bridge loop avoidance code [[http://git.kernel.org/linus/a7f6ee9493677ba40625d810258de5bd521cc1b0|(commit)]]
+ * caif: set traffic class for CAIF packets [[http://git.kernel.org/linus/447648128ec22e294604674ffe1064aa3ec3b767|(commit)]]
+ * Add generic PF_BRIDGE:RTM_ FDB hooks [[http://git.kernel.org/linus/77162022ab26a1f99d3af30c03760a76f86e193d|(commit)]]
+ * pktsched: netem: add ECN capability [[http://git.kernel.org/linus/e4ae004b84b315dd4b762e474f97403eac70f76a|(commit)]]
+ * Delete all instances of special processing for token ring [[http://git.kernel.org/linus/211ed865108e24697b44bee5daac502ee6bdd4a4|(commit)]], [[http://git.kernel.org/linus/ee446fd5e6dafee4a16fd1bd345d2571dcfd6f5d|(commit)]]
+ * econet: remove ancient bug-ridden protocol [[http://git.kernel.org/linus/349f29d841dbae854bd7367be7c250401f974f47|(commit)]]
+ * dcb: Add an optional max rate attribute [[http://git.kernel.org/linus/08f10affe45051e18e0d8291c0a53aecef1b8a14|(commit)]], add CEE notify calls [[http://git.kernel.org/linus/081579840b4b2421e37bc67e3b089b7ca64ef040|(commit)]]
+
+ * 802.11 (Wireless)
+  * Implement mesh synchronization framework (Sec. 13.13.2 of IEEE Std. 802.11-2012) [[http://git.kernel.org/linus/dbf498fbafa2c23139d5a990e94ed78bafbbea19|(commit)]], [[http://git.kernel.org/linus/d299a1f21ea7ffd5114d099b2f92c867c495e8b3|(commit)]]
+  * cfg80211: support ethtool stats. [[http://git.kernel.org/linus/d61992182e41e1beec0507fd7bce4ba1face12d6|(commit)]], [[http://git.kernel.org/linus/3073a7c20cea0b7a9946fe61f09d43aa61deb9ea|(commit)]]
+  * Implement HT mixed protection mode [[http://git.kernel.org/linus/57aac7c51c07ca7a2361477f352af422259301bd|(commit)]]
+  * Support on-channel scan option. [[http://git.kernel.org/linus/8a690674e0601efbe9a7b16a5826fc522645cca3|(commit)]]
+ * Netfilter
+  * Add xt_hmark target for hash-based skb marking [[http://git.kernel.org/linus/cf308a1fae432f315989e2da6878bfaa3daa22b1|(commit)]]
+  * bridge: optionally set indev to vlan [[http://git.kernel.org/linus/4981682cc19733f3ca43d3abd81dd4adbc9005d5|(commit)]]
+  * hashlimit: byte-based limit mode [[http://git.kernel.org/linus/0197dee7d3182bb6b6a21955860dfa14fa022d84|(commit)]]
+  * ipvs: add support for sync threads [[http://git.kernel.org/linus/f73181c8288fc38747ec4f0f3e8a9052ab785cd5|(commit)]]
+  * Remove ip_queue support [[http://git.kernel.org/linus/d16cf20e2f2f13411eece7f7fb72c17d141c4a84|(commit)]]
+ * L2TP
+  * Add support for L2TP over IPv6 UDP [[http://git.kernel.org/linus/d2cf3361677e5bb5d01d45052212b7050a9aa8c4|(commit)]]
+  * Introduce L2TPv3 IP encapsulation support for IPv6 [[http://git.kernel.org/linus/a32e0eec7042b21ccb52896cf715e3e2641fed93|(commit)]]
+  * Netlink api for l2tpv3 IPv6 unmanaged tunnels [[http://git.kernel.org/linus/f9bac8df908d7c0a36960265c92f3445623b19d1|(commit)]]
+ * NFC
+  * HCI support [[http://git.kernel.org/linus/8b8d2e08bf0d50193931afd27482a59376b66b2b|(commit)]]
+  * SHDLC link layer for HCI-based NFC drivers [[http://git.kernel.org/linus/eb738fe535ae8e44402c372ecc1321eee0552a09|(commit)]]
+
+= File systems =
+ * Btrfs
+  * Make integrity checker support metadata blocks bigger than 4KB [[http://git.kernel.org/linus/e06baab4184509bdfddd294efc6cae7a410c6f07|(commit)]]
+  * tuning: allow changing 'thread_pool' size at remount time [[http://git.kernel.org/linus/0d2450abfa359ff94a2bee64a7daeba68c346c81|(commit)]]
+
+ * Tmpfs
+  * Support fallocate() preallocation [[http://git.kernel.org/linus/e2d12e22c59ce714008aa5266d769f8568d74eac|(commit)]]
+  * Support fallocate() FALLOC_FL_PUNCH_HOLE [[http://git.kernel.org/linus/83e4fa9c16e4af7122e31be3eca5d57881d236fe|(commit)]]
+
+ * XFS
+  * Introduce lseek(2) SEEK_DATA/SEEK_HOLE support [[http://git.kernel.org/linus/3fe3e6b18216c1247497dfd51c35484338856e1b|(commit)]]
+
+ * CIFS
+  * Introduce SMB2 mounts as vers=2.1 [[http://git.kernel.org/linus/1080ef758fb87f286b25277d8373e680a9e73363|(commit)]]
+
+ * JFFS2
+  * Add parameter to reserve disk space for root [[http://git.kernel.org/linus/8da8ba2ea6ad52ea8558384f38586b0c1a516e9d|(commit)]]
+
+ * exofs
+  * Add sysfs info for autologin/pNFS export [[http://git.kernel.org/linus/8b56a30caaf9bc1850784f196636c5f550cc7577|(commit)]]
+
+ * Cifs
+  * Add a cache= option to better describe the different cache flavors [[http://git.kernel.org/linus/15b6a47322940beb74a83ffc1632c1ee1d00f35b|(commit)]]
+
+= Other news sites that track the changes of this release =
+ * LWN [[https://lwn.net/Articles/498116/|week 1]], [[https://lwn.net/Articles/498693/|week 2]] and [[https://lwn.net/Articles/500212/|week 3]]
+ * H-Online part [[http://www.h-online.com/open/features/Kernel-Log-Coming-in-Linux-3-5-Part-1-Networking-1625047.html|1 - Networking]], part [[http://www.h-online.com/open/features/Kernel-Log-Coming-in-3-5-Part-2-Filesystems-and-storage-1630816.html|2 - filesystems and storage]], part [[http://www.h-online.com/open/features/Kernel-Log-Coming-in-3-5-Part-3-Architecture-1634054.html|3 - architecture]], part [[http://www.h-online.com/open/features/Kernel-Log-Coming-in-3-5-Part-4-Drivers-1635851.html|4 - drivers]], part [[http://www.h-online.com/open/features/Kernel-Log-Coming-in-3-5-Part-5-Infrastructure-1635017.html|5 - infrastructure]]
+ * Phoronix: [[http://www.phoronix.com/scan.php?page=news_item&px=MTE0MjA|The Best Features Of The Linux 3.5 Kernel]]
+
+----
+ CategoryReleases

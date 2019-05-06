@@ -1,0 +1,207 @@
+#pragma section-numbers on
+#pragma keywords Linux, kernel, operating system, changes, changelog, file system, Linus Torvalds, open source, device drivers
+#pragma description Summary of the changes and new features merged in the Linux kernel during the 3.4 development cycle
+
+Linux 3.4 has been [[https://lkml.org/lkml/2012/5/20/126|released]] on 20 May, 2012.
+
+'''''Summary''''': This release includes several Btrfs updates: support of metadata blocks bigger than 4KB, much improved metadata performance, better error handling and better recovery tools; there is also a new X32 ABI which allows to run programs in 64-bit mode with 32-bit pointers; several updates to the GPU drivers: early modesetting of Nvidia !GeForce 600 'Kepler', support of AMD Radeon 7xxx and AMD Trinity APU series, and support of Intel Medfield graphics;  there is also support of x86 CPU driver autoprobing, a device-mapper target that stores cryptographic hashes of blocks to check for intrusions, another target to use external read-only devices as origin source of a thin provisioned LVM volume, several perf improvements such as GTK2 report GUI and a new 'Yama' security module. There are also many small features and new drivers and fixes are also available.
+
+<<TableOfContents>>
+= Prominent features in Linux 3.4 =
+== Btrfs updates ==
+This release has many Btrfs updates. Recommended video from Chris Mason, "[[http://linuxfoundation.ubicast.tv/videos/btrfs-filesystem-status-and-new-features/|Btrfs status and new features]]" (video file in [[http://d17mmld7179ppq.cloudfront.net/btrfs-filesystem-status-and-new-features_7007df/hd_ready.webm|webm]], and [[http://d17mmld7179ppq.cloudfront.net/btrfs-filesystem-status-and-new-features_7007df/hd_ready.mp4|h.264]] format)
+
+=== Btrfs: Repair and data recovery tools ===
+A new data recovery tool ([[https://btrfs.wiki.kernel.org/index.php/Restore|btrfs-restore]]) is available. This program doesn't attempts to repair the filesystem, it only tries to pull files from damaged filesystems and copy them to a safe location. Also, the Btrfs filesystem checker (aka fsck) can now repair extent allocation tree corruptions (more repair modes in progress).
+
+=== Btrfs: Metadata blocks bigger than 4KB ===
+Btrfs was designed from the start to support blocks of multiple sizes, but the code wasn't ready and was disabled, so the Btrfs filesystems used as block size the size of a memory page (4KB in x86). In this version, support for metadata blocks bigger than a page size has been re-enabled, so Btrfs can use metadata blocks of up to 64KB in size (16/32KB seem to work better and are recommended). Support is enabled at mkfs time (f.e. mkfs.btrfs -l 32K). These block sizes cut down the size of the extent allocation tree dramatically and fragments much less. Code: [[http://git.kernel.org/linus/727011e07cbdf87772fcc1999cccd15cc915eb62|(commit 1]], [[http://git.kernel.org/linus/b5d67f64f9bc656970dacba245410f0faedad18e|2)]]
+
+=== Btrfs: Performance improvements ===
+Btrfs has improved the performance in several areas. The bigger metadata blocks alone give Btrfs a performance gain, as the extent allocation tree overhead and metadata fragmentation is greatly reduced. But there are other performance improvements: The way Btrfs works with the Linux page cache has been reworked and it's now much faster. CPU usage has been reduced. Also, the copy-on-write mechanisms didn't play well with the Linux VM and forced Btrfs to do many more reads than it should, further tuning has been done to prevent that.
+
+As result of these improvements, the performance of metadata workloads is much faster. In a benchmark consisting in creating 32 million empty files, Btrfs created 170.000 files per second, whereas ext4 and XFS created 110.000 files/second and 115.000 files/second respectively. I/O graphs comparing Btrfs [[https://plus.google.com/photos/105274031445877094012/albums/5725819775428547617/5725819775250665666|performance in 3.3]] and [[https://plus.google.com/photos/105274031445877094012/albums/5725820959365950049/5725821050029040946|performance in 3.4]]. Code: [[http://git.kernel.org/linus/3083ee2e18b701122a3b841db83448543a87a583|(commit)]],  [[http://git.kernel.org/linus/5df4235ea15bd39f441ef334d8329b3d46b2cc57|(commit)]], [[http://git.kernel.org/linus/4f2de97acee6532b36dd6e995b858343771ad126|(commit)]], [[http://git.kernel.org/linus/cfed81a04eb555f5606d1b6a54bdbabab0ee1ac3|(commit)]], [[http://git.kernel.org/linus/0b32f4bbb423f02acee6d43cd442f5f0775db7e0|(commit)]]
+
+=== Btrfs: Better error handling ===
+Many places of the Btrfs codebase weren't reliable (not because the data could be harmed, the filesystem is designed to keep the data always safe), but because many code functions didn't handle unexpected conditions, instead they would just stop the system by panic'ing it. In this version, Btrfs has been audited to handle these situations correctly: When one of those unexpected errors happens, the current transactions will be aborted, errors will be returned to the userspace callers, and the filesystem will enter in read-only mode, as it is the tradition in Linux. Code: [[http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=9613bebb223dea3179c265dc31e1bb41ae39f321|(commit)]].
+
+== GPU drivers ==
+=== GPU: Early support of Nvidia GeForce 600 'Kepler' ===
+Nvidia announced new Kepler GPUs (!GeForce 600 Series) on 22 March, and that was the day the Nouveau team asked to get basic modesetting support (no 3D, etc) for it merged in the main kernel. A quote from a Nouveau developer: "Its quite amazing that nouveau can support a GPU on its launch day even if its just unaccelerated modesetting". [[http://nouveau.freedesktop.org/wiki/NVC0_Firmware|External firmware]] and updated graphic software stack are required. Code: [[http://git.kernel.org/linus/ba331d5decbfe1cc8b1bf10fb7005f4b972c4f0e|(commit)]]
+
+The Nouveau driver has also been "unstaged" and now it's considered ready for widespread use.
+
+=== GPU: Support for AMD Radeon 7xxx and Trinity APU series ===
+The newest GPU and APUs from AMD (Radeon 7xxx and Trinity APU series) are supported in this version. Code: [[http://git.kernel.org/linus/09fa30226130652af75152d9010c603c66d46f6e|(commit)]]
+
+=== GPU: Support of Intel Medfield graphics ===
+This release adds experimental support for the GMA500 Medfield graphics. Medfield is a embedded architecture targeted for smartphones. Code: [[http://git.kernel.org/linus/026abc333205c1fff80138b8c2cac3d0347685f4|(commit)]]
+
+== New X32 ABI: 64-bit mode with 32-bit pointers ==
+The 64 bits mode of x86 CPUs enlarges the CPU registers to 64 bit, allowing to address larger (>4GB) amounts of memory. This widening, however, has a drawback. Because memory addresses are 64-bit wide, pointers occupy 64 bits of space, the double of space used in 32 bits mode, so binaries compiled for the 64-bit mode are bigger, and when these programs run they use more RAM. And since they are bigger they can cause a performance loss, because with bigger memory addresses, less CPU instructions will fit in the CPU caches.
+
+Some programs have workloads CPU and pointer intensive enough to care about this performance, but with memory requirements not big enough to care about 64-bit memory addressing. They can avoid the 64-bit pointer overhead by just using the 32 bits mode: Processors still allow to run 32-bit operative systems, or run 32-bit programs on top of 64-bit kernels. But this choice also has problems. When a program runs in 32-bit mode, it loses all the other features of the 64-bit mode: larger number of CPU registers, better floating-point performance, faster PIC (position-independent code) shared libraries, function parameters passed via registers, faster syscall instruction...
+
+So a new X32 kernel ABI has been created. A program compiled for this new ABI can run in the 64-bit mode, with all its features, but it uses 32 bits pointers and 32-bit long C type. So applications who need it can enjoy the performance of the 64-bit mode, but with the memory requirements of a 32 bits ABI. Code: [[http://git.kernel.org/linus/a591afc01d9e48affbacb365558a31e53c85af45|(commit)]]
+
+Recommended LWN article: [[https://lwn.net/Articles/456731/|The x32 system call ABI]]
+
+Slides from the developers: [[http://www.linuxplumbersconf.net/2011/ocw//system/presentations/531/original/x32-LPC-2011-0906.pptx|link]]
+
+Official X32 coordination site: http://sites.google.com/site/x32abi
+
+== x86 CPU driver autoprobing ==
+There's a growing number of drivers that support a specific x86 feature or CPU. Currently loading these drivers currently on a generic distribution requires various driver specific hacks and it often doesn't work. For example a common issue is not loading the SSE 4.2 accelerated CRC module: this can significantly lower the performance of Btrfs which relies on fast CRC. Another issue is loading the right CPUFREQ driver for the current CPU. Currently distributions often try all all possible driver until one sticks, which is not really a good way to do this.
+
+Linux already has autoprobing mechanisms for drivers, based in kernel notifications and udev. In this release, Linux adds auto probing support for CPU drivers, based on the x86 CPUID information, in particular based on vendor/family/model number and also based on CPUID feature bits. Code: [[http://git.kernel.org/linus/644e9cbbe3fc032cc92d0936057e166a994dc246|(commit 1)]], [[http://git.kernel.org/linus/3bd391f056df61e928de1680ff4a3e7e07e5b399|2]], [[http://git.kernel.org/linus/b66b8b9a4a79087dde1b358a016e5c8739ccf186|3]], [[http://git.kernel.org/linus/9061e0e16700ef228837e96987ff51794c956197|4]], [[http://git.kernel.org/linus/267fc9788d0cdb77edafb506063f06961e1418f5|5]], [[http://git.kernel.org/linus/9b38096fde5f9b93c3657911c3be7892cc155cbd|6]], [[http://git.kernel.org/linus/fa8031aefec0cf7ea6c2387c93610d99d9659aa2|7]], [[http://git.kernel.org/linus/78ff123b05fb15beb1ad670372eea0d299d0b8af|8]], [[http://git.kernel.org/linus/fad12ac8c8c2591c7f4e61d19b6a9d76cd49fafa|9)]]
+
+== Verifiable boot path with the device mapper "verity" target ==
+The device-mapper's "verity" target allows to use a device to store cryptographic hashes of the blocks of a filesystem. This device can be used to check every read attempt to the filesystem, and if the hash of the block doesn't match with the hash of the filesystem, the read fails. This target is used by products such as Chrome OS and Netflix to ensure that the operative system isn't modified, and it can also be used to boot from a known-good device (like a USB drive or CD).
+
+Recommended LWN article: [[https://lwn.net/Articles/459420/|dm-verity]]
+
+Code: [[http://git.kernel.org/linus/a4ffc152198efba2ed9e6eac0eb97f17bfebce85|(commit)]]
+
+== Support a external read-only device as origin source of a thin provisioned LVM volume ==
+Device mapper supports thin provisioning (creation of filesystems larger than the total storage of the disks). Now, it also supports the use of an external read-only device as an origin for the thinly-provisioned volume. Any read to an unprovisioned area of the thin device will be passed through to the origin. Writes trigger the allocation of new blocks as usual.
+
+One use case for this is VM hosts that want to run guests on thinly-provisioned volumes but have the base image on another device (possibly shared between many VMs).
+
+Code: [[http://git.kernel.org/linus/2dd9c257fbc243aa76ee6db0bb8371f9f74fad2d|(commit)]]
+
+== perf: GTK2 report GUI, better assembly visualization, branch profiling, filtering of users and threads ==
+ * GTK2 report GUI perf report has a simple GTK2-based 'perf report' browser. To launch "perf report" using the new GTK interface just type: "perf report --gtk". The interface is somewhat limited in features at the moment. Code: [[http://git.kernel.org/linus/c31a94570552dcaa517c4f7a043ffd28835016be|(commit)]]
+
+ * Better assembly visualization: 'perf annotate' has visual improvements for assembly junkies. It recognizes function calls in the TUI interface, and by hitting enter you can follow the call (recursively) and back, amongst other improvements.
+
+ * Hardware-based branch profiling: Perf supports a new "hardware-based branch profiling" feature on CPUs that support it (modern x86 Intel CPUs with the 'LBR' hardware feature). This new feature is basically a sophisticated 'magnifying glass' for branch execution. The simplest mode is activated via 'perf record -b', for example "perf record -b any_call,u -e cycles:u branchy-command; perf report -b --sort=symbol". Code: [[http://git.kernel.org/linus/bce38cd53e5ddba9cb6d708c4ef3d04a4016ec7e|(commit 1]], [[http://git.kernel.org/linus/225ce53910edc3c2322b1e4f2ed049a9196cd0b3|2]], [[http://git.kernel.org/linus/b36817e8863090f1f24e538106ca50fa1d9e4003|3]], [[http://git.kernel.org/linus/88c9a65e13f393fd60d8b9e9c659a34f9e39967d|4]], [[http://git.kernel.org/linus/60ce0fbd072695866cb27b729690ab59dce705a5|5]], [[http://git.kernel.org/linus/3e702ff6d1ea12dcf1c798ecb61e7f3a1579df42|6)]]
+
+ * User and thread filtering: perf now supports a --uid command line option, which can be used to show only the tasks corresponding to a given user, for example perf top --uid 1000. It can also collect events for multiple threads or processes using a comma separated list in the "-p" and "-t" parameters. e.g., perf top -p 21483,21485. Code: [[http://git.kernel.org/linus/0d37aa34f8806bb443dd3c8621fd9bdbb50c58bb|(commit)]], [[http://git.kernel.org/linus/b52956c961be3a04182ae7b776623531601e0fb7|(commit)]]
+
+== 'Yama' security module ==
+Linux has several security modules: selinux, apparmor, etc. Yama is a new security module that collects a number of system-wide DAC security protections that are not handled by the core kernel itself. For now, Yama restricts the ptrace interface, which allow a process to examine the memory and running state of any of the processes of the same user.
+
+Code: [[http://git.kernel.org/linus/2d514487faf188938a4ee4fb3464eeecfbdcf8eb|(commit)]]
+
+== QNX6 filesystem ==
+The qnx6fs is used by newer QNX operating system versions. (e.g. Neutrino). It got introduced in QNX 6.4.0 and is used default since 6.4.1. This release adds read-only support.
+
+Code: [[http://git.kernel.org/linus/5d026c7242201e7c9d0e12fcb2bcaffead9d59fd|(commit)]]
+
+= Driver and architecture-specific changes =
+All the driver and architecture-specific changes can be found in the [[http://kernelnewbies.org/Linux_3.4_DriverArch|Linux_3.4_DriverArch page]]
+
+= File systems =
+ * ext4
+  * Remove the "resize" mount option, no longer useful in the age of online resize2fs [[http://git.kernel.org/linus/661aa520577046192e50467b28c9c5726a8a9fb1|(commit)]]
+  * Remove the outdated "journal=update" mount option [[http://git.kernel.org/linus/43e625d84fa7daca0ad46f1dbc965b04fd204afe|(commit)]]
+
+ * Btrfs
+  * Remove the relic caching code used before the space cache existed [[http://git.kernel.org/linus/285ff5af6ce358e73f53b55c9efadd4335f4c2ff|(commit)]]
+  * Stop silently switching single chunks to raid0 on balance [[http://git.kernel.org/linus/e3176ca2769e420f64eba4b093bbddea6d7a89c3|(commit)]]
+
+ * FUSE
+  * O_DIRECT support for files [[http://git.kernel.org/linus/4273b793ec68753cc3fcf5be7cbfd88c2be2058d|(commit)]]
+  * Allow nanosecond granularity [[http://git.kernel.org/linus/0a2da9b2ef2ef76c09397597f260245b020e6522|(commit)]]
+ * NFS
+  * Make 'clientaddr' mount option optional [[http://git.kernel.org/linus/31b8e2aec099f22d40277c424d8c24b2a4c95fce|(commit)]]
+  * Add mount options 'v4.0' and 'v4.1' [[http://git.kernel.org/linus/7ced286e0ade171af89d32c22b1590e1ca480542|(commit)]]
+ * GFS2
+  * FITRIM ioctl support (the FITRIM ioctl provides an alternative way to send discard requests to the underlying device) [[http://git.kernel.org/linus/66fc061bda3526650328b73f69985da3518c4256|(commit)]]
+  * Glock statistics gathering [[http://git.kernel.org/linus/a245769f254bbbea868e2cf8dc42daa061cd276f|(commit)]]
+ * XFS: Scalability improvements for quotas [[http://git.kernel.org/linus/f8739c3ce2ac9a01515b56026b6a066c0808234b|(commit)]], [[http://git.kernel.org/linus/9f920f116426806bfa34c1422742e1bf7b7a2b4b|(commit)]], [[http://git.kernel.org/linus/a05931ceb0160deadbd7798d60d01b17f2d81b09|(commit)]], [[http://git.kernel.org/linus/b84a3a96751f93071c1863f2962273973c8b8f5e|(commit)]]
+ * CIFS: Introduce credit-based flow control [[http://git.kernel.org/linus/2d86dbc97094ea4cfc2204fdefd7d07685496189|(commit)]]
+ * HFSplus: Making an HFS Plus partition bootable requires the ability to "bless" a file by putting its inode number in the volume header. Doing this from userspace on a mounted filesystem is impractical since the kernel will write back the original values on unmount. Add an ioctl to allow userspace to update the volume header information based on the target file [[http://git.kernel.org/linus/a051f71ce97c53cde3ac64de64eb02d658d9308e|(commit)]]
+
+= Various core changes =
+ * A new kernel parameter, "nomodule", will disable module loading [[http://git.kernel.org/linus/02608bef8f774c058779546926889a2f2717a499|(commit)]]
+ * The pipe2() system call permits a new flag, O_DIRECT, that creates a pipe that operates in "packet" mode. Each write() to the pipe creates a distinct packet, and each read() reads exactly one packet [[http://git.kernel.org/linus/9883035ae7edef3ec62ad215611cb8e17d6a1a5d|(commit)]]
+ * The new PR_SET_CHILD_SUBREAPER prctl() operation allows userspace service managers/supervisors mark itself as a sort of 'sub-init', able to stay as the parent for all orphaned processes created by the started services. All SIGCHLD signals will be delivered to the service manager [[http://git.kernel.org/linus/ebec18a6d3aa1e7d84aab16225e87fd25170ec2b|(commit)]]
+ * Mark thread stack correctly in proc/<pid>/maps [[http://git.kernel.org/linus/b76437579d1344b612cf1851ae610c636cec7db0|(commit)]]
+ * tty: rework the pty count limits [[http://git.kernel.org/linus/e9aba5158a80098447ff207a452a3418ae7ee386|(commit)]]
+ * kgdb: add the ability to control the reboot [[http://git.kernel.org/linus/bec4d62ead8096e433d624d9339893f50badd992|(commit)]]
+ * vfs micro-optimization: use 'unsigned long' accesses for dcache name comparison [[http://git.kernel.org/linus/bfcfaa77bdf0f775263e906015982a608df01c76|(commit)]]
+
+= Memory management =
+ * Make swap-in readahead skip over holes: when the swapped out data has holes, swap in things back in at rates of several MB/second, instead of a few hundred kB/second [[http://git.kernel.org/linus/67f96aa252e606cdf6c3cf1032952ec207ec0cf0|(commit)]]
+ * radix-tree micro-optimization: introduce bit-optimized iterator [[http://git.kernel.org/linus/78c1d78488a3c45685d993130c9f17102dc79a54|(commit)]]
+
+= Networking =
+ * New "plug" queuing discipline: allows userspace to plug/unplug a network output queue, using the Netlink interface. When it receives an enqueue command it inserts a plug into the outbound queue that causes following packets to enqueue until a dequeue command arrives over Netlink, causing the plug to be removed and resuming the normal packet flow [[http://git.kernel.org/linus/c3059be16c9ef29c05f0876a9df5fea21f29724f|(commit)]]
+ * BATMAN: add infrastructure to change routing algorithm [[http://git.kernel.org/linus/1c280471b013e26c833fc86acc231c73442cfa21|(commit)]]
+
+ * TCP
+  * md5: RCU conversion [[http://git.kernel.org/linus/a915da9b69273815527ccb3789421cb7027b545b|(commit)]].
+  * Allow splice() syscall to build full TSO packets: vmsplice()/splice(pipe, socket) called do_tcp_sendpages() one page at a time, making slow start suboptimal [[http://git.kernel.org/linus/2f53384424251c06038ae612e56231b96ab610ee|(commit)]]
+
+ * Socket options
+  * Implement IP_UNICAST_IF and IPV6_UNICAST_IF socket options. They are needed by the Wine project for [[http://msdn.microsoft.com/en-us/library/windows/desktop/ms738586(v=vs.85).aspx|Windows]] support [[http://git.kernel.org/linus/76e21053b5bf33a07c76f99d27a74238310e3c71|(commit 1]], [[http://git.kernel.org/linus/c4062dfc425e94290ac427a98d6b4721dd2bc91f|2)]]
+  * Introduce the SO_PEEK_OFF sock option. This one specifies where to start MSG_PEEK-ing queue data from. When set to negative value means that MSG_PEEK works as usually -- peeks from the head of the queue always [[http://git.kernel.org/linus/ef64a54f6e558155b4f149bb10666b9e914b6c54|(commit)]]
+  * Support peeking offset for datagram, seqpacket and stream sockets [[http://git.kernel.org/linus/f55bb7f9cb82dec2f2e803d7bd0fc5929248e4d8|(commit 1]], [[http://git.kernel.org/linus/fc0d753641f7b919c7273d9bd21ae6ab45e757f3|2)]]
+  * MSG_TRUNC support for dgram sockets. MSG_TRUNC asks recv() to return the real length of the packet, even when it was longer than the passed buffer [[http://git.kernel.org/linus/9f6f9af7694ede6314bed281eec74d588ba9474f|(commit)]]
+  * Add missing getsockopt for SO_NOFCS [[http://git.kernel.org/linus/bc2f7996858db66f2d5b154aac10971655f72cad|(commit)]]
+
+ * Netfilter
+  * Add timeout extension. This allows you to attach timeout policies to flow via the connection tracking target [[http://git.kernel.org/linus/dd705072412225a97784fe38feee2ebf8d14814d|(commit)]], [[http://git.kernel.org/linus/50978462300f74dc48aea4a38471cb69bdf741a5|(commit)]]
+  * ctnetlink: add NAT support for expectations class [[http://git.kernel.org/linus/076a0ca02644657b13e4af363f487ced2942e9cb|(commit)]]
+  * ipset: The "nomatch" keyword and option is added to the hash:*net* types, by which one can add exception entries to sets [[http://git.kernel.org/linus/2a7cef2a4ba64b9bf0ff9aeaa364554716c06669|(commit)]]
+  * Merge ipt_LOG and ip6_LOG into xt_LOG [[http://git.kernel.org/linus/6939c33a757bd006c5e0b8b5fd429fc587a4d0f4|(commit)]]
+
+ * Bluetooth
+  * Add support for a monitor channel that can be used to monitor all packets and events from the Bluetooth subsystem [[http://git.kernel.org/linus/cd82e61c110a36e398323e422896fcfe05879fed|(commit)]]
+  * Implement Bluetooth commands: Read Supported Commands [[http://git.kernel.org/linus/e70bb2e89959983aebcfce28f645a1104ffa9ab2|(commit)]], Set SSP [[http://git.kernel.org/linus/ed2c4ee360709ca838efa0ea4d6295590aff3d24|(commit)]], Set LE [[http://git.kernel.org/linus/06199cf86a84206cfdc96b8dc02d5c27efa8c60f|(commit)]]
+
+= Virtualization =
+ * KVM
+  * x86: increase recommended max vcpus to 160 [[http://git.kernel.org/linus/a59cb29e4d81e025192550c2703f305637f016f6|(commit)]]
+  * Allow host IRQ sharing for assigned PCI 2.3 devices [[http://git.kernel.org/linus/07700a94b00a4fcbbfb07d1b72dc112a0e036735|(commit)]]
+  * Infrastructure for software and hardware-based TSC rate [[http://git.kernel.org/linus/cc578287e3224d0da196cc1d226bdae6b068faa7|(commit)]]
+  * PPC: Paravirtualize SPRG4-7, ESR, PIR, MASn [[http://git.kernel.org/linus/b59049720dd95021dfe0d9f4e1fa9458a67cfe29|(commit)]], e500: MMU API [[http://git.kernel.org/linus/dc83b8bc0256ee682506ed83853a98eaba529c6f|(commit)]]
+  * s390: "Userspace controlled virtual machines" add parameter for KVM_CREATE_VM [[http://git.kernel.org/linus/e08b96371625aaa84cb03f51acc4c8e0be27403a|(commit)]]
+
+ * Hyper-V
+  * storvsc: Move the storage driver out of the staging area [[http://git.kernel.org/linus/89ae7d709357df3a60e81c57613859d91d093ace|(commit)]]
+  * Add support for VLAN trunking from guests [[http://git.kernel.org/linus/1f5f3a75e216fe771b8d6805e0bb2f43595a6ee1|(commit)]]
+  * Support the newly introduced KVP messages in the driver [[http://git.kernel.org/linus/fa3d5b85c681518b6e4ec515814dcb2d5b702b89|(commit)]]
+  * Fully support the new KVP verbs in the user level [[http://git.kernel.org/linus/db425334e5bb7fa65bbbd7bea9d79842f65bcf45|(commit)]]
+  * hvc_xen: implement multiconsole support [[http://git.kernel.org/linus/02e19f9c7cacfb33d7b2f5cace7972fa60f92319|(commit)]], [[http://git.kernel.org/linus/cf8e019b523a8caa95b56ff0ce62a4856b14395f|(commit)]]
+  * Support enumeration from all the pools [[http://git.kernel.org/linus/adc80ae60eae24a43a357bf5b30fb496f34aa605|(commit)]]
+ * Xen
+  * Xen ACPI processor: C and P-state driver that uploads said data to hypervisor [[http://git.kernel.org/linus/59a56802918100c1e39e68c30a2e5ae9f7d837f0|(commit)]]
+  * netfront: add netconsole support [[http://git.kernel.org/linus/cf66f9d48a9c95baf8f13b199a633ce1c4cf952a|(commit)]]
+
+ * virtio-pci: S3 support [[http://git.kernel.org/linus/04c2322bee841121cfdd7f284e1d4274e9e60e33|(commit)]]
+ * rpmsg: add virtio-based remote processor messaging bus [[http://git.kernel.org/linus/ac8954a413930dae3c53f7e782f09a94e7eae88b|(commit)]]
+
+= Crypto =
+ * caam: add sha224 and sha384 variants to existing [[http://git.kernel.org/linus/e863f9ccc7658883be7b42eb63851aef9da7630c|(commit)]]
+ * camellia: add assembler implementation for x86_64 [[http://git.kernel.org/linus/0b95ec56ae19f61ca664e83766a2180057f0e351|(commit)]]
+ * Driver for Tegra AES hardware [[http://git.kernel.org/linus/f1df57d02a0f83e764b4dc9187f58665d70f190e|(commit)]]
+ * crc32: add slice-by-8 algorithm to existing code [[http://git.kernel.org/linus/324eb0f17d9dcead3c60c133aa244f6b3631fec9|(commit)]]
+
+= Security =
+ * Apparmor
+  * Add "file" details to securityfs [[http://git.kernel.org/linus/a9bf8e9fd561ba9ff1f0f2a1d96e439fcedaaaa4|(commit)]]
+  * Add initial "features" directory to securityfs [[http://git.kernel.org/linus/e74abcf3359d0130e99a6511ac484a3ea9e6e988|(commit)]]
+
+= Block =
+ * Make cfq_target_latency tunable through sysfs. [[http://git.kernel.org/linus/5bf14c0727a07ded1bd9fa6d77923d7e6dc32833|(commit)]]
+
+ * Device Manager (DM):
+  * raid10: support resizing some RAID10 arrays. [[http://git.kernel.org/linus/006a09a0ae0a494473a8cd82c8d1d653e37e6663|(commit)]]
+  * thin target: support discards [[http://git.kernel.org/linus/104655fd4dcebd50068ef30253a001da72e3a081|(commit)]]
+
+= Perf profiling =
+ * ftrace: Add enable/disable ftrace_ops control interface [[http://git.kernel.org/linus/e248491ac283b516958ca9ab62c8e74b6718bca8|(commit)]]
+ * perf bench: Allow passing an iteration count to "bench mem [[http://git.kernel.org/linus/e3e877e79b7c6a322f9f628e87052c13581238cc|(commit)]]
+ * perf report
+  * Add --symbol-filter option [[http://git.kernel.org/linus/b14ffaca44c60da1c900aa36131ef3d9858001fc|(commit)]]
+  * Enable TUI in branch view mode [[http://git.kernel.org/linus/a68c2c58171391ef368fced32a555b2f0ff106e5|(commit)]]
+ * script: Add option resolving vmlinux path [[http://git.kernel.org/linus/0bc8d20580af74c9a8a39c200e269261e5cded05|(commit)]]
+ * Adding sysfs group format attribute for pmu device [[http://git.kernel.org/linus/641cc938815dfd09f8fa1ec72deb814f0938ac33|(commit)]]
+ * Add support to specify pmu style event [[http://git.kernel.org/linus/5f537a26590e696466aae7f41e6b77e92c8486d1|(commit)]]
+ * perf ui browser: Add 's' key to filter by symbol name [[http://git.kernel.org/linus/938a23ae7f656ffde9dd67e83dddf4406f85d773|(commit)]]
+ * Rename "jump labels" to "static keys": Introduce 'struct static_key', [[http://git.kernel.org/linus/|(commit)]]
+
+----
+ CategoryReleases

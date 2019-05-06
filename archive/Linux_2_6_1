@@ -1,0 +1,9 @@
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.1 development
+
+= 2.6.1 =
+  * Released January 9, 2004 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.1|changelog]]
+  * Message Signaled Interrupt support - MSI [[http://lwn.net/Articles/44135/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=805bdfd65d2a8866870d1813cd39d739d1e2942e|(commit)]]
+  * Add 32bit a.out support for x86-64 [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=dabe6cb0fc24dd4d3ee5b51c99f551a883dc2d66|(commit)]]
+  * Add `gcc -Os' config option [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=4b8ca7b0c8fb01ba87f9f6fa23f287e683f06346|(commit)]]
+  * Extensible Firmware Interface (EFI) support. [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=556bd742f63bdc0d0fdbfb28f907e272ed61d370|(commit)]]

@@ -1,0 +1,185 @@
+#pragma section-numbers on
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.36 development cycle
+Linux 2.6.36 released 20 October, 2010.
+
+'''Summary''': Linux 2.6.36 includes support for the [[http://en.wikipedia.org/wiki/TILE64|Tilera architecture]], a new filesystem notification interface called fanotify, a redesign of workqueues optimized for concurrency, CIFS local caching, support for Intel Intelligent Power Sharing in i3/5 systems, integration of the kernel debugger and KMS, inclusion of the AppArmor security system, fixes for desktop unresponsiveness in some cases and several new drivers and small improvements.
+
+(Note: Details on architecture-specific and driver changes have been moved to this page: [[Linux_2_6_36-DriversArch]])
+
+<<TableOfContents>>
+= Prominent features (the cool stuff) =
+== Tilera architecture support ==
+The [[http://en.wikipedia.org/wiki/TILE64|Tile processor]] is a new cpu manufactured by [[http://www.tilera.com/|Tilera Corporation]]. It's a multicore design intended to scale to hundreds of cores on a single chip. The goal is to provide a high-performance CPU, with good power efficiency, and with greater flexibility than special-purpose processors such as DSPs. The chip consists of a mesh network of 64 "tiles", where each tile houses a general purpose processor, cache, and a non-blocking router, which the tile uses to communicate with the other tiles on the processor.
+
+Code: [[http://git.kernel.org/linus/867e359b97c970a60626d5d76bbe2a8fadbf38fb|(commit)]], [[http://git.kernel.org/linus/9f9c0382cda2334b35b40b00f4ed9d6f89f37a7b|(commit)]]
+
+== Preliminary merge of fanotify, a new file notification interface ==
+Recommended LWN article: [[http://lwn.net/Articles/360955/|Another new ABI for fanotify]]
+
+(Note: the fanotify syscalls are disabled in this release because developers still don't agree with the API)
+
+Fnotify is yet another filesystem notification interface, intended to supersede [[http://kernelnewbies.org/Linux_2_6_13|inotify]] and, obviously, dnotify (both have been rewritten on top of the fanotify engine). Fanotify bases notification on giving userspace both an event type (open, close, read, write) and an open read-only file descriptor to the object in question. This should address a number of races and scalability problems with inotify and dnotify and allows blocking or access controlled notification.
+
+A code example can be found in [[http://git.kernel.org/?p=linux/kernel/git/agruen/fanotify-example.git;a=summary|this git repository]]. A description of the API can be found in the LWN article linked above and in the logs of the code commits.
+
+Code: Far too many commits, but these ones have useful changelogs [[http://git.kernel.org/linus/ff0b16a9850e8a240ad59e10b0a1291a8fcf7cbc|(commit 1]], [[http://git.kernel.org/linus/11637e4b7dc098e9a863f0a619d55ebc60f5949e|2]], [[http://git.kernel.org/linus/52c923dd079df49f58016a9e56df184b132611d6|3]], [[http://git.kernel.org/linus/bbaa4168b2d2d8cc674e6d35806e8426aef464b8|4]], [[http://git.kernel.org/linus/2a3edf86040a7e15684525a2aadc29f532c51325|5]], [[http://git.kernel.org/linus/9e66e4233db9c7e31e9ee706be2c9ddd54cf99b3|6]], [[http://git.kernel.org/linus/b2d879096ac799722e6017ee82c0586f0d101c9c|7)]]
+
+== KMS+KDB integration ==
+In this release, it will be possible to activate the KDB kernel debugger (merged in the [[http://kernelnewbies.org/Linux_2_6_35#head-01683c6bbfcd2a93c556192e3c9d6734b20da1cd|previous kernel release]]) while using your X.org desktop session. Pressing Sysrq-g will show the KDB console, and quitting KDB (using the "go" command) will return to your desktop again.
+
+The KMS + KDB integration is only implemented for Intel chips, other chips will follow in the future. Instructions on how to compile the kernel to enable this functionality can be [[http://virtuousgeek.org/blog/index.php/jbarnes/2010/08/02/using_kdb_on_kms|found here]].
+
+Code: [[http://git.kernel.org/linus/81d4450732c68aa728f2c86c0c2993c6cfc3d032|(commit 1]], [[http://git.kernel.org/linus/b45cfba4e9005d64d419718e7ff7f7cab44c1994|2]], [[http://git.kernel.org/linus/1a7aba7f4e45014c5a4741164b1ecb4ffe616fb7|3]], [[http://git.kernel.org/linus/d219adc1228a3887486b58a430e736b0831f192c|4]], [[http://git.kernel.org/linus/408a4be1f8cbee511895ee07da2a007a5a24303f|5]], [[http://git.kernel.org/linus/81255565dbf5958187bdb6cc4e3aa0db9ce4d237|6)]]
+
+== Concurrency-managed workqueues ==
+Recommended LWN articles: [[http://lwn.net/Articles/355700/|Concurrency-managed workqueues]] and [[http://lwn.net/Articles/403891/|Working on workqueues]]
+
+Workqueues are a "thread pool" that are used extensively across the kernel. This mechanism allows to queue calls to kernel functions to be run in the future. These queues can be run from a generic kernel thread dedicated to that function (that's what the "event/n" kernel processes are for), but it's also possible to create a dedicated kernel thread for a given driver of subsystem workqueue  (that's what many of the other kernel threads are). The problem with this implementation is that the total number of kernel threads being used to run workqueues, and the queues being run on them, is not controlled in anyway. If there are more workqueues than CPUs being used at a given time, the kernel threads will compete (and context-switch heavily) between them.
+
+In this version, workqueues have been reworked to add a true thread pool manager. There are not dedicated threads anymore (expect for the code that has not been converted to the new API), instead there is a pool of kernel threads that grows dynamically as needed to keep the system busy, depending on the number of queues accumulated. The new design is also able to replace the slow-work code (another thread pool used to run a certain kind of operations that traditional workqueues weren't able to run properly)
+
+Code: [[http://git.kernel.org/linus/b56c0d8937e665a27d90517ee7a746d0aa05af46|1]], [[http://git.kernel.org/linus/7bc465605ffa90b281d6b774fcb13911636a6d45|2]], [[http://git.kernel.org/linus/8fec62b2d9d0c80b594d0d85678bfdf57a70df1b|3]], [[http://git.kernel.org/linus/82805ab77d25643f579d90397dcd34f05d1b750a|4]], [[http://git.kernel.org/linus/c790bce0481857412c964c5e9d46d56e41c4b051|5]], [[http://git.kernel.org/linus/97e37d7b9e65a6ac939f796f91081135b7a08acc|6]], [[http://git.kernel.org/linus/4690c4ab56c71919893ca25252f2dd65b58188c7|7]], [[http://git.kernel.org/linus/22df02bb3fab24af97bff4c69cc6fd8529fc66fe|8]], [[http://git.kernel.org/linus/a62428c0ae54a39e411251e836c3fe3dc11a5f5f|9]], [[http://git.kernel.org/linus/64166699752006f1a23a9cf7c96ae36654ccfc2c|10]], [[http://git.kernel.org/linus/1537663f5763892cacf1409ac0efef1b4f332d1e|11]], [[http://git.kernel.org/linus/0f900049cbe2767d47c2a62b54f0e822e1d66840|12]], [[http://git.kernel.org/linus/c34056a3fdde777c079cc8a70785c2602f2586cb|13]], [[http://git.kernel.org/linus/73f53c4aa732eced5fcb1844d3d452c30905f20f|14]], [[http://git.kernel.org/linus/1e19ffc63dbbaea7a7d1c63d99c38d3e5a4c7edf|15]], [[http://git.kernel.org/linus/affee4b294a0fc97d67c8a77dc080c4dd262a79e|16]], [[http://git.kernel.org/linus/a0a1a5fd4fb15ec61117c759fe9f5c16c53d9e9c|17]], [[http://git.kernel.org/linus/8b03ae3cde59af9facab7c831b4141515d5dbcc8|18]], [[http://git.kernel.org/linus/c8e55f360210c1bc49bea5d62bc3939b7ee13483|19]], [[http://git.kernel.org/linus/db7bccf45cb87522096b8f43144e31ca605a9f24|20]], [[http://git.kernel.org/linus/8cca0eea3964b72b14e8c3f88e3a40bef7b9113e|21]], [[http://git.kernel.org/linus/502ca9d819792e7d79b6e002afe9094c641fe410|22]], [[http://git.kernel.org/linus/7a22ad757ec75186ad43a5b4670fa7423ee8f480|23]], [[http://git.kernel.org/linus/18aa9effad4adb2c1efe123af4eb24fec9f59b30|24]], [[http://git.kernel.org/linus/d302f0178223802a1e496ba90c66193b7721c9c1|25]], [[http://git.kernel.org/linus/7e11629d0efec829cbf62366143ba1081944a70e|26]], [[http://git.kernel.org/linus/e22bee782b3b00bd4534ae9b1c5fb2e8e6573c5c|27]], [[http://git.kernel.org/linus/b71ab8c2025caef8db719aa41af0ed735dc543cd|28]], [[http://git.kernel.org/linus/d320c03830b17af64e4547075003b1eeb274bc6c|29]], [[http://git.kernel.org/linus/649027d73a6309ac34dc2886362e662bd73456dc|30]], [[http://git.kernel.org/linus/dcd989cb73ab0f7b722d64ab6516f101d9f43f88|31]], [[http://git.kernel.org/linus/fb0e7beb5c1b6fb4da786ba709d7138373d5fb22|32]], [[http://git.kernel.org/linus/ad72cf9885c536e3adae03f8337557ac9dd1e4bb|33]], [[http://git.kernel.org/linus/bdbc5dd7de5d07d6c9d3536e598956165a031d4c|34]], [[http://git.kernel.org/linus/f34217977d717385a3e9fd7018ac39fade3964c0|35]], [[http://git.kernel.org/linus/083b804c4d3e1e3d0eace56bdbc0f674946d2847|36]], [[http://git.kernel.org/linus/c7fc77f78f16d138ca997ce096a62f46e2e9420a|37]], [[http://git.kernel.org/linus/8b8edefa2fffbff97f9eec8b70e78ae23abad1a0|38]], [[http://git.kernel.org/linus/8af7c12436803291c90295259db23d371a7ad9cc|39]], [[http://git.kernel.org/linus/9b646972467fb5fdc677f9e4251875db20bdbb64|40]], [[http://git.kernel.org/linus/d098adfb7d281258173a43151483e52e21761021|41]], [[http://git.kernel.org/linus/991ea75cb1df7188d209274b3d51c105b4f18ffe|42]], [[http://git.kernel.org/linus/6ecd7c2dd9f5dd4f6e8f65c8027159f9c73b0e4c|43]], [[http://git.kernel.org/linus/181a51f6e040d0ac006d6adaf4a031ffa440f41c|44]]
+
+== Intel Intelligent Power Sharing support ==
+
+Intel Core i3/5 platforms with integrated graphics support dynamic power sharing between the CPU and GPU, maximizing performance in a given TDP. A new driver driver, along with the CPU frequency and i915 drivers, provides that functionality. It monitorizes the GPU power and temperature and coordinate with a core thermal driver to take advantage of available thermal and power headroom in the package.
+
+Code: [[http://git.kernel.org/linus/aa7ffc01d254c91a36bf854d57a14049c6134c72|(commit)]]
+
+
+== CIFS local caching ==
+FS-Cache is a cache layer that allows filesystems to implement local caching. It was [[http://kernelnewbies.org/Linux_2_6_30#head-a29350000cec3a460e9f2af6360324670faf14b2|merged in 2.6.30]] with support for NFS and AFS. In this release, CIFS adds FS-Cache support.
+
+Code: [[http://git.kernel.org/linus/fa1df75d4debde6d843e616df656f50a92958737|(commit)]]
+
+== Improve VM-related desktop responsiveness ==
+There are some cases where a desktop system could be really unresponsive while doing things such as writing to a very slow USB storage device and some memory pressure. This release includes a small patch that improves the VM heuristics to solve this problem.
+
+Code: [[http://git.kernel.org/linus/e31f3698cd3499e676f6b0ea12e3528f569c4fa3|(commit)]]
+
+== OOM rewrite ==
+Recommended LWN article: [[http://lwn.net/Articles/391222/|Another OOM killer rewrite]]
+
+The Out of Memory Killer is the part of the VM that kills a process when there's no memory (both RAM and swap) left. The algorithm that decides what is the better process to be killed has been rewritten in this release and should make better decisions.
+
+Code: [[http://git.kernel.org/linus/a63d83f427fbce97a6cea0db2e64b0eb8435cd10|(commit)]], [[http://git.kernel.org/linus/51b1bd2ace1595b72956224deda349efa880b693|(commit)]]
+
+== AppArmor ==
+AppArmor is Mandatory Access Control (MAC) security system. It was originally developed by Immunix in 1998. It has been part of some Linux distros for a long time.
+
+The key difference with SELinux is that SELinux applies security policies labeling to files, and AppArmor applies the policies to pathnames.
+
+Code: [[http://git.kernel.org/linus/cdff264264254e0fabc8107a33f3bb75a95e981f|(commit 1]], [[http://git.kernel.org/linus/67012e8209df95a8290d135753ff5145431a666e|2]], [[http://git.kernel.org/linus/c75afcd153f6147d3b094f45a1d87e5df7f4f053|3]], [[http://git.kernel.org/linus/e06f75a6a2b43bd3a7a197bd21466f9da130e4af|4]], [[http://git.kernel.org/linus/63e2b423771ab0bc7ad4d407f3f6517c6d05cdc0|5]], [[http://git.kernel.org/linus/6380bd8ddf613b29f478396308b591867d401de4|6]], [[http://git.kernel.org/linus/898127c34ec03291c86f4ff3856d79e9e18952bc|7]], [[http://git.kernel.org/linus/c1c124e91e7c6d5a600c98f6fb5b443c403a14f4|8]], [[http://git.kernel.org/linus/f9ad1af53d5232a89a1ff1827102843999975dfa|9]], [[http://git.kernel.org/linus/b5e95b48685e3481139a5634d14d630d12c7d5ce|10]], [[http://git.kernel.org/linus/0ed3b28ab8bf460a3a026f3f1782bf4c53840184|11]], [[http://git.kernel.org/linus/736ec752d95e91e77cc0e8c97c057ab076ac2f51|12]], [[http://git.kernel.org/linus/c88d4c7b049e87998ac0a9f455aa545cc895ef92|13]], [[http://git.kernel.org/linus/4d6ec10bb4461fdc9a9ab94ef32934e13564e873|13]], [[http://git.kernel.org/linus/016d825fe02cd20fd8803ca37a1e6d428fe878f6|14)]]
+
+
+= Various core changes =
+ * mutex: Improve the scalability of optimistic spinning. An Aim7 fserver workload speed up from 91657 jobs/minute to 149325. The average acquisition time is reduced by 48% and number of contentions reduced by 32%. [[http://git.kernel.org/linus/9d0f4dcc5c4d1c5dd01172172684a45b5f49d740|(commit)]]
+ * VFS locking changes and improvements for the upcoming Nick Piggin's VFS scalability patchset
+  * fs_struct rwlock to spinlock [[http://git.kernel.org/linus/2a4419b5b2a77f3f4537c14f7ad7df95770655dd|(commit)]]
+  * Scale files_lock [[http://git.kernel.org/linus/6416ccb7899960868f5016751fb81bf25213d24f|(commit)]]
+  * brlock vfsmount_lock [[http://git.kernel.org/linus/2dc91abe03d8ce6dd7f9251faffafca5f6b9e85d|(commit)]], [[http://git.kernel.org/linus/99b7db7b8ffd6bb755eb0a175596421a0b581cb2|(commit)]]
+ * Memory management
+  * writeback: reduce calls to global_page_state in balance_dirty_pages(). Improves write performance in a variety of workloads (see commit log) [[http://git.kernel.org/linus/e50e37201ae2e7d6a52e87815759e6481f0bcfb9|(commit)]]
+  * Implement writeback livelock avoidance using page tagging [[http://git.kernel.org/linus/f446daaea9d4a420d16c606f755f3689dcb2d0ce|(commit)]]
+  * vmscan: Add tracing events [[http://git.kernel.org/linus/33906bc5c87b50028364405ec425de9638afc719|(commit)]], [[http://git.kernel.org/linus/a8a94d151521b248727c1f88756174e15260815a|(commit)]], [[http://git.kernel.org/linus/b898cc70019ce1835bbf6c47bdf978adc36faa42|(commit)]], [[http://git.kernel.org/linus/755f0225e8347b23a33ee6e3fb14a35310f95766|(commit)]]
+  * writeback: Initial tracing support [[http://git.kernel.org/linus/455b2864686d3591b3b2f39eb46290c95f76471f|(commit)]]
+ * Help glibc to implement statvfs(3) efficiently (speeds up dbench, but needs [[http://sources.redhat.com/git/gitweb.cgi?p=glibc.git;a=commitdiff;h=3cdaa6adb113a088fdfb87aa6d7747557eccc58d|new glibc]]) [[http://git.kernel.org/linus/365b18189789bfa1acd9939e6312b8a4b4577b28|(commit)]]
+ * Add a target to use the Coccinelle checker (Recommended LWN article: [[http://lwn.net/Articles/315686/|Semantic patching with Coccinelle]]) [[http://git.kernel.org/linus/74425eee71eb44c9f370bd922f72282b69bb0eab|(commit)]]
+ * kconfig: add "make alldefconfig" [[http://git.kernel.org/linus/0748cb3e1fbd89c03a98c15e91ad65797981de77|(commit)]] and "make savedefconfig" [[http://git.kernel.org/linus/7cf3d73b4360e91b14326632ab1aeda4cb26308d|(commit)]] targets.
+ * tty: Add EXTPROC support for LINEMODE [[http://git.kernel.org/linus/26df6d13406d1a53b0bda08bd712f1924affd7cd|(commit)]]
+ * Power Management: Add runtime PM statistics [[http://git.kernel.org/linus/8d4b9d1bfef117862a2889dec4dac227068544c9|(commit)]]
+ * sched: Add asymmetric group packing option for sibling domain [[http://git.kernel.org/linus/532cb4c401e225b084c14d6bd6a2f8ee561de2f1|(commit)]], change nohz idle load balancing logic to push model [[http://git.kernel.org/linus/83cd4fe27ad8446619b2e030b171b858501de87d|(commit)]]
+ * shmem: reduce pagefault lock contention [[http://git.kernel.org/linus/ff36b801624d02a876bb7deded6ab860ea3503f2|(commit)]]
+ * rlimits: implement prlimit64 syscall [[http://git.kernel.org/linus/c022a0acad534fd5f5d5f17280f6d4d135e74e81|(commit)]]
+ * PM: Make it possible to avoid races between wakeup and system sleep (recommended LWN article: [[http://lwn.net/Articles/393314/|Another wakeup event mechanism]] [[http://git.kernel.org/linus/c125e96f044427f38d106fab7bc5e4a5e6a18262|(commit)]]
+ * HWPOISON, hugetlb: support hwpoison injection for hugepage [[http://git.kernel.org/linus/43131e141abdb44c487cf79af3ef1fe5164dcef9|(commit)]]
+ * n2_crypto: Add HMAC support. [[http://git.kernel.org/linus/dc4ccfd15d4fc7a91ddf222bc5eed5cc4bcf10e6|(commit)]]
+ * Kill off CONFIG_GENERIC_TIME (all arches have been converted) [[http://git.kernel.org/linus/592913ecb87a9e06f98ddb55b298f1a66bf94c6b|(commit)]]
+
+= Security =
+ * TOMOYO
+  * Add interactive enforcing mode. [[http://git.kernel.org/linus/17fcfbd9d45b57f38d40e31f9d28db53f4af5c88|(commit)]]
+  * Add numeric values grouping support. [[http://git.kernel.org/linus/4c3e9e2ded48bcf696a45945ea7d25bb15b873fd|(commit)]]
+  * Add pathname aggregation support. [[http://git.kernel.org/linus/1084307ca097745ed6e40a192329b133a49271ac|(commit)]]
+  * Support longer pathname. [[http://git.kernel.org/linus/c8c57e842720d8cc92ac8607f2d1c16d92314573|(commit)]]
+
+= Filesystems =
+ * Ext4
+  * Add mount options in superblock [[http://git.kernel.org/linus/8b67f04ab9de5d8f3a71aef72bf02c995a506db5|(commit)]],
+  * Once a day, printk file system error information to dmesg [[http://git.kernel.org/linus/66e61a9e9504f61b9a928c9055368c81da613a50|(commit)]]
+  * Save error information to the superblock for analysis [[http://git.kernel.org/linus/1c13d5c0872870cca3e612aa045d492ead9ab004|(commit)]]
+  * Support discard requests when running in no-journal mode [[http://git.kernel.org/linus/5c521830cf3dfcf7638d409d8e02ed21020c064f|(commit)]]
+
+ * NILFS2
+  * Add barrier mount option [[http://git.kernel.org/linus/773bc4f3b6898634a80a41c72a1f34cb89992dcd|(commit)]]
+  * Add nodiscard mount option [[http://git.kernel.org/linus/802d31775404ee335ca1e97a82e1e706a4c843be|(commit)]]
+  * Add feature set fields to super block [[http://git.kernel.org/linus/1a80a1763fb760b3a84a28df87515f7cdc07a4f4|(commit)]]
+  * Reject incompatible filesystem [[http://git.kernel.org/linus/c5ca48aabe8b11674bf1102abe52d17ecc053f9c|(commit)]]
+
+ * XFS
+  * Simplify and speed up direct I/O completions [[http://git.kernel.org/linus/209fb87a259ead17e966627b7f053d16a96898da|(commit)]]
+  * Remove obsolete osyncisosync mount option [[http://git.kernel.org/linus/a64afb057b607c04383ab5fb53c51421ba18c434|(commit)]]
+
+ * CEPH
+  * Add flock/fcntl lock support [[http://git.kernel.org/linus/40819f6fb227c1832935b775ac22aef10aa6f6dd|(commit)]]
+  * Add LAZYIO ioctl to mark a file description for lazy consistency [[http://git.kernel.org/linus/8c6e9229fc1989cf263a6fcd4ff406d7f473f966|(commit)]]
+
+ * Ext3: default to ordered mode [[http://git.kernel.org/linus/aa32a796389bedbcf1c7714385b18714a0743810|(commit)]]
+ * Squashfs: Add LZO compression support [[http://git.kernel.org/linus/79cb8ced7eef53856b5a877db0544acf52e00c80|(commit)]]
+ * AFS: Implement an autocell mount capability [[http://git.kernel.org/linus/bec5eb6141308a30a73682330cb045a40e442b8c|(commit)]]
+
+= Networking =
+ * Add getsockopt support for TCP thin-streams [[http://git.kernel.org/linus/3c0fef0b7d36e5f8d3ea3731a8228102274e3c23|(commit)]]
+ * Enable 64-bit net device statistics on 32-bit architectures [[http://git.kernel.org/linus/be1f3c2c027cc5ad735df6a45a542ed1db7ec48b|(commit)]]
+ * Optimize Berkeley Packet Filter (BPF) processing [[http://git.kernel.org/linus/01f2f3f6ef4d076c0c10a8a7b42624416d56b523|(commit)]]
+ * Netfilter
+  * Add CHECKSUM target [[http://git.kernel.org/linus/edf0e1fb0d0910880881523cfaaabcec06a2c0d5|(commit)]]
+  * Add xt_cpu match [[http://git.kernel.org/linus/e8648a1fdb54da1f683784b36a17aa65ea56e931|(commit)]]
+  * ipt_LOG/ip6t_LOG: add option to print decoded MAC header [[http://git.kernel.org/linus/7eb9282cd0efac08b8377cbd5037ba297c77e3f7|(commit)]]
+  * xtables: idletimer target implementation [[http://git.kernel.org/linus/0902b469bd25065aa0688c3cee6f11744c817e7c|(commit)]]
+  * xt_ipvs (netfilter matcher for IPVS) [[http://git.kernel.org/linus/9c3e1c39679144c250dda95098333ecb5f1f407a|(commit)]]
+ * Wireless: mac80211: Add support for hardware ARP query filtering [[http://git.kernel.org/linus/2b2c009ecf71f4c66ff8420b63dddbc9737e04e3|(commit)]], nl80211: Add option to adjust transmit power [[http://git.kernel.org/linus/98d2ff8bec82fc35fe2008a187a5fef9241dab10|(commit)]]
+ * 9p: Define and implement TLINK for 9P2000.L [[http://git.kernel.org/linus/09d34ee5f93b2e53b64ffba27bc18731e31154e1|(commit)]], [[http://git.kernel.org/linus/652df9a7fd03cb47a3f663f0c08a2bd086505e9b|(commit)]], define and implement TSYMLINK for 9P2000.L [[http://git.kernel.org/linus/50cc42ff3d7bc48a436c5a0413459ca7841b505f|(commit)]], getattr client implementation for 9P2000.L protocol. [[http://git.kernel.org/linus/f085312204f384a0277a66c3c48ba8f9edcd58f2|(commit)]], client side of setattr for 9P2000.L protocol. [[http://git.kernel.org/linus/87d7845aa0b157a62448dd3e339856f28befe1f4|(commit)]], implement LOPEN [[http://git.kernel.org/linus/ef56547efa3c88609069e2a91f46e25c31dd536e|(commit)]], implement TMKDIR [[http://git.kernel.org/linus/01a622bd7409bb7af38e784cff814e5e723f7951|(commit)]], implement TMKNOD [[http://git.kernel.org/linus/4b43516ab19b748b48322937fd9307af17541c4d|(commit)]], readdir implementation for 9p2000.L [[http://git.kernel.org/linus/7751bdb3a095ad32dd4fcff3443cf8dd4cb1e748|(commit)]], implement attrwalk 9p call [[http://git.kernel.org/linus/0ef63f345c48afe5896c5cffcba57f0457d409b9|(commit)]], implement TXATTRCREATE 9p call [[http://git.kernel.org/linus/eda25e46161527845572131b37706a458d9270ef|(commit)]], add support user. xattr [[http://git.kernel.org/linus/ebf46264a004818fe5b23f0ac18ac7336897d807|(commit)]], implements TLCREATE for 9p2000.L protocol. [[http://git.kernel.org/linus/5643135a28464e7c19d8d23a9e0804697a62c84b|(commit)]]
+ * bonding: allow user-controlled output slave selection [[http://git.kernel.org/linus/bb1d912323d5dd50e1079e389f4e964be14f0ae3|(commit)]]
+ * ipv4: add LINUX_MIB_IPRPFILTER snmp counter [[http://git.kernel.org/linus/b5f7e7554753e2cc3ef3bef0271fdb32027df2ba|(commit)]]
+ * IPVS: make FTP work with full NAT support [[http://git.kernel.org/linus/7f1c407579519e71a0dcadc05614fd98acec585e|(commit)]], one-packet scheduling [[http://git.kernel.org/linus/26ec037f9841e49cc5c615deb8e1e73e5beab2ca|(commit)]]
+ * syncookies: add support for ECN [[http://git.kernel.org/linus/172d69e63c7f1e8300d0e1c1bbd8eb0f630faa15|(commit)]]
+ * vlan: allow TSO setting on vlan interfaces [[http://git.kernel.org/linus/a204b48ed4dc31acf61090e530430ce3272b6aab|(commit)]]
+ * ethtool: Add support for control of RX flow hash indirection [[http://git.kernel.org/linus/a5b6ee291e39e285e021cf251dbcf770c83cd74e|(commit)]]
+ * DNS: Separate out CIFS DNS Resolver code [[http://git.kernel.org/linus/1a4240f4764ac78adbf4b0ebb49b3bd8c72ffa11|(commit)]]
+
+= DM =
+ * delay: support discard [[http://git.kernel.org/linus/3fd5d48027181168ce85e8094b926aeb9f34c556|(commit)]]
+ * linear support discard [[http://git.kernel.org/linus/5ae89a8720c28caf35c4e53711d77df2856c404e|(commit)]]
+ * mpath: support discard [[http://git.kernel.org/linus/959eb4e5592cc0b0b07db0ca30d2b1efd790020f|(commit)]]
+ * dm stripe: support discards [[http://git.kernel.org/linus/7b76ec11fec40203836b488496d2df082d5b2022|(commit)]]
+ * snapshot: implement merge method for the snapshot origin to improve read performance [[http://git.kernel.org/linus/b1d5552838334c600b068c9c8cc18638e5a8cb47|(commit)]]
+
+= Tracing/profiling =
+ * perf
+  * New migration tool overview [[http://git.kernel.org/linus/880d22f2470af6037715b7f6eb083b6ec5561d92|(commit)]]
+  * perf probe: Support static and global variables [[http://git.kernel.org/linus/b7dcb857cc3eb89136111fefe89780129c1af1d7|(commit)]], support "string" type [[http://git.kernel.org/linus/73317b954041031249e8968d2e9023ff4e960d99|(commit)]], support tracing an entry of array [[http://git.kernel.org/linus/b2a3c12b7442247c440f7083d48ef05716753ec1|(commit)]]
+  * perf report: Implement --sort cpu [[http://git.kernel.org/linus/f60f359383edf2a0ec3aa32cf8be98ad815bdf65|(commit)]]
+  * Add the ability to specify list of cpus to monitor [[http://git.kernel.org/linus/c45c6ea2e5c57960dc67e00294c2b78e9540c007|(commit)]]
+  * Make target to generate self contained source tarball [[http://git.kernel.org/linus/8e5564e6c7554902301543e731354ad2ad58ae53|(commit)]]
+  * Generic nmi_watchdog implementation using perf events [[http://git.kernel.org/linus/1fb9d6ad2766a1dd70d167552988375049a97f21|(commit)]], [[http://git.kernel.org/linus/84e478c6f1eb9c4bfa1fff2f8108e9a061b46428|(commit)]], [[http://git.kernel.org/linus/58687acba59266735adb8ccd9b5b9aa2c7cd205b|(commit)]]
+ * ui: Add a map browser [[http://git.kernel.org/linus/9a725995e88fd3fd79daf99819c51d676ba37ad9|(commit)]], new hists tree widget [[http://git.kernel.org/linus/0f0cbf7aa3d3460a3eb201a772326739a0c0210a|(commit)]]
+ * kprobes: Support "string" type [[http://git.kernel.org/linus/e09c8614b32915c16f68e039ac7040e602d73e35|(commit)]]
+ * Remove the following ftrace plugins (superseded by trace events): boot tracer [[http://git.kernel.org/linus/30dbb20e68e6f7df974b77d2350ebad5eb6f6c9e|(commit)]], kmemtrace ftrace plugin [[http://git.kernel.org/linus/039ca4e74a1cf60bd7487324a564ecf5c981f254|(commit)]], ksym tracer [[http://git.kernel.org/linus/5d550467b9770042e9699690907babc32104a8d4|(commit)]], special traces [[http://git.kernel.org/linus/eb7beb5c09af75494234ea6acd09d0a647cf7338|(commit)]], sysprof ftrace plugin [[http://git.kernel.org/linus/f376bf5ffbad863d4bc3b2586b7e34cdf756ad17|(commit)]]
+
+= Block =
+ * Add secure discard [[http://git.kernel.org/linus/8d57a98ccd0b4489003473979da8f5a1363ba7a3|(commit)]]
+ * cfq-iosched: Implement tunable group_idle [[http://git.kernel.org/linus/80bdf0c78fff075dfa21576273c8b0c7db22bdfe|(commit)]]
+ * Moorestown "Post Beta" nand driver. [[http://git.kernel.org/linus/494a43bb188c10b9b21375bbfe2691e41e3cb145|(commit)]]
+ * cciss: new controller support and bump driver version [[http://git.kernel.org/linus/841fdffdd382722d33579a6aa1487e8a4e526dbd|(commit)]], add performant mode support for Stars/Sirius [[http://git.kernel.org/linus/5e216153c34ac21781110795284a784037f808e3|(commit)]]
+ * UBI: improve corrupted flash handling [[http://git.kernel.org/linus/0798cea8c2e1afee59686c51d27d0e96b05e42d1|(commit)]]
+
+= Virtualization =
+ * KVM
+  * XSAVE/XRSTOR live migration support [[http://git.kernel.org/linus/2d5b5a665508c60577c1088e0405850a965b6795|(commit)]], [[http://git.kernel.org/linus/2acf923e38fb6a4ce0c57115decbb38d334902ac|(commit)]]
+  * Remove kernel-allocated memory regions [[http://git.kernel.org/linus/b74a07beed0e64bfba413dcb70dd6749c57f43dc|(commit)]]
+  * Remove memory alias support [[http://git.kernel.org/linus/a1f4d39500ad8ed61825eff061debff42386ab5b|(commit)]]
+ * virtio_blk: support barriers without FLUSH feature [[http://git.kernel.org/linus/10bc310c27af1ed358e62351e7ac1d0110c3da27|(commit)]]
+ * vhost-net: mergeable buffers support [[http://git.kernel.org/linus/8dd014adfea6f173c1ef6378f7e5e7924866c923|(commit)]]
+ * Expose hw packet timestamps to network packet capture utilities [[http://git.kernel.org/linus/614f60fa9d73a9e8fdff3df83381907fea7c5649|(commit)]]

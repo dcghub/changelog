@@ -1,0 +1,11 @@
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.3 development
+
+= 2.6.3 =
+  * Released February 18, 2004 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.3|changelog]]
+  * G5 support [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=7f13170c2069ff86a2a0bfc3a247ade8aefeb6aa|(commit)]]
+  * Support up to 255 char columns in virtual terminals [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=f3706e57b8e26db88ddaa5b0558e5db545f2fed7|(commit)]]
+  * Set HZ to 1000 in PPC32 [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=eb6e9d736fa3e79f97ee19325c996f69079f276e|(commit)]]
+  * Removal of the USB scanner code: moved support to userspace (libusb)
+  * New DMA pool abstraction [[http://lwn.net/Articles/69402/|(LWN article)]]
+  * "context mount" support for SELinux

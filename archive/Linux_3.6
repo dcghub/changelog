@@ -1,0 +1,192 @@
+#pragma section-numbers on
+#pragma keywords Linux, kernel, operating system, changes, changelog, file system, Linus Torvalds, open source, device drivers
+#pragma description Summary of the changes and new features merged in the Linux kernel during the 3.6 development cycle
+
+Linux 3.6 has [[https://lkml.org/lkml/2012/9/30/152|been released]] on 30 Sep 2012
+
+'''''Summary''''': This Linux release includes new features in Btrfs: subvolume quotas, quota groups and snapshot diffs (aka "send/receive"). It also includes support for suspending to disk and memory at the same time, a TCP "Fast Open" mode, a "TCP small queues" feature to fight bufferbloat; support for safe swapping over NFS/NBD, better Ext4 quota support, support for the PCIe D3cold power state; and VFIO, which allows safe access from guest drivers to bare-metal host devices. Many small features and new drivers and fixes are also available.
+
+<<TableOfContents>>
+= Prominent features in Linux 3.6 =
+== Btrfs: subvolume quotas, quota groups, snapshot diff, cross-subvolume file clones ==
+
+=== Subvolume quotas and quota groups ===
+A size limit can be set for each subvolume. Once the subvolume reachs that limit, it won't be possible to write more data in it. This feature can be used as a substitute of quotas, assigning to each user home a subvolume and setting a size limit to it. 
+
+However, handling subvolumes quotas individually can be hard. Btrfs supports the concept of quota groups. It is possible to create a quota group and toss multiple subvolumes into that group: the quota limits will be automatically applied to all subvolumes in the group. The command used for this feature is btrfs qgroup create/destroy assign/remove  show/limit
+
+[[http://git.kernel.org/linus/630dc772ea51bca3ec6fac609f450cbe0cafd1d6|(commit 1]], [[http://git.kernel.org/linus/7069830a9e381e33d44ded45095f764844c71d24|2]], [[http://git.kernel.org/linus/e679376911d016b670c8cfc1645c178f77e8d1d3|3]], [[http://git.kernel.org/linus/6f72c7e20dbaea55f04546de69586c84a3654503|4]], [[http://git.kernel.org/linus/5d13a37bd5327220e13329943d1228acfbe5934a|5]], [[http://git.kernel.org/linus/20897f5c86b9d2b77baea1d48eda7fa4ac217279|6]], [[http://git.kernel.org/linus/edf39272db4810282360f7362d43ade1d524c913|7]], [[http://git.kernel.org/linus/546adb0d817c34dc2be3a7cb5bba8771f837a562|8]], [[http://git.kernel.org/linus/c556723794b3487a79de1ecd6354975b1389f5ff|9]], [[http://git.kernel.org/linus/bed92eae26ccf280d1a2168b7509447b56675a27|10]], [[http://git.kernel.org/linus/416ac51da90e98daaac17e1f359a6c5591f7f5bd|11]], [[http://git.kernel.org/linus/bcef60f249034f69e89e544461cbfecb68975595|12)]]
+
+=== Snapshot diffs, aka "send/receive" ===
+
+Btrfs can compute the differences between two snapshots and store the differences into a file. This file can be replayed later to reconstruct the sent subvolumes/snapshots. The main, but not only, usage for send/receive is backups.
+
+Code: [[http://git.kernel.org/linus/31db9f7c23fbf7e95026143f79645de6507b583b|(commit)]]
+
+=== Cross-subvolume file clones ===
+
+The Btrfs copy-on-write design allows to have many files sharing the same underlying data. This allows to copy (using cp --reflink) files or directories without duplicating the space usage. This had a limitation, though: it was not possible to clone across different subvolumes. This restriction has been removed (it is still not possible to clone files when they cross vfsmounts, ie. two subvolumes from one filesystem mounted separately)
+
+Recommended LWN article: [[https://lwn.net/Articles/506244/|Btrfs send/receive]]
+
+Code: [[http://git.kernel.org/linus/362a20c5e27614739c46707d1c5f55c214d164ce|(commit)]]
+
+
+== Suspend to disk and memory at the same time ==
+
+In portable devices it is useful to write a hibernation image to disk, and then suspend. If the battery runs out or power is otherwise lost, the computer will power off, but it will be resumed from the hibernated image. If not, it will resume normally from memory suspend, and hibernation image will be discarded.
+
+If you would like to write hibernation image to swap and then suspend to RAM, you can try "echo suspend > /sys/power/disk; echo disk > /sys/power/state"
+
+Code: [[http://git.kernel.org/linus/62c552ccc3eda1198632a4f344aa32623d226bab|(commit)]]
+
+
+== Preparatory work to support the SMBv2 protocol ==
+
+/!\ Note /!\ : The SMBv2 support '''isn't actually available in this release''', it [[https://plus.google.com/u/0/107616711159256259828/posts/6A15szm5y1b|got turned off]] before the release. It will be available in 3.7.
+
+The cifs networking filesystem has added support for the [[http://en.wikipedia.org/wiki/Server_Message_Block#SMB2|version 2 of the SMB protocol]]. The SMB2 protocol is the successor to the popular CIFS and SMB network file sharing protocols, and is the native file sharing mechanism for Windows OSs since it was introduced in Windows Vista in 2006. SMB2 enablement will eventually allow users better performance, security and features, than would not be possible with previous protocols.
+
+
+Code: [[http://git.kernel.org/linus/5478f9ba9a34d660eb3227dcd16314689c51f946|(commit)]]
+
+== TCP Fast Open (client side) ==
+
+"Fast Open" is a optimization to the process of stablishing a TCP connection that allows the elimination of one round time trip (RTT) from certain kinds of TCP conversations. Fast Open could result in speed improvements of between 4% and 41% in the page load times on popular web sites. In this version only the client-side has been merged.
+
+Recommended LWN article: [[https://lwn.net/Articles/508865/|TCP Fast Open: expediting web services]]
+
+Code: [[http://git.kernel.org/linus/2100c8d2d9db23c0a09901a782bb4e3b21bee298|(commit 1]], [[http://git.kernel.org/linus/1fe4c481ba637660793217769695c146a037bd54|2]], [[http://git.kernel.org/linus/67da22d23fa6f3324e03bcd0580b914b2e4afbf3|3]], [[http://git.kernel.org/linus/aab4874355679c70f93993cf3b3fd74643b9ac33|4]], [[http://git.kernel.org/linus/8e4178c1c7b52f7c99f5fd22ef7af6b2bff409e3|5]], [[http://git.kernel.org/linus/783237e8daf13481ee234997cbbbb823872ac388|6]], [[http://git.kernel.org/linus/cf60af03ca4e71134206809ea892e49b92a88896|7)]]
+
+
+== Bufferbloat fight: TCP small queues ==
+
+TCP small queues is another mechanism designed to fight bufferbloat. TCP Small Queues goal is to reduce number of TCP packets in xmit queues (qdisc & device queues), to reduce RTT and cwnd bias, part of the bufferbloat problem. Without reduction of nominal bandwidth, we have reduction of buffering per bulk sender : < 1ms on Gbit (instead of 50ms with TSO) and < 8ms on 100Mbit (instead of 132 ms).
+
+Recommended LWN article: [[https://lwn.net/Articles/507065/|TCP small queues]]
+
+Code: [[http://git.kernel.org/linus/46d3ceabd8d98ed0ad10f20c595ca784e34786c5|(commit)]]
+
+
+== Safe swap over NFS/NBD ==
+
+The Linux Terminal Server Project recommends the use of the Network Block Device (NBD) for swap according [[https://sourceforge.net/projects/ltsp/files/Docs-Admin-Guide/LTSPManual.pdf/download|to the manual]]. There is also documentation and tutorials on how to setup swap over NBD at [[https://help.ubuntu.com/community/UbuntuLTSP/EnableNBDSWAP|some places]]. The nbd-client also documents the use of NBD as swap. Despite this, a machine using NBD for swap could deadlock within minutes if swap was used intensively. This release allows safe swapping over NBD and also adds support for swapping over NFS.
+
+Recommended LWN article: [[https://lwn.net/Articles/439298/|Safely swapping over the net]]
+
+Code: [[http://git.kernel.org/linus/072bb0aa5e062902968c5c1007bba332c7820cf4|(commit 1]], [[http://git.kernel.org/linus/a564b8f0398636ba30b07c0eaebdef7ff7837249|2)]]
+
+== ext4: better quota support ==
+
+ext4 has added support for quotas as a first class feature in ext4; which is to say, instead of as separate files visible in the file system directory hierarchy, the quota files are stored in hidden inodes as file system metadata, and will be managed directly by e2fsprogs, and quota will be enabled automatically as soon as the file system is mounted. The repquota program will not function initially, until a new QUOTASCAN_OPEN interface is implemented. More details at https://ext4.wiki.kernel.org/index.php/Design_For_1st_Class_Quota_in_Ext4
+
+Code: [[http://git.kernel.org/linus/7c319d328505b7781b65238ae9f53293b5ee0ca8|(commit)]]
+
+
+== PCIe D3cold power state support ==
+
+This release adds PCI Express runtime D3cold power state support. D3cold is the deepest power saving state for a PCIe device, where its main power is removed.
+
+Code: [[http://git.kernel.org/linus/448bd857d48e69b33ef323739dc6d8ca20d4cda7|(commit 1]], [[http://git.kernel.org/linus/71a83bd727cc31c5fe960c3758cb396267ff710e|2]], [[http://git.kernel.org/linus/4f9c1397e2e80e52b17ec4e39760caa807bd15c7|3)]]
+
+== VFIO: bare-metal safe access to devices from userspace drivers ==
+
+The VFIO driver is an IOMMU/device agnostic framework for exposing direct device access to userspace, in a secure, IOMMU protected environment.  In other words, this allows safe, non-privileged, userspace drivers. Why does Linux wants that? Virtual machines often make use of direct device access ("device assignment") when configured for the highest possible I/O performance.  From a device and host perspective, this simply turns the VM into a userspace driver, with the benefits of significantly reduced latency, higher bandwidth, and direct use of bare-metal device drivers. Some applications, particularly in the high performance computing field, also benefit from low-overhead, direct device access from userspace. Examples include network adapters (often non-TCP/IP based) and compute accelerators.
+
+Recommended LWN article: [[https://lwn.net/Articles/474088/|Safe device assignment with VFIO]]
+
+Code: [[http://git.kernel.org/linus/89e1f7d4c66d85f42c3d52ea3866eb10cadf6153|(commit 1]], [[http://git.kernel.org/linus/4a5b2a20ec87384eeb19e70991e7e15a00cad87b|2]], [[http://git.kernel.org/linus/73fa0d10d077d9521ee2dace2307ae2c9a965336|3]], [[http://git.kernel.org/linus/cba3345cc494ad286ca8823f44b2c16cae496679|4)]]
+
+
+
+= Driver and architecture-specific changes =
+All the driver and architecture-specific changes can be found in the [[http://kernelnewbies.org/Linux_3.6_DriverArch|Linux_3.6_DriverArch page]]
+
+= Various core changes =
+ * Add symlink and hardlink restrictions to the Linux VFS, which helps to solve a long-standing class of security issues consisting in the symlink-based time-of-check-time-of-use race. Some distributions have been using this functionality for a while. Recommended LWN article: [[https://lwn.net/Articles/503660/|Tightening security: not for the impatient]] Code: [[http://git.kernel.org/linus/a51d9eaa41866ab6b4b6ecad7b621f8b66ece0dc|(commit 1]], [[http://git.kernel.org/linus/800179c9b8a1e796e441674776d11cd4c05d61d7|2)]]
+ * IOMMU groups [[http://git.kernel.org/linus/d72e31c9374627068df29da8085ca18c92ae35d3|(commit)]]
+ * process scheduler: Remove broken power estimation [[http://git.kernel.org/linus/ee08d1284ea9235b29bd2d9b7493b4b4cf3da09c|(commit)]]
+ * Thermal: Add Hysteresis attributes [[http://git.kernel.org/linus/27365a6c7d64a3bba22ee62109e4a071bbd7f933|(commit)]], make Thermal trip points writeable [[http://git.kernel.org/linus/c56f5c0342dfee11a1a13d2f5bb7618de5b17590|(commit)]]
+ * cpuidle: add support for states that affect multiple CPUs [[http://git.kernel.org/linus/4126c0197bc8c58a0bb7fcda07b01b596b6fb4c5|(commit)]]
+ * RCU: Control RCU_FANOUT_LEAF from boot-time parameter [[http://git.kernel.org/linus/f885b7f2b2de70be266d2cecc476f773a1e2ca5d|(commit)]]
+
+= Memory Management =
+ * Allow swap readahead IOPS to be merged, it improves throughput and at the same time lowers CPU consumption [[http://git.kernel.org/linus/3fb5c298b04eb6e472f8db1f0fb472749d30041c|(commit)]]
+ * Add new HugeTLB cgroup [[http://git.kernel.org/linus/2bc64a2046975410505bb119bba32705892b9255|(commit)]], [[http://git.kernel.org/linus/585e27ea6d2e71d0091443c39a00a35e6a5c5e8f|(commit)]]
+
+= Block =
+ * Add a new operation code (BLKPG_RESIZE_PARTITION) to the BLKPG ioctl that allows altering the size of an existing partition, even if it is currently in use [[http://git.kernel.org/linus/c83f6bf98dc1f1a194118b3830706cebbebda8c4|(commit)]]
+ * Device mapper RAID: Add support for MD RAID10 [[http://git.kernel.org/linus/63f33b8dda88923487004b20fba825486d009e7b|(commit)]]
+ * Device mapper thin: add read-only and fail I/O modes [[http://git.kernel.org/linus/e49e582965b3694f07a106adc83ddb44aa4f0890|(commit)]]
+ * Device mapper: remove persistent data debug space map checker [[http://git.kernel.org/linus/3caf6d73d4dc163b2d135e0b52b052a2b63e5216|(commit)]]
+ * md/raid1: prevent merging too large request [[http://git.kernel.org/linus/12cee5a8a29e7263e39953f1d941f723c617ca5f|(commit)]]
+
+= Perf/tracing =
+ * hists browser: Implement printing snapshots to files [[http://git.kernel.org/linus/aff3f3f68ae6002a30543726b2ae48cafce109e6|(commit)]]
+ * Add sort by src line/number [[http://git.kernel.org/linus/409a8be61560c5875816da6dcb0c575d78145a5c|(commit)]]
+ * Add PMU event alias support [[http://git.kernel.org/linus/a6146d5040cce560f700221158d77dd335eed332|(commit)]]
+
+= Virtualization =
+ * Add tcm_vhost, a vhost-level TCM fabric driver for virtio SCSI initiators into KVM guest [[http://git.kernel.org/linus/057cbf49a1f08297877e46c82f707b1bfea806a8|(commit)]]
+ * virtio: rng: s3/s4 support [[http://git.kernel.org/linus/0bc1a2ef19b45bb23617b203bc631b44609f17ba|(commit)]]
+ * Add mcelog support for Xen platform [[http://git.kernel.org/linus/cef12ee52b054282461a6d5fe7742755fa6e3bd3|(commit)]]
+
+= Security =
+ * SELinux
+
+= Networking =
+ * Delete ipv4 routing cache [[http://git.kernel.org/linus/89aef8921bfbac22f00e04f8450f6e447db13e42|(commit)]]
+ * tcp: implement the RFC 5691 3.2 mitigation against Blind Reset attack using RST bit [[http://git.kernel.org/linus/282f23c6ee343126156dd41218b22ece96d747e3|(commit)]] and SYN bit, RFC 5961 4.2  [[http://git.kernel.org/linus/0c24604b68fc7810d429d6c3657b6f148270e528|(commit)]]
+ *  VTI support: Virtual (secure) IP: tunneling. This can be used with xfrm mode tunnel to give the notion of a secure tunnel for IPSEC and then use routing protocol on top [[http://git.kernel.org/linus/1181412c1a671ed4e8fb1736f17e6ec617c68059|(commit)]]
+ * mac802154: add WPAN device-class support [[http://git.kernel.org/linus/32bad7e30f113a8a5cebe4704bf6519ab4383e1b|(commit)]]
+ * Add interface option to enable routing of 127.0.0.0/8 [[http://git.kernel.org/linus/d0daebc3d622f95db181601cb0c4a0781f74f758|(commit)]]
+ * team: add multiqueue [[http://git.kernel.org/linus/6c85f2bdda2086d804e198a3f31b685bc2f86b04|(commit)]], and netpoll support [[http://git.kernel.org/linus/bd2d0837abc0206ecdd3f6b9fc8c25b55b63c96b|(commit)]]
+ * tun: experimental zero-copy tx support [[http://git.kernel.org/linus/0690899b4d4501b3505be069b9a687e68ccbe15b|(commit)]]
+
+ * Add support for 40GbE link [[http://git.kernel.org/linus/e440cf2ca0a1b075c64016240d46c3aa9d877bbf|(commit)]]
+ * Add 802.11ad (60 GHz band) support [[http://git.kernel.org/linus/3a0c52a6d82cc41da965284412608c74aece34e4|(commit)]]
+
+ * netfilter
+  * Add fail-open support [[http://git.kernel.org/linus/fdb694a01f1fcd30fd16d8aa290c34699fe98a17|(commit)]]
+  * Add user-space connection tracking helper infrastructure [[http://git.kernel.org/linus/12f7a505331e6b2754684b509f2ac8f0011ce644|(commit)]]
+ * Added kernel support in EEE Ethtool commands [[http://git.kernel.org/linus/80f12eccce775dc6bb93dba9b52529740f929237|(commit)]]
+ * Speedup /proc/net/unix [[http://git.kernel.org/linus/7123aaa3a1416529ce461e98108e6b343b294643|(commit)]]
+ * wireless: remove wext sysfs [[http://git.kernel.org/linus/35b2a113cb0298d4f9a1263338b456094a414057|(commit)]]
+
+
+= Cryptography =
+ * Hardware acceleration in Atmel processors for the following algorithms: AES [[http://git.kernel.org/linus/bd3c7b5c2aba0d806285700848f588ca482094d8|(commit)]], DES/TDES [[http://git.kernel.org/linus/13802005d8f2db244ec1f5d7f6923de8f7a463db|(commit)]] and SHA-1/SHA-256 [[http://git.kernel.org/linus/ebc82efa1cd64efba0f41455460411b852b5b89c|(commit)]]
+ * CRC hardware driver for Blackfin BF60x family processors. [[http://git.kernel.org/linus/b8840098b70c11d70c29263e0765f103e6cbe55e|(commit)]]
+ * caam: add support for SEC v5.x RNG4 [[http://git.kernel.org/linus/=281922a1d4f59bdebbe78c1d9f4c50a967eb6cff|(commit)]], ahash HMAC support [[http://git.kernel.org/linus/045e36780f11523e26d1e4a8c78bdc57f4003bd0|(commit)]], hwrng support [[http://git.kernel.org/linus/e24f7c9e87d46fad06bf1097d48f9923acd8e61c|(commit)]]
+ * serpent: add x86_64/avx assembler implementation [[http://git.kernel.org/linus/7efe4076725aeb01722445b56613681aa492c8d6|(commit)]]
+ * twofish: add x86_64/avx assembler implementation [[http://git.kernel.org/linus/107778b592576c0c8e8d2ca7a2aa5415a4908223|(commit)]]
+ * talitos: add sha224, sha384 and sha512 to existing AEAD algorithms [[http://git.kernel.org/linus/357fb60502ede168fa1b76b996298e0045e24b59|(commit)]]
+
+= File systems =
+ * Btrfs
+  * Improve multi-thread buffer read [[http://git.kernel.org/linus/67c9684f48ea9cbc5e9b8a1feb3151800e9dcc22|(commit)]]
+  * Introduce subvol uuids and times [[http://git.kernel.org/linus/8ea05e3a4262b9e6871c349fa3486bcfc72ffd1a|(commit)]]
+  * Allow mount -o remount,compress=no [[http://git.kernel.org/linus/063849eafda03edf6872a3728b4a98dcc86290c7|(commit)]]
+  * Add DEVICE_READY ioctl [[http://git.kernel.org/linus/02db0844beffc1c4e99d750be58ffb3ed95d6d62|(commit)]]
+  * Join DEV_STATS ioctls to one [[http://git.kernel.org/linus/b27f7c0c150f74564b5d4c6c24a03c5226bf6327|(commit)]]
+
+
+
+ * pstore
+  * Add console messages handling [[http://git.kernel.org/linus/b5d38e9bf1b0c4db19e336b59b38dfb5d28bf1bf|(commit)]]
+  * Add console log messages support [[http://git.kernel.org/linus/f29e5956aebafe63f81e80f972c44c4a666e5c7f|(commit)]]
+  * Add persistent function tracing [[http://git.kernel.org/linus/060287b8c467bf49a594d8d669e1986c6d8d76b0|(commit)]]
+
+
+ * eCryptfs
+  * Copy up POSIX ACL and read-only flags from lower mount [[http://git.kernel.org/linus/;a=commit;h=069ddcda37b2cf5bb4b6031a944c0e9359213262|(commit)]]
+
+ * GFS2
+  * Reduce file fragmentation [[http://git.kernel.org/linus/;a=commit;h=8e2e00473598dd5379d8408cb974dade000acafc|(commit)]]
+
+= Other news sites that track the changes of this release =
+ * LWN report [[https://lwn.net/Articles/507852/|part 1]], [[https://lwn.net/Articles/508790/|2]] and [[https://lwn.net/Articles/509433/|3]]
+ * H-Online: [[http://www.h-online.com/open/features/What-s-new-in-Linux-3-6-1714690.html|What's new in Linux 3.6]]
+
+----
+ CategoryReleases

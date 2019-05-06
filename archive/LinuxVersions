@@ -1,0 +1,442 @@
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.5.x, 2.6.x, 3.x and 4.x development cycles
+This is a list of links to every changelog.
+= 5.x =
+ * [[Linux_5.1]] Released Sun, 5 May 2019 (63 days)
+ * [[Linux_5.0]] Released Sun, 3 March 2019 (70 days)
+
+= 4.x =
+ * [[Linux_4.20]] Released 23 December, 2018 (62 days)
+ * [[Linux_4.19]] Released 22 October, 2018 (71 days)
+ * [[Linux_4.18]] Released 12 August, 2018 (70 days)
+ * [[Linux_4.17]] Released 3 Jun, 2018 (63 days)
+ * [[Linux_4.16]] Released 1 Apr, 2018 (73 days)
+ * [[Linux_4.15]] Released 18 January, 2018 (77 days)
+ * [[Linux_4.14]] Released 12 November, 2017 (70 days)
+ * [[Linux_4.13]] Released 3 September, 2017 (63 days)
+ * [[Linux_4.12]] Released 2 July, 2017 (63 days)
+ * [[Linux_4.11]] Released 30 April, 2017 (70 days)
+ * [[Linux_4.10]] Released 19 February, 2017 (70 days)
+ * [[Linux_4.9]] Released 11 December, 2016 (70 days)
+ * [[Linux_4.8]] Released 2 October, 2016 (70 days)
+ * [[Linux_4.7]] Released 24 July, 2016 (70 days)
+ * [[Linux_4.6]] Released 15 May, 2016 (63 days)
+ * [[Linux_4.5]] Released 13 March, 2016 (63 days)
+ * [[Linux_4.4]] Released 10 January, 2016 (70 days)
+ * [[Linux_4.3]] Released 1 November, 2015 (63 days)
+ * [[Linux_4.2]] Released 30 August, 2015 (70 days)
+ * [[Linux_4.1]] Released 21 June, 2015 (70 days)
+ * [[Linux_4.0]] Released 12 April, 2015 (63 days)
+
+= 3.x =
+ * [[Linux_3.19]] Released 8 February, 2015 (63 days)
+ * [[Linux_3.18]] Released 7 December, 2014 (63 days)
+ * [[Linux_3.17]] Released 5 October, 2014 (63 days)
+ * [[Linux_3.16]] Released 3 August, 2014 (56 days)
+ * [[Linux_3.15]] Released 8 June, 2014 (70 days)
+ * [[Linux_3.14]] Released 30 March, 2014 (70 days)
+ * [[Linux_3.13]] Released 19 January, 2014 (78 days)
+ * [[Linux_3.12]] Released 2 November, 2013 (61 days)
+ * [[Linux_3.11]] Released 2 September, 2013 (64 days)
+ * [[Linux_3.10]] Released 30 June, 2013 (63 days)
+ * [[Linux_3.9]] Released 28 April, 2013 (69 days)
+ * [[Linux_3.8]] Released 18 February, 2013 70 ( days)
+ * [[Linux_3.7]] Released 10 December 2012 (71 days)
+ * [[Linux_3.6]] Released 30 September, 2012 (71 days)
+ * [[Linux_3.5]] Released 21 July, 2012 (62 days)
+ * [[Linux_3.4]] Released 20 May, 2012 (63 days)
+ * [[Linux_3.3]] Released 18 March, 2012 (74 days)
+ * [[Linux_3.2]] Released 4 January, 2012 (72 days)
+ * [[Linux_3.1]] Released 24 October, 2011 (95 days)
+ * [[Linux_3.0]] Released 21 July, 2011 (64 days)
+
+= 2.6.x =
+ * [[Linux_2_6_39|Linux 2.6.39]] Released 18 May, 2011 (65 days)
+ * [[Linux_2_6_38|Linux 2.6.38]] Released 14 March, 2011 (69 days)
+ * [[Linux_2_6_37|Linux 2.6.37]] Released 4 January, 2011 (76 days)
+ * [[Linux_2_6_36|Linux 2.6.36]] Released 20 October, 2010 (80 days)
+ * [[Linux_2_6_35|Linux 2.6.35]] Released 1 August, 2010 (76 days)
+ * [[Linux_2_6_34|Linux 2.6.34]] Released 16 May, 2010 (81 days)
+ * [[Linux_2_6_33|Linux 2.6.33]] Released 24 February, 2010 (83 days)
+ * [[Linux_2_6_32|Linux 2.6.32]] Released 3 December, 2009 (84 days)
+ * [[Linux_2_6_31|Linux 2.6.31]] Released 9 September, 2009 (92 days)
+ * [[Linux_2_6_30|Linux 2.6.30]] Released 9 June, 2009 (77 days)
+ * [[Linux_2_6_29|Linux 2.6.29]] Released 24 March, 2009 (89 days)
+ * [[Linux_2_6_28|Linux 2.6.28]] Released 25 December, 2008 (77 days)
+ * [[Linux_2_6_27|Linux 2.6.27]] Released 9 October, 2008 (88 days)
+ * [[Linux_2_6_26|Linux 2.6.26]] Released 13 July, 2008 (87 days)
+ * [[Linux_2_6_25|Linux 2.6.25]] Released 17 April, 2008 (84 days)
+ * [[Linux_2_6_24|Linux 2.6.24]] Released 24 January, 2008 (107 days)
+ * [[Linux_2_6_23|Linux 2.6.23]] Released 9 October, 2007 (93 days)
+ * [[Linux_2_6_22|Linux 2.6.22]] Released 8 July, 2007 (73 days)
+ * [[Linux_2_6_21|Linux 2.6.21]] Released 26 April, 2007 (80 days)
+ * [[Linux_2_6_20|Linux 2.6.20]] Released 5 February, 2007 (68 days)
+ * [[Linux_2_6_19|Linux 2.6.19]] Released 29 November, 2006 (70 days)
+ * [[Linux_2_6_18|Linux 2.6.18]] Released 20 September, 2006 (95 days)
+ * [[Linux_2_6_17|Linux 2.6.17]] Released 17 June, 2006 (88 days)
+ * [[Linux_2_6_16|Linux 2.6.16]] Released 20 March, 2006 (76 days)
+ * [[Linux_2_6_15|Linux 2.6.15]] Released 3 January, 2006 (68 days)
+ * [[Linux_2_6_14|Linux 2.6.14]] Released 27 October, 2005 (59 days)
+ * [[Linux_2_6_13|Linux 2.6.13]] Released 29 August, 2005 (73 days)
+ * [[Linux_2_6_12|Linux 2.6.12]] Released 17 June, 2005 (107 days)
+ * [[Linux_2_6_11|Linux 2.6.11]] Released 2 March, 2005 (68 days)
+ * [[Linux_2_6_10|Linux 2.6.10]] Released 24 December, 2004 (66 days)
+ * [[Linux_2_6_9|Linux 2.6.9]] Released 19 October, 2004 (66 days)
+ * [[Linux_2_6_8|Linux 2.6.8]] Released 14 August, 2004 (59 days)
+ * [[Linux_2_6_7|Linux 2.6.7]] Released 16 June, 2004 (37 days)
+ * [[Linux_2_6_6|Linux 2.6.6]] Released 10 May, 2004 (36 days)
+ * [[Linux_2_6_5|Linux 2.6.5]] Released 4 April, 2004 (24 days)
+ * [[Linux_2_6_4|Linux 2.6.4]] Released 11 March, 2004 (22 days)
+ * [[Linux_2_6_3|Linux 2.6.3]] Released 18 February, 2004 (14 days)
+ * [[Linux_2_6_2|Linux 2.6.2]] Released 4 February, 2004 (26 days)
+ * [[Linux_2_6_1|Linux 2.6.1]] Released 9 January, 2004 (22 days)
+ * [[Linux_2_6_0|Linux 2.6.0]] Released 18 December, 2003
+
+= 2.5.x =
+2.6.0-test9:
+
+ * Libata driver architecture [[http://lwn.net/Articles/44243/|(LWN article)]]
+
+2.6.0-test6:
+
+ * [[http://marc.info/?l=linux-kernel&m=104344596912094&w=2|32-bit dev_t]]
+ * Direct I/O support for reiserfs
+
+2.6.0-test3:
+
+ * [[http://www.nsa.gov/selinux/index.html|SELinux]]
+
+2.6.0-test1:
+
+ * [[http://www.linuxvirtualserver.org/|Linux Virtual Server layer]]
+
+2.5.75 released July 10, 2003:
+
+ * [[http://marc.info/?l=linux-mm&m=104529418208788&w=2|Anticipatory Scheduler]]
+ * "kblockd" kernel threads
+ * "nointegrity" JFS mount option
+
+2.5.74 released July 2, 2003:
+
+2.5.73 released June 22, 2003:
+
+2.5.72 released June 17, 2003:
+
+2.5.71 released June 14, 2003:
+
+ * [[http://marc.info/?l=linux-kernel&m=104981044405395&w=2|Switch the IDE I/O layers to taskfile]]
+
+2.5.70 released May 27, 2003:
+
+ * [[http://www.linux-usb.org/gadget|USB gadget support]]
+
+2.5.69 released May 5, 2003:
+
+ * New interrupt handling API [[http://lwn.net/Articles/29555/|(LWN article)]]
+ * Runtime barrier instruction patching: Allows optimal performance on different processors without the need to ship multiple kernels
+
+2.5.68 released April 20, 2003:
+
+ * Merging s390 and s390x into a single architecture
+ * Generation of hotplug events from kobject registration
+
+2.5.67 released April 7, 2003:
+
+2.5.66 released March 24, 2003:
+
+2.5.65 released March 17, 2003:
+
+ * [[http://www.kerneltrap.org/node.php?id=603|Desktop Interactivity Improvements]]
+
+2.5.64 released March 5, 2003:
+
+2.5.63 released February 24, 2003:
+
+ * [[http://high-res-timers.sourceforge.net/|POSIX timers]]
+
+2.5.62 released February 17, 2003:
+
+ * [[http://lse.sourceforge.net/locking/dcache/dcache_lock.html|Avoid dcache_lock while path walking]]
+
+2.5.61 released February 15, 2003:
+
+2.5.60 released February 10, 2003:
+
+ * New modversions implementation
+ * 64-bit jiffies
+
+2.5.59 released Janury 17, 2003:
+
+ * [[http://home.arcor.de/efocht/sched/|NUMA aware scheduler extensions]]
+
+2.5.58 released January 14, 2003:
+
+2.5.57 released January 13, 2003:
+
+ * [[http://www.zipworld.com.au/~akpm/linux/schedlat.html|Remove long-held locks for low scheduling latency]]
+
+2.5.56 released January 10, 2003:
+
+2.5.55 released January 9, 2003:
+
+2.5.54 released January 2, 2003:
+
+ * [[http://secure.netroedge.com/~lm78/|Add lm-sensors drivers for hardware health monitoring]]
+ * Support for AGP 3.0
+
+2.5.53 released December 24, 2002:
+
+ * SYSENTER/SYSEXIT support: Systems that support the SYSENTER extension (Basically Intel Pentium-II and above, and AMD Athlons) now have a faster method of making the transition from userspace to kernelspace when a syscall is performed. Pentium Pro also has SYSENTER, but due to errata, is unusable. Need an updated glibc to use it.
+
+2.5.52 released December 16, 2002:
+
+2.5.51 released December 10, 2002:
+
+ * [[http://linuxconsole.sourceforge.net/|Rewrite of the console layer]]
+ * Compatibility syscall layer
+
+2.5.50 released November 27, 2002:
+
+2.5.49 released November 22, 2002:
+
+2.5.48 released November 18, 2002:
+
+ * [[http://lists.insecure.org/lists/linux-kernel/2002/Oct/6214.html|In-kernel module loader]]
+
+2.5.47 released November 11, 2002:
+
+ * [[http://marc.info/?l=linux-kernel&m=101843329231392&w=2|Zerocopy NFS]]
+
+2.5.46 released November 4, 2002:
+
+ * [[http://www.xmailserver.org/linux-patches/nio-improve.html|Better I/O performance with epoll]], [[http://lwn.net/Articles/14168/|(LWN article)]]
+ * Per-cpu hot & cold page lists
+ * [[http://www.uclinux.org/|MMU-less processor support (ucLinux)]]
+ * [[http://marc.info/?l=linux-kernel&m=101095500820185&w=2|Replace initrd by initramfs]]
+ * Extended Attributes and ACLs for ext2/ext3
+
+2.5.45 released October 31, 2002:
+
+ * [[http://www.xs4all.nl/~zippel/lc/|New Linux configuration system: kconfig]]
+ * [[http://samba.org/~jamesm/crypto/|CryptoAPI]]
+ * [[ftp://ftp.linux-ipv6.org/pub/usagi/patch/ipsec/|IPSEC]]
+ * [[http://www.linuxtv.org/dvb/|Digital Video Broadcasting (DVB) layer]]
+ * [[http://www.sistina.com/products_lvm.htm|Device mapper for Logical Volume Manager (LVM2)]]
+
+2.5.44 released October 19, 2002:
+
+ * New sysfs filesystem (formerly known as driverfs) [[http://lwn.net/Articles/36850/|(LWN article)]]
+ * Plug'N Play Layer Rewrite
+ * x86 BIOS Enhanced Disk Device (EDD) polling [[http://lwn.net/Articles/9042/|(LWN article)]]
+
+2.5.43 released October 16, 2002:
+
+ * [[http://www.psc.edu/general/filesys/afs/|Andrew File System (AFS) support]]
+ * [[http://oprofile.sourceforge.net/|OProfile, a low-overhead profiler]]
+ * [[http://lse.sourceforge.net/locking|Read-Copy Update (RCU) Mutual Exclusion]]
+ * [[http://www.citi.umich.edu/projects/nfsv4/|Add support for NFS v4]]
+ * Remove kiobufs
+
+2.5.42 released October 12, 2002:
+
+ * [[http://www.citi.umich.edu/projects/nfsv4/|NFS v4]] support [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=4aebf5c40f30cc754927f4f3d20dffa9c7162814|(commit)]], [[http://marc.info/?l=linux-kernel&m=102927937802523&w=2|(announcement)]]
+ * [[http://marc.info/?l=linux-kernel&m=103298446916066&w=2|ext2/ext3 large directory support: HTree index]]
+ * [[http://us1.samba.org/samba/Linux_CIFS_client.html|Add new CIFS (Common Internet File System)]]
+ * [[http://www.gelato.unsw.edu.au/IA64wiki/LargeBlockDevices|Remove the 2TB block device limit]]: Block devices can now access up to 16TB on 32-bit architectures, and up to 8EB on 64-bit architectures. statfs64() syscall added: statfs() couldn't handle it.
+ * Improved i2o (Intelligent Input/Ouput) layer
+
+2.5.41 released October 7, 2002:
+
+ * NFS direct I/O [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=fef2661181855f2d70c0b4c36f76ae6db15a2b93|(commit)]]
+
+2.5.40 released October 1, 2002:
+
+ * [[http://lse.sourceforge.net/numa|Parallelizing page replacement]]
+ * [[http://lse.sourceforge.net/numa|NUMA topology support]]
+ * [[http://www.brodo.de/cpufreq/|Add support for CPU clock/voltage scaling]]
+
+2.5.39 released September 27, 2002:
+
+ * New IO scheduler ("deadline")
+
+2.5.38 released September 22, 2002:
+
+2.5.37 released September 20, 2002:
+
+ * [[http://users.pandora.be/bart.de.schuymer/ebtables/|Ethernet bridge tables support]]
+ * Remove the global tasklist
+
+2.5.36 released September 18, 2002:
+
+ * Hugepage support
+ * [[http://oss.sgi.com/projects/xfs/|XFS filesystem from SGI]]
+
+2.5.35 released September 16, 2002:
+
+ * Serial ATA support
+ * [[http://user-mode-linux.sourceforge.net/index.html|Add User-Mode Linux (UML)]]
+
+2.5.34 released September 9, 2002:
+
+ * POSIX threading support for signals
+ * [[http://lse.sourceforge.net/numa|discontigmem support (ia32)]]
+
+2.5.33 released August 31, 2002:
+
+ * TCP segmentation offload
+ * [[http://www.sf.net/projects/lksctp|SCTP (Stream Control Transmission Protocol)]]
+
+2.5.32 released August 27, 2002:
+
+ * [[http://people.redhat.com/drepper/nptl-design.pdf|Improved POSIX threading support]]
+ * [[http://freshmeat.net/projects/linux-aio/|Asynchronous IO (aio) support]]
+ * Porting all input devices over to input API
+ * New MTRR (Memory Type Range Register) driver
+
+2.5.31 released August 11, 2002:
+
+ * Support insane number of processes
+ * Disk description cleanups
+ * Remove incomplete SPX network stack
+
+2.5.30 released August 1, 2002:
+
+ * Remove khttpd
+
+2.5.29 released July 27, 2002:
+
+ * Strict address space accounting
+ * [[http://lsm.immunix.org/|Add Linux Security Module (LSM)]]
+ * [[http://people.redhat.com/mingo/tls-patches/|Thread-Local Storage (TLS) support]]
+
+2.5.28 released July 24, 2002:
+
+ * Remove the "Big IRQ lock"
+ * Serial driver restructure
+
+2.5.27 released July 20, 2002:
+
+ * [[http://surriel.com/patches/|New VM with reverse mappings]]
+
+2.5.26 releasaed July 16, 2002:
+
+ * Direct pagecache <-> BIO disk I/O
+
+2.5.25 releaseed July 5, 2002:
+
+ * [[http://marc.info/?l=linux-kernel&m=102591369418106&w=2|Faster internal kernel clock frequency]]
+ * Unified naming for disk devices
+
+2.5.24 released June 20, 2002:
+
+2.5.23 released June 19, 2002:
+
+ * [[http://www.kernel.org/pub/linux/kernel/people/rusty/patches/Hotcpu/|Hotplug CPU support]]
+ * [http://web.archive.org/web/20030208091619/bazar.conectiva.com.br/~acme/patches/wip/
+
+ More complete IEEE 802.2 stack]
+
+2.5.22 released June 17, 2002:
+
+2.5.21 released June 9, 2002:
+
+2.5.20 released June 3, 2002:
+
+2.5.19 released May 29, 2002:
+
+2.5.18 released May 25, 2002:
+
+ * [[http://falcon.sch.bme.hu/~seasons/linux/swsusp.html|Software suspend (to disk & RAM)]]
+ * ->getattr() ->setattr() ->permission() changes
+
+2.5.17 released May 21, 2002:
+
+ * Move ISDN4linux to CAPI based interface
+ * [[http://marc.info/?l=linux-fsdevel&m=101586205801483&w=2|New quota system supporting plugins]]
+
+2.5.16 released May 18, 2002:
+
+2.5.15 released May 9, 2002:
+
+2.5.14 released May 6, 2002:
+
+ * Bluetooth support (no longer experimental!)
+ * [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=e4ca57ce9faaaecb6dc5237960ea95d067770211|Support for IDE TCQ (Tagged Command Queueing)]]
+
+2.5.13 released May 3, 2002:
+
+2.5.12 released May 1, 2002:
+
+ * Rewrite of the buffer layer
+
+2.5.11 released April 29, 2002:
+
+ * Rewrite of the framebuffer layer
+ * [[http://marc.info/?l=linux-kernel&m=101968599501262&w=2|Fast walk dcache]]
+ * [[http://linux-ntfs.sourceforge.net/|Replace old NTFS driver with NTFS TNG driver]]
+
+2.5.10 released April 24, 2002:
+
+2.5.9 released April 22, 2002:
+
+ * Smarter IRQ balancing
+
+2.5.8 released April 14, 2002:
+
+ * [[http://marc.info/?l=linux-kernel&m=101231993430394&w=2|Radix-tree pagecache]]
+ * [[http://www.kernel.org/pub/linux/kernel/people/rml/cpu-affinity|Syscall interface for CPU task affinity]]
+
+2.5.7 released March 18, 2002:
+
+ * [[http://sourceforge.net/projects/acpi/|ACPI (Advanced Configuration & Power Interface)]]
+ * [[ftp://robur.slu.se/pub/Linux/net-development/NAPI/|NAPI network interrupt mitigation]]
+ * [[http://marc.info/?l=linux-kernel&m=101531164109904&w=2|Futexes (Fast Lightweight Userspace Semaphores]]
+ * [[http://marc.info/?l=linux-video&m=101508220707263&w=2|Video for Linux (V4L) redesign]]
+ * [[http://www.hpl.hp.com/personal/Jean_Tourrilhes/Linux/Tools.html|New driver API for Wireless Extensions]]
+
+2.5.6 released March 8, 2002:
+
+ * Unicode and large file support for smbfs
+ * [[http://marc.info/?l=linux-kernel&m=101043315213024&w=2|HDLC (High-level Data Link Control) update]]
+ * [[http://marc.info/?l=linux-kernel&m=101426108626124&w=2|per_cpu infrastructure]]
+ * [[http://www-124.ibm.com/jfs/|Add JFS (Journaling FileSystem from IBM)]]
+ * Killing kdev_t for block devices
+
+2.5.5 released February 20, 2002:
+
+ * [[http://linuxppc64.org/|New architecture: PowerPC 64-bit (ppc64)]]
+ * [[http://www.x86-64.org/|New architecture: AMD 64-bit (x86-64)]]
+ * [[http://marc.info/?l=linux-kernel&m=101406121032371&w=2|Pagetables in highmem support]]
+ * [[http://www.alsa-project.org/|Add ALSA (Advanced Linux Sound Architecture]]
+
+2.5.4 released February 11, 2002:
+
+ * [[http://www-124.ibm.com/developerworks/oss/pthreads/|Support for Next Generation POSIX Threading]]
+ * [[ftp://ftp.kernel.org/pub/linux/kernel/people/rml/preempt-kernel/|Add preempt kernel option]]
+ * Per network protocol slabcache & sock.h
+ * [[http://marc.info/?l=linux-kernel&m=100942323913586&w=2|Per filesystem slabcache & fs.h]]
+
+2.5.3 released January 30, 2002:
+
+ * [[http://kernel.org/pub/linux/kernel/people/mochel/doc/|New driver model & unified device tree]]
+ * [[http://marc.info/?l=linux-kernel&m=100173574819266&w=2|PnP BIOS driver]]
+ * Generic Extended Attribute support
+ * [[http://marc.info/?l=linux-kernel&m=101077476005939&w=2|Support reiserfs external journal]]
+ * [[http://marc.info/?l=linux-kernel&m=101121711408999&w=2|IDE layer update]]
+ * [[http://www.uwsg.iu.edu/hypermail/linux/kernel/0202.0/0260.html|Untangle sched.h & fs.h include dependancies]]
+ * Break Configure.help into multiple files
+
+2.5.2 released January 15, 2002:
+
+ * [[http://marc.info/?l=linux-kernel&m=100992347220716&w=2|New kernel device structure (kdev_t)]]
+ * [[http://people.redhat.com/mingo/O(1)-scheduler/|O(1) scheduler for improved scalability]]
+ * [[http://marc.info/?l=linux-fsdevel&m=98307457705210&w=2|Filesystem per-process namespaces, late-boot cleanups]]
+ * [[http://www.linux-usb.org/usb2.html|Initial support for USB 2.0]]
+
+2.5.1 December 17, 2001:
+
+ * VFS changes: Now it is possible to atomically move a subtree to another place, "mount --move olddir newdir"
+ * Rewrite of the block IO (bio) layer
+
+----
+ CategoryReleases

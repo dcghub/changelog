@@ -1,0 +1,188 @@
+#pragma section-numbers on
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.38 development cycle
+
+Linux 2.6.38 released 14 March, 2011.
+
+'''Summary''': This release adds support for a automatic process grouping (called "the wonder patch" in the news), significant scalability improvements in the VFS, Btrfs LZO compression and read-only snapshots, support for the B.A.T.M.A.N. mesh protocol (which helps to provide network connectivity in the presence of natural disasters,  military conflicts or Internet censorship), transparent Huge Page support (without using hugetblfs), automatic spreading of outcoming network traffic across multiple CPUs, support for the AMD Fusion APUs, many drivers and other changes.
+
+<<TableOfContents>>
+= Prominent features (the cool stuff) =
+== Automatic process grouping (a.k.a. "the patch that does wonders") ==
+
+Recommended LWN article :[[https://lwn.net/Articles/418884/|Group scheduling and alternatives]]
+
+The most impacting feature in this release is the so-called "patch that does wonders", a patch that changes substantially how the process scheduler assigns shares of CPU time to each process. With this feature the system will group all processes with the same session ID as a single scheduling entity. Example: Let's imagine a system with six CPU-hungry processes, with the first four sharing the same session ID and the other using another two different sessions each one.
+
+Without automatic process grouping: {{{ [proc. 1 | proc. 2 | proc. 3 | proc. 4 | proc. 5 | proc. 6] }}}
+
+With automatic process grouping:    {{{   [proc. 1, 2, 3, 4  |     proc. 5       |     proc. 6      ] }}}
+
+The session ID is a property of processes in Unix systems (you can see it with commands like ps -eo session,pid,cmd). It is inherited by forked child processes, which can start a new session using setsid(3). The bash shell uses setsid(3) every time it is started, which means you can run a "make -j 20" inside a shell in your desktop and not notice it while you browse the web. This feature is implemented on top of group scheduling (merged in [[[http://kernelnewbies.org/Linux_2_6_24#head-16d608b6aba030fe15ba3bbc75655391ae98d707|2.6.24]]). You can disable it in /proc/sys/kernel/sched_autogroup_enabled
+
+Code: [[http://git.kernel.org/linus/5091faa449ee0b7d73bc296a93bca9540fc51d0a|(commit)]]
+
+
+== VFS scalability: scaling the directory cache ==
+
+Recommended LWN article: [[https://lwn.net/Articles/419811/|Dcache scalability and RCU-walk]]
+
+There are ongoing efforts to make the Linux VFS layer ("Virtual File System", the code that glues the syscall and the filesystem) more scalable. In the previous release some changes [[http://kernelnewbies.org/Linux_2_6_36#head-4e895d3e811a130d2e2d71beeae2f4c552ffdc36|were already merged]] as part of this work, in this release, the dcache (alias for "directory cache", which keeps a cache of directories ) and the whole path lookup mechanisms have been reworked to be more scalable (you can find details in [[https://lwn.net/Articles/419811/|the LWN article]]).
+
+These changes make the VFS more scalable in multithreaded workloads, but more interestingly (and it's what excites Linus Torvalds) they also make some single threaded workloads quite faster (due to the removal of atomic CPU operations in the code paths): a
+hot-cache "find . -size" on his home directory seems to be 35% faster. Single threaded git diff on a cached kernel tree runs 20% faster (64 parallel git diffs increase throughput by 26 times). Everything that calls stat() a lot is faster.
+
+Changes: Far too many to track here, see the patches done by Nick Piggin in [[http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=history;f=fs;hb=b3e19d924b6eaf2ca7d22cba99a517c5171007b6|this list]] (inverse chronological order)
+
+== Btrfs LZO compression, read-only snapshots ==
+
+Btrfs adds supports for transparent compression using the [[http://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Oberhumer|LZO algorithm]], as an alternative to zlib. You can find [[https://lwn.net/Articles/416644/|here]] a small performance comparison.
+
+There is also support for marking snapshots as read-only. Finally, filesystems which find errors will be "force mounted" as read-only, which is a step forward to make the codebase more tolerant to failures.
+
+Code: LZO [[http://git.kernel.org/linus/261507a02ccba9afda919852263b6bc1581ce1ef|(commit 1]],[[http://git.kernel.org/linus/a6fa6fae40ec336c7df6155255ae64ebef43a8bc|2]], [[http://git.kernel.org/linus/1a419d85a76853d7d04e9b6280a80e96770bf3e3|3)]]; read-only snapshots [[http://git.kernel.org/linus/b83cc9693f39689490970c19f6c5b866f6719a70|(commit 1]], [[http://git.kernel.org/linus/0caa102da82799efaba88e234484786a9591c797|2)]], forced readonly mounts [[http://git.kernel.org/linus/acce952b0263825da32cf10489413dec78053347|(commit)]]
+
+== Transparent huge pages ==
+
+Recommended LWN article: [[https://lwn.net/Articles/423584/|Transparent huge pages in 2.6.38]]
+
+Processors manage memory in small units called "pages" (which is 4 KB in size in x86). Each process has a virtual memory address space, and there is a "page table" where all the correspondencies between each virtual memory address page and its correspondent real RAM page are kept. The work of walking the page table to find out which RAM page corresponds to a given virtual address is expensive, so the CPU has a small cache to store the result of that work for frequently accessed virtual addresses. However, this cache is not very big and it only supports 4KB pages, so many data-intensive workloads (databases, KVM) have performance problems because all their frequently accessed virtual addresses can't be cached.
+
+To solve this problem, modern processors add cache entries that support pages bigger than 4KB (like 2MB/4MB). Until now, the one way that userspace had to use those pages in Linux was hugetblfs, a filesystem-based API. This release adds support for transparent hugepages ( - hugepages are used automatically where possible. Transparent Huge Pages can be configured to be used always or only as requested with madvise(MADV_HUGEPAGE), and its behaviour can be changed online in /sys/kernel/mm/transparent_hugepage/enabled. For more details, check [[http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=blob;f=Documentation/vm/transhuge.txt;hb=HEAD|Documentation/vm/transhuge.txt]]
+
+Code: Far too many to track here, see the patches from Andrea Arcangeli in [[http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=shortlog;h=a664b2d8555c659127bf8fe049a58449d394a707|this list]] (inverse chronological order)
+
+== Transparent spreading of outcoming network traffic across CPUs on multiqueue devices ==
+
+This patch implements transmit packet steering (XPS) for multiqueue devices. XPS selects a transmit queue during packet transmission based on configuration. This is done by mapping the CPU transmitting the packet to a queue. This is the transmit side analogue to [[http://kernelnewbies.org/Linux_2_6_35#head-94daf753b96280181e79a71ca4bb7f7a423e302a|RPS]] -- where RPS is selecting a CPU based on receive queue, XPS selects a queue based on the CPU.
+
+Each transmit queue can be associated with a number of CPUs which will use the queue to send packets.  This is configured as a CPU mask on a per queue basis in /sys/class/net/eth<n>/queues/tx-<n>/xps_cpus
+
+A netperf benchmark with 500 instances of netperf TCP_RR test with 1 byte req. and resp. on 16 core AMD:
+XPS (16 queues, 1 TX queue per CPU)  1234K at 100% CPU
+No XPS (16 queues)                   996K at 100% CPU
+
+Code: [[http://git.kernel.org/linus/1d24eb4815d1e0e8b451ecc546645f8ef1176d4f|(commit)]]
+
+
+
+== B.A.T.M.A.N. mesh protocol ==
+
+B.A.T.M.A.N. is an alias for "Better Approach To Mobile Adhoc Networking". An ad hoc network is a decentralized network that does not rely on a preexisting infrastructure, such as routers in wired networks or access points in managed (infrastructure) wireless networks. Instead, each node participates in routing by forwarding data for other nodes, and so the determination of which nodes forward data is made dynamically based on the network connectivity. B.A.T.M.A.N. is a routing protocol implementation ot these networks. B.A.T.M.A.N is useful for emergency situations like natural disasters, military conflicts or Internet censorship. More information about this project can be found at [[http://www.open-mesh.org/|http://www.open-mesh.org/]]
+
+Code: [[http://git.kernel.org/linus/c6c8fea29769d998d94fcec9b9f14d4b52b349d3|(commit)]]
+
+
+
+== Support for AMD Fusion graphics ==
+
+This release adds support for the [[http://en.wikipedia.org/wiki/AMD_Fusion|AMD Fusion GPU+CPUs]]
+
+= Drivers and architectures =
+All the driver and architecture-specific changes can be found in the [[http://kernelnewbies.org/Linux_2_6_38-DriversArch|Linux_2_6_38-DriversArch page]]
+
+= Core =
+ * Add /proc/consoles: To see which character device lines are currently used for the system console /dev/console, you may simply look into this file [[http://git.kernel.org/linus/23308ba54dcdb54481163bfb07dd8aeca76a7a2e|(commit)]]
+ * Add hole punching support to fallocate() [[http://git.kernel.org/linus/79124f18b335172e1916075c633745e12dae1dac|(commit)]]
+ * Script for automatic kernel testing: ktest.pl [[http://git.kernel.org/linus/2545eb6198e7e1ec50daa0cfc64a4cdfecf24ec9|(commit)]]
+ * Add boot-time XZ compression support [[http://git.kernel.org/linus/3ebe12439ba7fc62e1d6ecb569b7287771716ca1|(commit)]], [[http://git.kernel.org/linus/24fa0402a9b6a537e87e38341e78b7da86486846|(commit)]]
+ * rcu: priority boosting for TINY_PREEMPT_RCU [[http://git.kernel.org/linus/24278d148316d2180be6df40e06db013d8b232b8|(commit)]], add tracing for TINY_RCU and TINY_PREEMPT_RCU [[http://git.kernel.org/linus/9e571a82f0cb205a65a0ea41657f19f22b7fabb8|(commit)]], demote SRCU_SYNCHRONIZE_DELAY from kernel-parameter status [[http://git.kernel.org/linus/c072a388d59a1d48e36864d0e66f42d71745be1c|(commit)]]
+ * oom: allow a non-CAP_SYS_RESOURCE proces to oom_score_adj down [[http://git.kernel.org/linus/dabb16f639820267b3850d804571c70bd93d4e07|(commit)]]
+ * A new jhash implementation [[http://git.kernel.org/linus/60d509c823cca21e77d537bd356785f7cfe8f0d1|(commit)]]
+ * ntp: add hardpps implementation [[http://git.kernel.org/linus/025b40abe715d638e60516a657d354e8560c1a85|(commit)]]
+
+= CPU scheduler =
+ * Improve cpu-cgroup performance for smp systems significantly by rewriting tg_shares_up [[http://git.kernel.org/linus/2069dd75c7d0f49355939e5586daf5a9ab216db7|(commit)]]
+ * Remove long deprecated CLONE_STOPPED flag [[http://git.kernel.org/linus/43bb40c9e3aa51a3b038c9df2c9afb4d4685614d|(commit)]]
+ * Add sysctl_sched_shares_window for the shares window [[http://git.kernel.org/linus/a7a4f8a752ec734b2eab904fc863d5dc873de338|(commit)]]
+
+= Memory management =
+ * mlock(): do not hold the mmap_sem lock for extended periods of time while loading data into the page cache [[http://git.kernel.org/linus/53a7706d5ed8f1a53ba062b318773160cc476dde|(commit)]], [[http://git.kernel.org/linus/fed067da46ad3b9acedaf794a5f05d0bc153280b|(commit)]]
+ * Use compaction instead of lumpy reclaim [[http://git.kernel.org/linus/3e7d344970673c5334cf7b5bb27c8c0942b06126|(commit)]]
+ * migration: allow migration to operate asynchronously and avoid synchronous compaction in the faster path [[http://git.kernel.org/linus/77f1fe6b08b13a87391549c8a820ddc817b6f50e|(commit)]]
+ * kswapd tweaking [[http://git.kernel.org/linus/9950474883e027e6e728cbcff25f7f2bf0c96530|(commit)]]
+ * smaps: export mlock information [[http://git.kernel.org/linus/2d90508f638241a2e7422d884767398296ebe720|(commit)]]
+ * Batch activate_page() to reduce zone->lru_lock contention [[http://git.kernel.org/linus/744ed1442757767ffede5008bb13e0805085902e|(commit)]]
+ * Trace events for memory compaction activity [[http://git.kernel.org/linus/b7aba6984dc048503b69c2a885098cdd430832bf|(commit)]]
+
+
+
+= Block =
+ * Implement media polling for removable in the kernel [[http://git.kernel.org/linus/77ea887e433ad8389d416826936c110fa7910f80|(commit)]]
+ * Allow creation of hierarchical cgroups in the blk cgroup controller [[http://git.kernel.org/linus/bdc85df7a8417b9893443ff5520804699416b6f3|(commit)]]
+ * Export a read-only sysfs attribute for partitions [[http://git.kernel.org/linus/34db1d595ef6f183fbc1e42cda45a3dfa0035258|(commit)]]
+
+
+''Device Mapper (DM)''
+ * Improve significantly write throughput when writing to the origin with a snapshot on the same device [[http://git.kernel.org/linus/d9bf0b508ddfe19883b982b29a03c02ccbf53806|(commit)]]
+ * Improve sequential write throughput [[http://git.kernel.org/linus/8d35d3e37eed884ba15229a146df846f399909b4|(commit)]]
+ * dm-crypt: scale to multiple cpus [[http://git.kernel.org/linus/c029772125594e31eb1a5ad9e0913724ed9891f2|(commit)]]
+ * dm-crypt: add loop AES IV generator [[http://git.kernel.org/linus/34745785937a2003c144c0d4802fa637470d87af|(commit)]]
+ * RAID1: support discard [[http://git.kernel.org/linus/5fc2ffeabb9ee0fc0e71ff16b49f34f0ed3d05b4|(commit)]]
+ * Skeleton for the DM target that will be the bridge from DM to MD (initially RAID456 and later RAID1). It provides a way to use device-mapper interfaces to the MD RAID456 drivers [[http://git.kernel.org/linus/9d09e663d5502c46f2d9481c04c1087e1c2da698|(commit)]]
+
+= File systems =
+''XFS''
+ * Add manual SSD discard support via the FITRIM ioctl [[http://git.kernel.org/linus/a46db60834883c1c8c665d7fcc7b4ab66f5966fc|(commit)]]
+ * Convert inode cache lookups to use RCU locking [[http://git.kernel.org/linus/1a3e8f3da09c7082d25b512a0ffe569391e4c09a|(commit)]]
+ * Dynamic speculative EOF preallocation [[http://git.kernel.org/linus/055388a3188f56676c21e92962fc366ac8b5cb72|(commit)]]
+
+''CIFS''
+ * Add strictcache mount option. In this mode the client reads from the cache all the time if possible. As for write, the client stores a data in the cache when possible [[http://git.kernel.org/linus/d39454ffe4a3c85428483b8a8a8e5e797b6363d5|(commit)]]
+ * Add cruid= mount option [[http://git.kernel.org/linus/bd7633195581c7665ce9dd80c665ec93466d1b64|(commit)]]
+
+''EXT2/3 ''
+ * Speed up file creates by microoptimizing some functions [[http://git.kernel.org/linus/40a063f6691ce937a3d00c9700b6964b5ec4e022|(commit)]], [[http://git.kernel.org/linus/a4ae3094869f18e26ece25ad175bbe4cd740e60b|(commit)]]
+ * Add batched discard support for ext3 [[http://git.kernel.org/linus/b853b96b1dbdc05fc8eae141a595366d8172962b|(commit)]]
+
+''SQUASHFS ''
+ * Add XZ compression [[http://git.kernel.org/linus/7a43ae523744c01b6187013e781f44c2281c579c|(commit)]], [[http://git.kernel.org/linus/81bb8debd0d570dc67dc1e9d8b612632cb941893|(commit)]]
+
+''NILFS2''
+ * Support the fiemap ioctl, used to get extent information for a inode [[http://git.kernel.org/linus/622daaff0a8975fb5c5b95f24f3234550ba32e92|(commit)]]
+
+
+= Networking =
+ * Increase default initial receive window. [[http://git.kernel.org/linus/356f039822b8d802138f7121c80d2a9286976dbd|(commit)]]
+ * Expose the per device configuration settings via netlink [[http://git.kernel.org/linus/9f0f7272ac9506f4c8c05cc597b7e376b0b9f3e4|(commit)]], [[http://git.kernel.org/linus/b382b191ea9e9ccefc437433d23befe91f4a8925|(commit)]]
+ * IPv4: ECN-aware IP defragmentation (as per RFC3168) [[http://git.kernel.org/linus/6623e3b24a5ebb07e81648c478d286a1329ab891|(commit)]]
+ * Add 32/64 bit compatibility in the ipv4 multicast ioctl SIOCGETSGCNT [[http://git.kernel.org/linus/709b46e8d90badda1898caea50483c12af178e96|(commit)]]
+ * Enhance AF_PACKET implementation to not require high order contiguous memory allocation (v4) [[http://git.kernel.org/linus/0e3125c755445664f00ad036e4fc2cd32fd52877|(commit)]]
+
+''Wireless''
+ * Throughput based LED blink trigger [[http://git.kernel.org/linus/e1e5406854378dfada3f33c7192b012083a5b8e0|(commit)]]
+ * Let userspace enable and configure vendor specific path selection, in accordance with the version 7.0 of the 802.11s draft [[http://git.kernel.org/linus/c80d545da3f7c0e534ccd4a780f322f80a92cff1|(commit)]]
+ * Support hardware TX fragmentation offload [[http://git.kernel.org/linus/f23a478075659db8a4fd62fa6e264a8bb052cc5b|(commit)]]
+ * Report signal average [[http://git.kernel.org/linus/541a45a142df281c974d74eac2066138fc107b23|(commit)]]
+ * Notify for dropped Deauth/Disassoc [[http://git.kernel.org/linus/cf4e594ea7e55555e81647b74a3a8e8b2826a529|(commit)]]
+ * Add mesh join/leave configuration commands [[http://git.kernel.org/linus/29cbe68c516a48a9a88b3226878570c6cbd83c02|(commit)]]
+* dcbnl: add support for ieee8021Qaz attributes [[http://git.kernel.org/linus/3e29027af43728c2a91fe3f735ab2822edaf54a8|(commit)]]
+
+= Crypto =
+ * User-space interface for Crypto API [[http://git.kernel.org/linus/03c8efc1ffeb6b82a22c1af8dd908af349563314|(commit)]], [[http://git.kernel.org/linus/fe869cdb89c95d060c77eea20204d6c91f233b53|(commit)]], [[http://git.kernel.org/linus/8ff590903d5fc7f5a0a988c38267a3d08e6393a2|(commit)]]
+ * Optimized RFC4106 AES-GCM implementation using Intel AES New Instructions and the PCLMULQDQ instruction [[http://git.kernel.org/linus/0bd82f5f6355775fbaf7d3c664432ce1b862be1e|(commit)]], [[http://git.kernel.org/linus/0d258efb6a58fe047197c3b9cff8746bb176d58a|(commit)]]
+
+= Virtualization =
+ * Asynchronous page faults, which allow a guest to continue processing interrupts even when its memory is being paged in; in the case of a Linux 2.6.38+ guest, it will receive a notification that the host is servicing a page fault, and may switch into another guest process [[http://git.kernel.org/linus/344d9588a9df06182684168be4f1408b55c7da3e|(commit 1]], [[http://git.kernel.org/linus/fd10cde9294f73eeccbc16f3fec1ae6cde7b800c|2]], [[http://git.kernel.org/linus/631bc4878220932fe67fc46fc7cf7cccdb1ec597|3]], [[http://git.kernel.org/linus/7c90705bf2a373aa238661bdb6446f27299ef489|4]], [[http://git.kernel.org/linus/6c047cd982f944fa63b2d96de2a06463d113f9fa|5]], [[http://git.kernel.org/linus/6adba527420651b6cacaf392541c09fb108711a2|6]], [[http://git.kernel.org/linus/fc5f06fac6fb8ce469ea173370f2cd398f1d9f9a|7)]]
+ * AMD Bulldozer virtualization extensions: instruction decode assist, clean bits, xsave/avx, flush-by-asid [[http://git.kernel.org/linus/38e5e92fe8c02a8766459d505423b855caf9af1f|(commit)]], [[http://git.kernel.org/linus/81dd35d42c9aef3c1f7ae6ce4cf6a0d382661db5|(commit)]]
+ * lguest: --username and --chroot options, to drop privileges and chroot to a directory [[http://git.kernel.org/linus/8aeb36e8f6d7eaa9cafc970b700414205743b258|(commit)]]
+
+= Security =
+''Smack''
+ * Address a number of long standing issues with the way Smack treats UNIX domain sockets [[http://git.kernel.org/linus/b4e0d5f0791bd6dd12a1c1edea0340969c7c1f90|(commit)]]
+ * Introduce a new attribute SMACK64TRANSMUTE that instructs Smack to create the file with the label of the directory under certain circumstances. A new access mode, "t" for transmute, is made available to Smack access rules, which are expanded from "rwxa" to "rwxat". If a file is created in a directory marked as transmutable and if access was granted to perform the operation by a rule that included the transmute mode, then the file gets the Smack label of the directory instead of the Smack label of the creating process [[http://git.kernel.org/linus/5c6d1125f8dbd1bfef39e38fbc2837003be78a59|(commit)]]
+ * Add a new security attribute to Smack called SMACK64EXEC. It defines label that is used while task is running [[http://git.kernel.org/linus/676dac4b1bee0469d6932f698aeb77e8489f5861|(commit)]]
+
+ * Add two new hey types: trusted, which are random number symmetric keys, generated and RSA-sealed by the TPM [[http://git.kernel.org/linus/d00a1c72f7f4661212299e6cb132dfa58030bcdb|(commit)]] and encrypted, which are kernel generated random numbers encrypted/decrypted with a 'trusted' symmetric key [[http://git.kernel.org/linus/7e70cb4978507cf31d76b90e4cfb4c28cad87f0c|(commit)]]
+
+= Tracing/perf =
+ * perf bench: Add feature that measures the performance of the arch/x86/lib/memcpy_64.S memcpy routines via 'perf bench mem' [[http://git.kernel.org/linus/ea7872b9d6a81101f6ba0ec141544a62fea35876|(commit)]]
+ * perf: new, more generic poer events [[http://git.kernel.org/linus/25e41933b58777f2d020c3b0186b430ea004ec28|(commit)]]
+ * perf record: Add "nodelay" mode, disabled by default [[http://git.kernel.org/linus/acac03fa15a8684bb60489ed87b5aae5258c0838|(commit)]]
+ * perf record: Add option to disable collecting build-ids [[http://git.kernel.org/linus/baa2f6cedbfae962f04281a31f08ec29667d31a0|(commit)]]
+ * perf stat: Add no-aggregation mode to -a [[http://git.kernel.org/linus/f5b4a9c3ab53d544a540a6f3a5d17184e374d91a|(commit)]]
+ * perf symbols: Add symfs option for off-box analysis using specified tree [[http://git.kernel.org/linus/ec5761eab318e50e69fcf8e63e9edaef5949c067|(commit)]]
+ * tracing: Allow raw syscall trace events for non privileged users [[http://git.kernel.org/linus/fe5542030dce3b951f9eaf3ecb9a7bc5fa7bfed1|(commit)]], [[http://git.kernel.org/linus/53cf810b1934f08a68e131aeeb16267a778f43df|(commit)]], [[http://git.kernel.org/linus/61c32659b12c44e62de32fbf99f7e4ca783dc38b|(commit)]]
+ * oprofile: Add support for 6 counters (AMD family 15h) [[http://git.kernel.org/linus/da169f5df2764a6a937cb3b07562e269edfb1c0e|(commit)]]
+----
+CategoryReleases

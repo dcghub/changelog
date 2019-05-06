@@ -1,0 +1,22 @@
+#pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
+#pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.7 development
+
+
+= 2.6.7 =
+  * Released June 16, 2004 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.7|changelog]]:
+  * Scheduling Domains [[http://lwn.net/Articles/80911/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=5a2bc24fc647c9dfb10faae4b3a86ef05fc6f596|(commit)]]
+  * Full object-based reverse-mapping scheme and removal of the per-page PTE chains [[http://lwn.net/Articles/86715/|(LWN article)]]
+  * Filtered Wakeups [[http://lwn.net/Articles/83633/|(LWN article)]]
+  * Ability to re-enable interrupts while waiting in spin_lock_irqsave() (for all architectures now)
+  * msleep() function for millisecond-scale waits
+  * del_singleshot_timer(): Deleting timers quickly [[http://lwn.net/Articles/84836/|(LWN article)]]
+  * shrink "dentry" structure
+  * Speedup readahead for seeky workloads [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=ef12b3c1abce83e8e25d27bdaab6380238e792ff|(commit)]]
+  * Support for quotas, extended attributes, ACLs, SELinux in reiserfs [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=783206fcd4123700cf1bdced342dcd44d1b18e20|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=c6df36c4c37c02dc45d390f7e78cbae51e4dcb2c|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=c86d577034339a7f7c149320be204d2ad0e3dbe2|(commit)]] - [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=98ca2698e94ce62fa4f34ed6256019cabb74c8a5|(commit)]]
+  * Removal of the Intermezzo filesystem (lack of mainteinance) [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=4b18ece918a95d42904ea80a7dd62075e90d2f84|(commit)]]
+  * Remove IDE PATA TCQ support: It's been disabled some time ago, PATA TCQ has so many technical short comings, that it was never really interesting [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=066298b9347991e663ab9b0005e5fe36bad1b22c|(commit)]]
+  * Dynamic addition of virtual disks on PPC64 iSeries [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=280fbb169c2d81004d866fdd6d51fc73b85b8210|(commit)]]
+  * Implement separate per-cpu stacks for processing interrupts and softirqs, along the lines of the CONFIG_4KSTACKS stuff on x86 [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=93836954c881c4c70d5cd8e64440ec17a841bfa8|(commit)]]
+  * PowerPC 750GX support [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=19f21bf97946de6637ff9d788f6fa0f5956e2597|(commit)]]
+  * new API for NUMA systems
+  * Debugging option to put data symbols in kallsyms [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=e9bc643950e4125f25c73a12abf07669074709f5|(commit)]]
