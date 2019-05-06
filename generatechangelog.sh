@@ -1,23 +1,23 @@
-#!/bin/bash
-set -e
+#!/bin/fish
 
-if [[ $# -ne 2 ]]
-then
+set gitrepo ~/código/linux
+
+if test (count $argv) != 2
 	echo "Wrong number of parameters"
+	echo "\"v5.1 v5.2-rc1\""
 	exit 1
-fi
+end
 
-if [[ -f changelog.txt ]]
-then
+
+if test -e changelog.txt
 	echo "changelog.txt exist, quitting"
 	exit 1
-fi
+end
 
-echo "Generating lists for changes from $1 to $2"
-set -x
+echo "Generating lists for changes from $argv[1] to $argv[2]"
 
 ./changelog.py > changelog.txt
-echo "Merges from $1 to $2" > listofmerges.txt
-./listmergesfromlinus.sh $1 $2 >> listofmerges.txt
-./listallmerges.sh $1 $2 >> listofmerges.txt
+echo "Merges from $argv[1] to $argv[2]" > listofmerges.txt
+./listmergesfromlinus.sh $argv[1] $argv[2] $gitrepo >> listofmerges.txt
+./listallmerges.sh $argv[1] $argv[2] $gitrepo >> listofmerges.txt
 
