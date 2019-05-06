@@ -12,5 +12,6 @@ set urllist $urllist "Linux_4."(seq 0 20)
 set urllist $urllist "Linux_5."(seq 0 1)
 
 for url in $urllist
-	curl $baseurl$url$suffix > archive/$url
+	curl -s $baseurl$url$suffix > archive/$url
+	echo "Downloaded $baseurl$url$suffix"
 end
