@@ -1,20 +1,17 @@
-#!/bin/bash
-set -e
-if [[ $# -ne 2 ]]
-then
+#!/bin/fish
+
+if test (count $argv) != 3
        	echo "Not enough arguments"
 	exit 1
-fi
+end
 
-cd linux
+cd $argv[3]
 
-echo "List of merge commits from $1 to $2"
-for i in $(git rev-list --merges --reverse $1..$2);
-do
+echo "List of merge commits from $argv[1] to $argv[2]"
+for i in (git rev-list --merges --reverse $argv[1]..$argv[2])
 	echo "[[https://git.kernel.org/torvalds/c/$i|merge]]";
 	git show --pretty=medium --no-patch $i 
 	echo
-done
-
+end
 
 
