@@ -33,7 +33,7 @@ This release (along with the fanotify changes in [[https://kernelnewbies.org/Lin
 == Safe signal delivery in presence of PID reuse ==
 The kill(2) syscall operates on PIDs. After a process has exited its PID can be reused by another process. If a caller sends a signal to a reused PID it will end up signaling the wrong process. This is an old problem with the Unix process design, and has caused [[https://lkml.org/lkml/2019/3/31/5|numerous security problems]].
 
-After considering several proposals, the Linux kernel has added a new syscall, {{{pidfd_send_signal(2)}}}, which uses file descriptors from {{{/proc/<pid>}}} as stable handles on struct pid. Even if a pid is recycled the handle will not change, and the file descriptor can be used to safely send signals to the process it refers to.
+After considering several proposals, the Linux kernel has added a new syscall, {{{pidfd_send_signal(2)}}}, which uses file descriptors from {{{/proc/<pid>}}} as stable handles on struct pid. Even if a pid is recycled the handle will not change, and the file descriptor can be used to safely send signals to the process it refers to. Note that the next kernel release will add a flag to clone(2) that will allow to retrieve from that syscall the pid file descriptor.
 
 Recommended LWN article: [[https://lwn.net/Articles/773459/|Toward race-free process signaling]]
 
@@ -46,7 +46,7 @@ Recommended LWN article: [[https://lwn.net/Articles/777212/|Persistent memory fo
 
 == TEO, an alternative cpuidle governor to 'menu' ==
 
-The [[https://www.kernel.org/doc/html/v5.0/admin-guide/pm/cpuidle.html|cpuidle subsystem]] is the part of the kernel in charge of deciding which CPU deep idle state should be used when the CPU has nothing to do (deeper idle states save more power, but it takes more time to get out of them). There are two cpuidle governors, "menu" and "ladder", each one using different heuristics. However, the menu governor is believed to have a number of shortcomings in its heuristics, but instead of being fixed an alternative was introduced in this release so people can compare both: TEO, the Timer Events Oriented Governor, which seems to offer improved performance with no extra power consumption cost.
+The [[https://www.kernel.org/doc/html/v5.0/admin-guide/pm/cpuidle.html|cpuidle subsystem]] is the part of the kernel in charge of deciding which CPU deep idle state should be used when the CPU has nothing to do (deeper idle states save more power, but it takes more time to get out of them). There are two cpuidle governors, "menu" and "ladder", each one using different heuristics. However, the menu governor is believed to have a number of shortcomings in its heuristics, but instead of being fixed an alternative was introduced in this release so people can compare both: TEO, the Timer Events Oriented Governor, which seems to offer improved performance with no extra power consumption cost. You can check your governor in {{{/sys/devices/system/cpu/cpuidle/current_governor_ro}}}) and change the default cpuidle governor at boot time with the {{{cpuidle.governor=teo}}} boot parameter.
 
 Recommended LWN article: [[https://lwn.net/Articles/775618/|Improving idle behavior in tickless systems]]
 
@@ -91,7 +91,9 @@ An elegant solution included in this release is the feature called "Atomic Repla
 
  * tty: add configuration option and sysctl ({{{dev.tty.ldisc_autoload}}}) to prevent autoloading of ldiscs [[https://git.kernel.org/linus/7c0cca7c847e6e019d67b7d793efbbe3b947d004|commit]]
  * task scheduler: Introduce a sysctl ({{{sched_energy_aware}}})for Energy Aware Scheduling [[https://git.kernel.org/linus/8d5d0cfb63cbcb4005e19a332b31d687b1d01e58|commit]]
-
+ * task scheduler: wake_q: Reduce reference counting for special users [[[[https://git.kernel.org/linus/07879c6a3740fbbf3c8891a0ab484c20a12794d8|commit]]
+ * Speed up {{{/proc/stat}}} [[https://git.kernel.org/linus/1136b0728969901a091f0471968b2b76ed14d9ad|commit]]
+ * Add NUMA aware async_schedule calls [[https://git.kernel.org/linus/3451a495ef244a88ed6317a035299d835554d579|commit]], [[https://git.kernel.org/linus/ed88747c6c4a2fc2f961a36d4c50cb0868c30229|commit]], [[https://git.kernel.org/linus/ef0ff68351be4fd83bec2d797f0efdc0174a55a4|commit]], [[https://git.kernel.org/linus/8204e0c1113d6b7f599bcd7ebfbfde72e76c102f|commit]], [[https://git.kernel.org/linus/6be9238e5cb64741ff95c3ae440b112753ad93de|commit]], [[https://git.kernel.org/linus/c37e20eaf4b21125898fd454f3ea6b212865d0a6|commit]], [[https://git.kernel.org/linus/8b9ec6b732775849f506aa6c2649e626e82a297c|commit]], [[https://git.kernel.org/linus/af87b9a7863c7bb47f8bd015c0ce4a37d70c5225|commit]], [[https://git.kernel.org/linus/57ea974fb8717864e8b7ec679363c5a3298a165e|commit]]
  * gcc plugins: improve structleak to also work with non-struct types, which should give the kernel complete initialization coverage of all stack variables passed by reference, including padding [[https://git.kernel.org/linus/81a56f6dcd20325607d6008f4bb560c96f4c821a|commit]], [[https://git.kernel.org/linus/50ceaa95ea09703722b30b4afa617c972071cd7f|commit]]
 
  * RCU: Add sysrq {{{rcu_node-dump}}} capability to dump out Tree RCU's rcu_node tree with an eye towards determining why a new grace period has not yet started [[https://git.kernel.org/linus/2ccaff10f71307ad4f75ce673b815d3fe6254e3d|commit]]
@@ -111,6 +113,7 @@ An elegant solution included in this release is the feature called "Atomic Repla
   * Introduce an {{{always_cow}}} mode where XFS never overwrites existing blocks in place. This is to aid debugging COW code [[https://git.kernel.org/linus/66ae56a53f0e34113da1a70068422b9444fe66f0|commit]]
  * NFS
   * Readdirplus optimization by cache mechanism [[https://git.kernel.org/linus/be4c2d4723a4a637f0d1b4f7c66447141a4b3564|commit]]
+  * pNFS: Avoid read/modify/write when it is not necessary [[https://git.kernel.org/linus/97ae91bbf3a70fc8cee3c9030564cfc892cc8cee|commit]], [[https://git.kernel.org/linus/2cde04e90d5be46b4b6655b965b496e6b6f18e49|commit]]
  * CIFS
   * Allow SMB3 FSCTL queries to be sent to server from tools [[https://git.kernel.org/linus/f5778c398713692a16150ae96e5c8270bab8399f|commit]]
   * Cache {{{FILE_ALL_INFORMATION}}} for the shared root handle. This allows to serve "stat /<mountpoint>" directly from cache and avoid a network roundtrip [[https://git.kernel.org/linus/b0f6df737a1c5d9d5ff90cc946205d8af46cc067|commit]]
@@ -1032,3 +1035,5 @@ An elegant solution included in this release is the feature called "Atomic Repla
 = Other news sites =
  * LWN's merge window [[https://lwn.net/Articles/782511/|part 1]], [[https://lwn.net/Articles/783084/|part 2]], [[https://lwn.net/Articles/786638/|Development statistics]]
  * Phoronix [[https://www.phoronix.com/scan.php?page=article&item=linux-51-features&num=1|The Big Features Of Linux 5.1: IO_Uring, Intel Fastboot Default, Goya AI Accelerator, New Hardware]]
+ * [[https://www.heise.de/ct/artikel/Linux-5-1-Performance-Verbesserungen-und-neue-Speichertechnik-4411986.html|Linux 5.1: Performance-Verbesserungen und neue Speichertechnik]]
+ * [[https://blog.stgolabs.net/2019/05/linux-v51-performance-goodies.html|Linux v5.1: Performance Goodies]]
