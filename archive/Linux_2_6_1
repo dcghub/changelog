@@ -1,9 +1,22 @@
 #pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
 #pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.1 development
 
-= 2.6.1 =
-  * Released January 9, 2004 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.1|changelog]]
-  * Message Signaled Interrupt support - MSI [[http://lwn.net/Articles/44135/|(LWN article)]] [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=805bdfd65d2a8866870d1813cd39d739d1e2942e|(commit)]]
-  * Add 32bit a.out support for x86-64 [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=dabe6cb0fc24dd4d3ee5b51c99f551a883dc2d66|(commit)]]
-  * Add `gcc -Os' config option [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=4b8ca7b0c8fb01ba87f9f6fa23f287e683f06346|(commit)]]
-  * Extensible Firmware Interface (EFI) support. [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=556bd742f63bdc0d0fdbfb28f907e272ed61d370|(commit)]]
+Linux 2.6.1 was released on January 9, 2004. [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.1|Changelog]]
+
+ * Add `gcc -Os' config option [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=ffd0cf49cd09ff1ef6495691d3dc076151454f14|commit]]
+ * Extensible Firmware Interface (EFI) support [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/c596442acc26c3195a69ff63a3f8e6bb12ac4a7d|commit]]
+ * Bridge: Add 4 sysctl entries for bridge netfilter behavioral control [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=d049a43dcf06a3e155f5496aade5184755a288c4|commit]]
+ * SELinux: Add signal state inheritance control [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=236446415d197960007e8d5b17e62c86a6280f08|commit]]
+ * Message Signaled Interrupt support - MSI for ia32 [[http://lwn.net/Articles/44135/|(LWN article)]] [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=f036d4ea5fa7757f833ccc098e6e7cfa4d6c446f|(commit)]]
+ * Add 32bit a.out support for x86-64 [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=b14a4258a69ee74c226097e0ed36f1b3ae6bbcfc|commit]]
+ * File systems
+  * FAT: add readv/writev support [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=8d15d343efdff545174e9da9893f6f00683304f3|commit]]
+  * reiserfs: {{{commit_max_age}}} mount option [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=a8007b5b37ba41ef0e2edaa7db430447cda124ef|commit]]
+  * XFS: Add the {{{noikeep}}} mount option, make {{{ikeep}}} the default for now [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=364c4073a09edbb796b0db3e6a46386e83094fcf|commit]]
+
+ * Drivers
+  * USB Lego Infrared Tower support and other things [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=9ade0432d9fd1165aa82883ae2815369660b5a2b|commit]] 
+  * dvb: Add new dvb bt8xx driver [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=6779cf64fda3add239fbdd634ec8d25d4a8856cb|commit]]
+  * Intel 440gx PCI IDs [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=a77ef2294a9cec742ff6bd2ea1673b63888ff3f2|commit]]
+  * Support centrino 1GHz [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=ce2da20ec7cdbac75c2c61fba73b67036f0c7f33|commit]]
+  * Add support for SGI's IOC4 chipset [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=125a4634c6d1bdf5a785ef59153324cbb844043c|commit]]

@@ -1,11 +1,29 @@
 #pragma keywords Linux, Kernel, Operative System, Linus Torvalds, Open Source, drivers
 #pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.6.3 development
 
-= 2.6.3 =
-  * Released February 18, 2004 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.3|changelog]]
-  * G5 support [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=7f13170c2069ff86a2a0bfc3a247ade8aefeb6aa|(commit)]]
-  * Support up to 255 char columns in virtual terminals [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=f3706e57b8e26db88ddaa5b0558e5db545f2fed7|(commit)]]
-  * Set HZ to 1000 in PPC32 [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=eb6e9d736fa3e79f97ee19325c996f69079f276e|(commit)]]
-  * Removal of the USB scanner code: moved support to userspace (libusb)
-  * New DMA pool abstraction [[http://lwn.net/Articles/69402/|(LWN article)]]
-  * "context mount" support for SELinux
+2.6.3 was released on Frebruary 18, 2004 [[http://www.kernel.org/pub/linux/kernel/v2.6/ChangeLog-2.6.3|changelog]]
+
+ * "context mount" support for SELinux [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=0ce036428919c8d2519e4af4f3bbeb8f76f05441|commit]], [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=79352ac639fa8df9ef5425b4242dc0de3a569abd|commit]], [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=86d3ef68854dfa6d537d75916b4a0c9c39f6dcbf|commit]]
+ * selinux: Allow non-root processes to read selinuxfs enforce node [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=fa419e62bd6dc02439e5bd912112564f10e2902d|commit]]
+ * NFSv4: Basic code for recovering file OPEN state after a server reboot [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=dce9f3bf3f0af4a22eb06822a74e2de84f98cd57|commit]]
+ * NFSv4: Add support for POSIX file locking [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=3f1990d30fe3d6e62d41d0224c27855b59517b8b|commit]]
+ * NTFS: Enable NFS exporting [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=7a5c468dd32f24586e192bdd283fa6278f36d834|commit]]
+ * console: support for > 127 chars [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=f70ceb5a2fe6380ce61e23111458e843448d60b9|commit]]
+ * SCTP: Removed the deprecated ADLER32 checksum support [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=eb0a397cf3697c69a136bfb09f17c8514700c855|commit]]
+
+ * Drivers & Architectures
+  * Add !PowerMac G5 support [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=37d9716b0aec04005defd2f00798fb31cf4a2091|commit]]
+  * ppc32: Set HZ to 1000 [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=d11e9847c969c450b74d0ea14023ad34886c0f6f|commit]]
+  * ppc32: Add support for !PowerMac G5 HT/PCI & AGP busses [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=7189c4655fc331035854a6f6e0d67bcd37522a29|commit]]
+  * ppc32: Add thermal management drivers for desktop G5, Windtunnel G4s, and recent laptops (iBook G4, aluminium 15" and 17" powerbooks) [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=4d41d2454360871a9bb538f2b1396a7c67aa92f9|commit]]
+  * ARM: Add Integrator/CP platform support. [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=29052ebaf250cb8809f5f1ac8343b65cd97d4364|commit]]
+  * sh: Add H8/300 support to sh-sci [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=b7e711bad04113ab70e92f2a21974df72b64c17a|commit]]
+  * ide-cd: mo write protect along with support for non-2kb block sizes [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=a9b9b3c5ebb3f8d4814c10baf7176fd8711d063f|commit]]
+  * e1000: on-demand stats support [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=e405965057560f06850fe5813bdd11f868fc0b40|commit]]
+  * Add device id to radeonfb [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=87afa29af1652cfd6c8ad35aadb3102aee4e02a9|commit]]
+  * cciss: Add support for SA 6i embedded controller [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=a05d0264d35ffa243e11099c4ccd22b0086d9e86|commit]]
+  * PNP: Add additonal sysfs entries [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=9aa8cd9f726eacd22f8f5174e3193966b4f50f07|commit]]
+  * IRDA: Ultra sendto support. [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=56c6dd277c9d6a63f6f8dd61fac57b2906cb92c3|commit]]
+  * I2C: New chip driver ported: lm80 [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=9cf81a8fea89456febf0e8b8c0c248081e3e874c|commit]]
+  * I2C: Support for IXP42x GPIO-based I2C [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=238c5a50f91692546e806b0bca3a9789d2acdd07|commit]]
+  * Remove USB Scanner support (obsoleted by libusb) [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=dd94d4eb78139c20011e2fb7436ab8456f9f9366|commit]], [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=cf3d97bfaad7d1a919ae061bbd3dbf6651cbeae3|commit]]
