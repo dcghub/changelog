@@ -20,7 +20,6 @@
  * Add ARC4 crypto module [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=dd2514fea45ffc9242fcd1bb2b7a4cfc29cf01df|commit]]
  * Raise the number of groups an user can see from 32 to 65536. This limit is also visible via the read-only {{{/proc/sys/kernel/ngroups_max}}} file [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=a937b06ed59067eb1cc93390b8f13bbfab229458|commit]]
  * Generic kernel thread infrastructure [[http://lwn.net/Articles/65178/|(LWN article)]] [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=933ba10234f68f44af3a72afb3c0810b082c5a0e|commit]]
- * ARC4 crypto module [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=d0119535d80f4f46d831fb48f1747e732c539c79|(commit)]]
  * Add CONFIG for -mregparm=3 [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=e852f3182f3ea80239e1b46eecadf57604c39bd9|commit]]
  * Config option for irqbalance [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=c1588714543b1284baf62ac082b3bc24d9c4eb73|commit]]
  * dm: Add dm-crypt target for device mapper [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=542c3b0adde702e8773b43f5903f9e46105e532e|commit]]

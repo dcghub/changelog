@@ -69,7 +69,7 @@ Code: [[http://git.kernel.org/linus/3a4d5c94e959359ece6d6b55045c3f046677f55c|(co
 
 Recommended LWN article: [[http://lwn.net/Articles/365833/|Minimizing instrumentation impacts]]
 
-Kprobes is an old feature (merged [[http://git.kernel.org/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=ad1fb0c375304479dcfc1555df85c883d3038094|in 2004]]) that allows to gather information from any routine in the kernel at runtime. It is the internal system that Systemtap uses to insert probes at a random point of the kernel.  The current system used to implement Kprobes (in x86) is a a breakpoint. At the instruction address, a "int 3" instruction is inserted, and when the code path hits it, the exception handler is called and kprobes recollects all the information needed.
+Kprobes is an old feature (merged [[https://kernelnewbies.org/Linux_2_6_9|in Linux 2.6.9]]) that allows to gather information from any routine in the kernel at runtime. It is the internal system that Systemtap uses to insert probes at a random point of the kernel.  The current system used to implement Kprobes (in x86) is a a breakpoint. At the instruction address, a "int 3" instruction is inserted, and when the code path hits it, the exception handler is called and kprobes recollects all the information needed.
 
 This system works very well and it's quite efficient, but it can be improved. This version adds an experimental feature to improve it. In 2.6.34, a probe can use optionally in many (but not all, and no preempt support for now) places a simple jump, which is much faster. Usually, a kprobe hit takes 0.5 to 1.0 microseconds to process. On the other hand, a jump optimized probe hit takes less than 0.1 microseconds.
 

@@ -239,7 +239,7 @@ This is a list of links to every changelog.
 
 2.5.42 released October 12, 2002:
 
- * [[http://www.citi.umich.edu/projects/nfsv4/|NFS v4]] support [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=4aebf5c40f30cc754927f4f3d20dffa9c7162814|(commit)]], [[http://marc.info/?l=linux-kernel&m=102927937802523&w=2|(announcement)]]
+ * [[http://www.citi.umich.edu/projects/nfsv4/|NFS v4]] support [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=b59e9ac5ec332ba084b44553ab1bd47e1ac30e41|(commit)]], [[http://marc.info/?l=linux-kernel&m=102927937802523&w=2|(announcement)]]
  * [[http://marc.info/?l=linux-kernel&m=103298446916066&w=2|ext2/ext3 large directory support: HTree index]]
  * [[http://us1.samba.org/samba/Linux_CIFS_client.html|Add new CIFS (Common Internet File System)]]
  * [[http://www.gelato.unsw.edu.au/IA64wiki/LargeBlockDevices|Remove the 2TB block device limit]]: Block devices can now access up to 16TB on 32-bit architectures, and up to 8EB on 64-bit architectures. statfs64() syscall added: statfs() couldn't handle it.
@@ -247,7 +247,7 @@ This is a list of links to every changelog.
 
 2.5.41 released October 7, 2002:
 
- * NFS direct I/O [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=fef2661181855f2d70c0b4c36f76ae6db15a2b93|(commit)]]
+ * NFS direct I/O [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=c03e7607e0391b919d3f6ded8c98fdcddbcb20b1|(commit)]]
 
 2.5.40 released October 1, 2002:
 
@@ -332,9 +332,7 @@ This is a list of links to every changelog.
 2.5.23 released June 19, 2002:
 
  * [[http://www.kernel.org/pub/linux/kernel/people/rusty/patches/Hotcpu/|Hotplug CPU support]]
- * [http://web.archive.org/web/20030208091619/bazar.conectiva.com.br/~acme/patches/wip/
-
- More complete IEEE 802.2 stack]
+ * [[http://web.archive.org/web/20030208091619/bazar.conectiva.com.br/~acme/patches/wip/|More complete IEEE 802.2 stack]]
 
 2.5.22 released June 17, 2002:
 
@@ -361,7 +359,7 @@ This is a list of links to every changelog.
 2.5.14 released May 6, 2002:
 
  * Bluetooth support (no longer experimental!)
- * [[http://kernel.org/git/?p=linux/kernel/git/torvalds/old-2.6-bkcvs.git;a=commit;h=e4ca57ce9faaaecb6dc5237960ea95d067770211|Support for IDE TCQ (Tagged Command Queueing)]]
+ * [[https://git.kernel.org/pub/scm/linux/kernel/git/history/history.git/commit/?id=f015724e4111549ab6544dd85123c094cea749e4|Support for IDE TCQ (Tagged Command Queueing)]]
 
 2.5.13 released May 3, 2002:
 
