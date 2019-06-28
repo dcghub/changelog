@@ -52,7 +52,7 @@ sectionlist=[['Documentation', 'kernel', 'init', 'ipc', 'scripts', 'tools/testin
         ['fs', '= File systems ='],
         ['mm', '= Memory management ='],
         ['block', 'drivers/block', 'drivers/md', '= Block layer ='],
-        ['tools/perf', '= Tracing and perf ='],
+        ['tools/perf', 'tools/testing/selftests/bpf', 'tools/lib/bpf', 'tools/bpf/bpftool', 'kernel/bpf', '= Tracing, perf and BPF ='],
         ['virt', 'virt/kvm', 'drivers/xen', 'drivers/vhost', 'drivers/hv', '= Virtualization ='],
         ['crypto', '= Cryptography ='],
         ['security', 'security/apparmor', 'security/selinux', '= Security ='],
