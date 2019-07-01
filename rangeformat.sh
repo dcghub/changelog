@@ -6,7 +6,7 @@ end
 
 cd ~/código/linux
 
-set commits (git rev-list $argv[1]..$argv[2])
+set commits (git log --boundary --reverse --format="%H" $argv[1]..$argv[2])
 
 for i in $commits
 	git show -s --pretty='%H %s' $i
