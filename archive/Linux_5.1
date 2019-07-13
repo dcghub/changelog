@@ -33,7 +33,7 @@ This release (along with the fanotify changes in [[https://kernelnewbies.org/Lin
 == Safe signal delivery in presence of PID reuse ==
 The kill(2) syscall operates on PIDs. After a process has exited its PID can be reused by another process. If a caller sends a signal to a reused PID it will end up signaling the wrong process. This is an old problem with the Unix process design, and has caused [[https://lkml.org/lkml/2019/3/31/5|numerous security problems]].
 
-After considering several proposals, the Linux kernel has added a new syscall, {{{pidfd_send_signal(2)}}}, which uses file descriptors from {{{/proc/<pid>}}} as stable handles on struct pid. Even if a pid is recycled the handle will not change, and the file descriptor can be used to safely send signals to the process it refers to. Note that the next kernel release will add a flag to clone(2) that will allow to retrieve from that syscall the pid file descriptor.
+After considering several proposals, the Linux kernel has added a new syscall, {{{pidfd_send_signal(2)}}}, which uses file descriptors from {{{/proc/<pid>}}} as stable handles on struct pid. Even if a pid is recycled the handle will not change, and the file descriptor can be used to safely send signals to the process it refers to. Note that Linux 5.2 adds a {{{CLONE_PIDFD}}} flag to clone(2) that will allow to retrieve a pid file descriptor that is usable for these purposes.
 
 Recommended LWN article: [[https://lwn.net/Articles/773459/|Toward race-free process signaling]]
 

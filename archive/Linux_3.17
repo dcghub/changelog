@@ -2,7 +2,7 @@
 #pragma keywords Linux, kernel, operating system, changes, changelog, file system, Linus Torvalds, open source, device drivers
 #pragma description Summary of the changes and new features merged in the Linux kernel during the 3.17 development cycle
 
-Linux 3.17 [[https://lkml.org/lkml/2014/10/5/126|has been released]] on Sun, 5 Oct (this document was only finished on Sunday, 13 - sorry for the delay)
+Linux 3.17 [[https://lkml.org/lkml/2014/10/5/126|has been released]] on Sun, 5 Oct
 
 Summary: This release adds support for USB device sharing over IP, support for Xbox One controllers, support for Apple's thunderbolt, a new sealing API that restricts operations on shared memory file descriptors that allows easier shared memory programming for developers, support for page fault tracing in perf trace, support for only using signed kernels in kexec, a getrandom() syscall for more secure random number generation, and graphic "render nodes" are no longer experimental. There are also new drivers and many other small improvements.
 
