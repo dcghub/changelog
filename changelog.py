@@ -4,6 +4,7 @@ import os
 import subprocess
 import email
 import re
+import unicodedata
 
 # don't forget final slash "/"
 emailpath="/home/dcg/Correo/.linux-kernel.directory/.commits.directory/commitlist/new/"
@@ -12,7 +13,7 @@ messagelist = []
 
 for fd in os.listdir(emailpath):
 #    print(emailpath+fd)
-    message = email.message_from_file(open(emailpath+fd))
+    message = email.message_from_file(open(emailpath+fd, encoding="utf8", errors='ignore'))
     commit=message['X-Git-Commit']
     if commit == None:
 #        print("Error")
