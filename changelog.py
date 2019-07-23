@@ -4,7 +4,6 @@ import os
 import subprocess
 import email
 import re
-import unicodedata
 
 # don't forget final slash "/"
 emailpath="/home/dcg/Correo/.linux-kernel.directory/.commits.directory/commitlist/new/"
