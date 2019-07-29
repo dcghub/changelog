@@ -78,7 +78,7 @@ sectionlist=[['Documentation', 'kernel', 'init', 'ipc', 'scripts', 'tools/testin
         ['drivers/iio', '== Industrial I/O (iio) =='],
         ['drivers/mfd', '== Multi Function Devices (MFD) =='],
         ['drivers/pwm', '== Pulse-Width Modulation (PWM) =='],
-        ['drivers/i2c', '== Inter-Integrated Circuit (I2C) =='],
+        ['drivers/i2c', '== Inter-Integrated Circuit (I2C + I3C) =='],
         ['drivers/hwmon', '== Hardware monitoring  (hwmon) =='],
         ['drivers/gpio', '== General Purpose I/O (gpio) =='],
         ['drivers/leds', '== Leds =='],
