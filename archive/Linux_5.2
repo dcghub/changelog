@@ -166,8 +166,7 @@ This release adds a Device Mapper 'dust' target. This target simulates a device 
  * Heterogenous memory node attributes: Platforms may provide multiple types of cpu attached system memory. The memory ranges for each type may have different characteristics that applications may wish to know about when considering what node they want their memory allocated from. This release provides the attributes from such systems that are useful for applications to know about, and readily usable with existing tools and libraries [[https://git.kernel.org/linus/60574d1e05b094d222162260dd9cac49f4d0996a|commit]], [[https://git.kernel.org/linus/3bc0e8eb179deebf1c06f5c4261d362c24b26ce1|commit]], [[https://git.kernel.org/linus/3accf7ae37a96c3bf4b51999f3c395ac5ffcd6d4|commit]], [[https://git.kernel.org/linus/08d9dbe72b1f899468b2b34f9309e88a84f440f2|commit]], [[https://git.kernel.org/linus/e1cf33aafb8462c7d0a0e6349925870316f040ee|commit]], [[https://git.kernel.org/linus/acc02a109b0497e917c83f986a89c51e47d0022c|commit]], [[https://git.kernel.org/linus/665ac7e92757fb74d249b2817dd91b3d9439d0a0|commit]], [[https://git.kernel.org/linus/8d59f5a2ca765f65fd86db86f233678c3770819f|commit]], [[https://git.kernel.org/linus/d9e8844c7d8165d97848950ae6bf66b2be86ef06|commit]]
  * Make mincore(2) more conservative, to avoid exposing information about pagecache / memory mapping state, even about memory not strictly belonging to the process executing the syscall, opening possibilities for sidechannel attacks [[https://git.kernel.org/linus/134fca9063ad4851de767d1768180e5dede9a881|commit]]
  * Improve vmap allocation [[https://git.kernel.org/linus/68ad4a3304335358f95a417f2a2b0c909e5119c4|commit]], [[https://git.kernel.org/linus/bb850f4dae4abb18c5ee727bb2d6df9ca47ede49|commit]], [[https://git.kernel.org/linus/a6cf4e0fe3e740ed7af39fdda721e1ac12247dd3|commit]]
- * userfaultfd: Add a global sysctl {{{vm.unprivileged_userfaultfd}}} to control
- whether userfaultfd is allowed by unprivileged users [[https://git.kernel.org/linus/cefdca0a86be517bc390fc4541e3674b8e7803b0|commit]]
+ * userfaultfd: Add a global sysctl {{{vm.unprivileged_userfaultfd}}} to control whether userfaultfd is allowed by unprivileged users [[https://git.kernel.org/linus/cefdca0a86be517bc390fc4541e3674b8e7803b0|commit]]
  * Randomize free memory. Randomization of the page allocator improves the average utilization of a direct-mapped memory-side-cache [[https://git.kernel.org/linus/e900a918b0984ec8f2eb150b8477a47b75d17692|commit]], [[https://git.kernel.org/linus/b03641af680959df57c275a80ff0dc116627c7ae|commit]], [[https://git.kernel.org/linus/97500a4a54876d3d6d2d1b8419223eb4e69b32d8|commit]]
  * slab: remove /proc/slab_allocators [[https://git.kernel.org/linus/7878c231dae05bae9dcf2ad4d309f02e51625033|commit]]
  * z3fold: support page migration [[https://git.kernel.org/linus/1f862989b04ade61d3aab49184c50e9957f84c7d|commit]]
@@ -228,6 +227,7 @@ This release adds a Device Mapper 'dust' target. This target simulates a device 
  * ntp: Audit NTP parameters adjustment [[https://git.kernel.org/linus/7e8eda734d30de81d06a949c9bf9853c445ede4e|commit]]
  * tomoyo: Add a kernel config option for fuzzing testing [[https://git.kernel.org/linus/e80b18599a39a625bc8b2e39ba3004a62f78805a|commit]]
  * tls: Add support of AES128-CCM based ciphers [[https://git.kernel.org/linus/f295b3ae9f5927e084bd5decdff82390e3471801|commit]]
+ * Implement Clang's stack initialization [[https://git.kernel.org/linus/709a972efb01efaeb97cad1adc87fe400119c8ab|commit]]
 
 
 = Networking =
@@ -355,7 +355,7 @@ This release adds a Device Mapper 'dust' target. This target simulates a device 
  * perf: Add Tremont core PMU support [[https://git.kernel.org/linus/6daeb8737f8a93c6d3a3ae57e23dd3dbe8b239da|commit]]
  * perf: Add support for recording and printing XMM registers available, for instance, on Icelake [[https://git.kernel.org/linus/ca138a7aabc68bf727918bb40ce08157cd5ec0a5|commit]]
  * perf vendor events intel: Update Bonnell to V4 [[https://git.kernel.org/linus/b1580f542ca7d4bec387559b05e62b1b2f5f08d2|commit]], update Broadwell events to v23 [[https://git.kernel.org/linus/8313fe2d685da168b732421f85714cfd702d2141|commit]], update Broadwell-DE events to v7 [[https://git.kernel.org/linus/d2243329ef3c5107d00dee4327a9884a394ef715|commit]], update BroadwellX events to v14 [[https://git.kernel.org/linus/9f0f4a242c24221ed006f449c3f67b863b12985c|commit]], update Goldmont to v13 [[https://git.kernel.org/linus/f3ef08583ea61eb4d86dfb33f0e0ebe2bc4f6e64|commit]], update !GoldmontPlus to v1.01 [[https://git.kernel.org/linus/c53dd58988385c3f0861ea1d487489bad8cc69a7|commit]], update Haswell events to v28 [[https://git.kernel.org/linus/efc351f1b55070887184549ec3b8b47a3570ae78|commit]], update HaswellX events to v20 [[https://git.kernel.org/linus/e313477f7e76f23c3e2d45428f9456ba675bc702|commit]], update !IvyBridge events to v21 [[https://git.kernel.org/linus/2111da70ff1094ed65d15f00e6285b668f689b87|commit]], update !IvyTown events to v20 [[https://git.kernel.org/linus/009edd9ae0e77e5cbc6d8767e02be15b4e8b55c5|commit]], update !JakeTown events to v20 [[https://git.kernel.org/linus/e6b32be4455f57884bf2a312692c1f4135e35e02|commit]], update !KnightsLanding events to v9 [[https://git.kernel.org/linus/643e72255e35f49ac1a2e1ca409a8ccd5b4598b6|commit]], update !SandyBridge events to v16 [[https://git.kernel.org/linus/59da390e54a4bfa674c6a61727a5e0243ba0ad74|commit]], update Silvermont to v14 [[https://git.kernel.org/linus/1c3a2c864d2da0454bca1e41d3e0090c18678909|commit]], update Skylake events to v42 [[https://git.kernel.org/linus/24339348b9153047c08b5879bc69d3327cb07783|commit]], update SkylakeX events to v1.12 [[https://git.kernel.org/linus/19f2d40c57141bf586c5b4f6bd5d8fedf7b54f3e|commit]], update metrics from TMAM 3.5 [[https://git.kernel.org/linus/fd5500989c8f3c3944ac0a144be04bae2506f7ba|commit]]
-
+ * Use temporary mm for text poking [[https://git.kernel.org/linus/b3fd8e83ada0d51b71a84297480187e2d40e5ded|commit]], [[https://git.kernel.org/linus/4fc19708b165c1c152fa1f12f6600e66184b7786|commit]]
  * Intel trace hub
   * Add switch triggering support [[https://git.kernel.org/linus/8116db57cf1618cb21dab957952e7bd1395430da|commit]]
   * msu: Add a sysfs attribute to trigger window switch [[https://git.kernel.org/linus/6cac7866c27418cd784fbb8041c2dddd6d966bc7|commit]]
@@ -412,6 +412,9 @@ This release adds a Device Mapper 'dust' target. This target simulates a device 
  * vfio-ccw: support hsch/csch [[https://git.kernel.org/linus/71189f263f8a3db7b72ca75be14e7309375e8707|commit]], [[https://git.kernel.org/linus/690f6a1581c7c08e85451f62bcbfe40f29072842|commit]], [[https://git.kernel.org/linus/4f76617378ee97c557b526cb58d3c61eb0a9c963|commit]], [[https://git.kernel.org/linus/db8e5d17ac03a65e2e0ee0ba50bf61a99741d871|commit]], [[https://git.kernel.org/linus/d5afd5d135c8cc43bd2568361b4c91f0bd488c3f|commit]], [[https://git.kernel.org/linus/b0940857379eb930a4310625c4cd89254e4478b6|commit]]
 == XTENSA ==
  * Add exclusive atomics support [[https://git.kernel.org/linus/f7c34874f04a80d6c39a32f08da2529e59602d3c|commit]]
+== ARC ==
+ * HSDK platform updates [[https://git.kernel.org/linus/46e04c25e72f|commit]], [[https://git.kernel.org/linus/b04700645d78|commit]], [[https://git.kernel.org/linus/780b35b6aafc|commit]], [[https://git.kernel.org/linus/ecc906a11c2a|commit]], [[https://git.kernel.org/linus/ec9b4feb1e41|commit]]
+ * Kill applications trying to access kernel virtual space [[https://git.kernel.org/linus/a8c715b4dd73c26a81a9cc8dc792aa715d8b4bb2|commit]]
 = Drivers =
 == Graphics ==
 
@@ -886,7 +889,7 @@ This release adds a Device Mapper 'dust' target. This target simulates a device 
  * irqchip: Add driver for IXP4xx [[https://git.kernel.org/linus/5b978c10665973d8ee7050b03ef6e97013066b03|commit]]
  * tty: rocket: Remove RCPK_GET_STRUCT ioctl [[https://git.kernel.org/linus/29973f8a88b001ebc605c88cdee124f7256ecdbf|commit]] and deprecate the rp_ioctl [[https://git.kernel.org/linus/8ef795653d753e3d6ae67e6f4a0168ff3c059deb|commit]]
 
-= List of merges =
+= List of feature merges =
  * [[https://git.kernel.org/torvalds/c/171c2bcbcb58a6699dad64d0c0b615af4f6ecb74|unified TLB flushing]]
  * [[https://git.kernel.org/torvalds/c/6ec62961e6de9506e8b8620dc19897d8cfd41c2e|objtool updates]]
  * [[https://git.kernel.org/torvalds/c/5ba2a4b12f450c5c69099a5c19671c6e59daa435|RCU updates]]
