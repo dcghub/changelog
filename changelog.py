@@ -58,7 +58,8 @@ sectionlist=[['Documentation', 'kernel', 'init', 'ipc', 'scripts', 'tools/testin
         ['security', 'security/apparmor', 'security/selinux', '= Security ='],
         ['net', 'kernel/bpf', 'tools/bpf', '= Networking ='],
         ['arch', '= Architectures ='],
-        ['drivers/gpu', 'drivers/video', '= Drivers === Graphics =='],
+        ['drivers/gpu', 'drivers/video', '= Drivers =\n== Graphics =='],
+        ['drivers/acpi', 'tools/power', 'drivers/thermal', '== Power Management =='],
         ['drivers/scsi', 'drivers/ata', 'drivers/nvme', '== Storage =='],
         ['drivers/staging', '== Drivers in the Staging area =='],
         ['drivers/net', 'drivers/bluetooth', 'drivers/infiniband', '== Networking =='],
@@ -69,9 +70,10 @@ sectionlist=[['Documentation', 'kernel', 'init', 'ipc', 'scripts', 'tools/testin
         ['drivers/spi', '== Serial Peripheral Interface (SPI) =='],
         ['drivers/watchdog', '== Watchdog =='],
         ['drivers/serial', '== Serial =='],
-        ['drivers/acpi', 'drivers/cpupower', 'tools/power', 'drivers/thermal', '== ACPI, EFI, cpufreq, thermal, Power Management =='],
-        ['drivers/rtc', '== Real Time Clock (RTC) =='],
+        ['drivers/cpufreq', '== CPU Frequency scaling =='],
+        ['drivers/devfreq', '== Device Voltage and Frequency Scaling =='],
         ['drivers/power', 'drivers/regulator', '== Voltage, current regulators, power capping, power supply =='],
+        ['drivers/rtc', '== Real Time Clock (RTC) =='],
         ['drivers/pinctrl', '== Pin Controllers (pinctrl) =='],
         ['drivers/mmc', '== Multi Media Card (MMC) =='],
         ['drivers/mtd', '== Memory Technology Devices (MTD) =='],
@@ -94,7 +96,7 @@ sectionlist=[['Documentation', 'kernel', 'init', 'ipc', 'scripts', 'tools/testin
         ['drivers/phy', '== PHY ("physical layer" framework) =='],
         ['drivers/edac', '== EDAC (Error Detection And Correction) ==']]
 
-footer='''= List of merges =
+footer='''= List of Pull Requests =
 
 = Other news sites ='''
 
