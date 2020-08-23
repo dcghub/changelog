@@ -35,6 +35,7 @@ Content-Transfer-Encoding: 8bit
 X-Git-Rev: $i
 X-Git-Parent: $parent
 Subject: $subject
+
 Commit:     $i
 Parent:     $parent
 Refname:    refs/heads/master
@@ -43,5 +44,5 @@ Author:     $author
 AuthorDate: 
 Committer:  $comitter
 CommitDate: 
-$(git show --stat --patch $i)" > missed/$i
+$(git show --stat --patch $i)" > missed/$i.eml
 done
