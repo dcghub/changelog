@@ -19,14 +19,15 @@ done
 mkdir -p missed
 
 for i in "${commitlist[@]}"; do
-	date=$(git show --no-patch --pretty=format:'%cD' $i)
+	committerdate=$(git show --no-patch --pretty=format:'%cD' $i)
 	parent=$(git show --no-patch --pretty=format:"%P" $i)
 	author=$(git show --no-patch --pretty=format:"%an" $i)
+	authordate=$(git show --no-patch --pretty=format:"%ad" $i)
 	comitter=$(git show --no-patch --pretty=format:"%cn" $i)
 	subject=$(git show --no-patch --pretty=format:"%s" $i)
 
 	echo "From FINDLOSTCOMMITS $(date +"%a %b %g %H:%M:%S %Y")
-Date: $date
+Date: $comitterdate
 From: diegocg@gmail.com
 To: diegocg@gmail.com
 MIME-Version: 1.0
@@ -41,8 +42,8 @@ Parent:     $parent
 Refname:    refs/heads/master
 Web:        https://git.kernel.org/torvalds/c/$i
 Author:     $author
-AuthorDate: 
+AuthorDate: $authordate
 Committer:  $comitter
-CommitDate: 
+CommitDate: $comitterdate
 $(git show --stat --patch $i)" > missed/$i.eml
 done
