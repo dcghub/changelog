@@ -7,11 +7,12 @@ readonly REPO='/home/dcg/código/linux'
 export GIT_DIR=$REPO/.git
 readonly REV='v5.8..v5.9-rc1'
 
+export LANG='C' # It speeds up grep significantly
 COMMITS=$(git rev-list $REV --no-merges)
 for commit in $COMMITS
 do
 	found="false"
-	if ! grep --silent "X-Git-Rev: $commit" $DIR; then
+	if ! grep -F --silent "X-Git-Rev: $commit" $DIR; then
 		commitlist+=($commit)
 	fi
 done
@@ -21,16 +22,17 @@ mkdir -p missed
 for i in "${commitlist[@]}"; do
 	committerdate=$(git show --no-patch --pretty=format:'%cD' $i)
 	parent=$(git show --no-patch --pretty=format:"%P" $i)
-	author=$(git show --no-patch --pretty=format:"%an" $i)
+	author=$(git show --no-patch --pretty=format:"%an" $i);
+	author+=" <$(git show --no-patch --pretty=format:"%ae" $i)>"
 	authordate=$(git show --no-patch --pretty=format:"%ad" $i)
-	comitter=$(git show --no-patch --pretty=format:"%cn" $i)
+	committer=$(git show --no-patch --pretty=format:"%cn" $i)
+	committer+=" <$(git show --no-patch --pretty=format:"%ce" $i)>"
 	subject=$(git show --no-patch --pretty=format:"%s" $i)
 
 	echo "From FINDLOSTCOMMITS $(date +"%a %b %g %H:%M:%S %Y")
-Date: $comitterdate
+Date: $committerdate
 From: diegocg@gmail.com
 To: diegocg@gmail.com
-MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 X-Git-Rev: $i
@@ -43,7 +45,8 @@ Refname:    refs/heads/master
 Web:        https://git.kernel.org/torvalds/c/$i
 Author:     $author
 AuthorDate: $authordate
-Committer:  $comitter
-CommitDate: $comitterdate
-$(git show --stat --patch $i)" > missed/$i.eml
+Committer:  $committer
+CommitDate: $committerdate
+
+$(git show --stat --patch --pretty=format:"%s%n%n%b" $i)" > missed/$i.eml
 done
