@@ -320,7 +320,7 @@ Recommended LWN article: [[https://lwn.net/Articles/760045/|Kernel symbol namesp
  * devmap: adds a new map type, devmap_hash, that works like the existing devmap type, but using a hash-based indexing scheme. This is useful for the use case where a devmap is indexed by ifindex (for instance for use with the routing table lookup helper) [[https://git.kernel.org/linus/6dbff13ca8a2ad2fddd904c2e789dd5e59a8644c|commit]], [[https://git.kernel.org/linus/fca16e51078e8e5c0af839426b3d2dcd2bede135|commit]], [[https://git.kernel.org/linus/6f9d451ab1a33728adb72d7ff66a7b374d665176|commit]], [[https://git.kernel.org/linus/10fbe21163fc6f05f5991d9cf9a2da9bdee4e834|commit]], [[https://git.kernel.org/linus/e42346192c9f179a9a47845e4663ad2f453d2b7b|commit]], [[https://git.kernel.org/linus/1375dc4a4579d5e767dd8c2d2abcd929ff59d0a7|commit]]
 
 = Architectures =
- * ARM
+== ARM ==
   * SoC changes
    * Support for the new ASpeed AST2600 gets added, this is based on the Cortex-A7 ARMv7 core, and is a newer version of the existing ARMv5 and ARMv6 chips in the same family [[https://git.kernel.org/linus/2ca5646b5c2fdb3806c48f03c77859601e78edb7|commit]]
    * TI Davinci and NXP LPC32xx platforms have been converted to the ARCH_MULTIPLATFORM build, meaning that it is possible to compile a kernel that works on these along with most other ARMv5 platforms [[https://git.kernel.org/linus/f962396ce29244d9a64f241481fa73fa370404c3|commit]], [[https://git.kernel.org/linus/75bf1bd7d2f993787d0faa7d6e6534f7e88a2975|commit]]
@@ -368,7 +368,7 @@ Recommended LWN article: [[https://lwn.net/Articles/760045/|Kernel symbol namesp
     * aes-neonbs: implement ciphertext stealing for XTS [[https://git.kernel.org/linus/67cfa5d3b7214ce944747908f9a1a3cba8b989b9|commit]]
    * KVM: vgic: ITS translation cache [[https://git.kernel.org/linus/24cab82c34aa6f3ede3de1d8621624cb5ef33feb|commit]], [[https://git.kernel.org/linus/1bb3691d8330f09a0699c124fcb71991b5fd105b|commit]], [[https://git.kernel.org/linus/7d825fd6eaa7467c9b737fd5cf46e45f298d1c20|commit]], [[https://git.kernel.org/linus/0c14484866194382c0631d6e9bb14cc2fe83e814|commit]], [[https://git.kernel.org/linus/b4931afcde1ffccd4a406009aef33c14bc6c6cb8|commit]], [[https://git.kernel.org/linus/363518f37a86acc515defae6d1ba91a6c7617de9|commit]], [[https://git.kernel.org/linus/cbfda481d87e92ce635e426099946cd413b251be|commit]], [[https://git.kernel.org/linus/89489ee9ced8924f64f99c0470eae38e9e4e204b|commit]], [[https://git.kernel.org/linus/86a7dae884f38e11f3af8137ddf1fb969cd2699c|commit]], [[https://git.kernel.org/linus/41108170d98069b34837c4512f93ef2ce651b812|commit]]
 
- * PowerPC
+== PowerPC ==
   * Initial support for running on a system with an Ultravisor, which is software that runs below the hypervisor and protects guests against some attacks by the hypervisor [[https://git.kernel.org/linus/136bc0397ae21dbf63ca02e5775ad353a479cd2f|commit]], [[https://git.kernel.org/linus/528229d210781b2da66c6d257a326c21099982b5|commit]], [[https://git.kernel.org/linus/6a9c930bd7751bf0630d8b9b73b07af5c6842da6|commit]], [[https://git.kernel.org/linus/f7777e008cad17bf757ca256709070c07efd8283|commit]], [[https://git.kernel.org/linus/7f70c3815a352f76d69fc5642ae9685033a428c0|commit]], [[https://git.kernel.org/linus/e311a92da18cbdd4972dab0cda88b1b8484b8fef|commit]], [[https://git.kernel.org/linus/bd104e6db6f0ad124e507a9ecf1a468efe5697db|commit]], [[https://git.kernel.org/linus/d5394c059da9786043934bed474562cde124e7d3|commit]], [[https://git.kernel.org/linus/256ba2c1689efd4f5383cf7ebe2f9970c198b79d|commit]], [[https://git.kernel.org/linus/734560ac39aeb2516419c5878856df011f794a74|commit]], [[https://git.kernel.org/linus/4edaac512c8a31b0aa715b58ee00ee06df642fa2|commit]], [[https://git.kernel.org/linus/edea902c1c1efb855f77e041f9daf1abe7a9768a|commit]], [[https://git.kernel.org/linus/2efbc58f157a39ad9e9199b92d9c47736023a2fe|commit]], [[https://git.kernel.org/linus/bf75a8db72e9454aadeca0276f6e6b0e9161861c|commit]], [[https://git.kernel.org/linus/68e0aa8ec5cedec48dd5b11df84afc956c8f85be|commit]]
   * Support for building the kernel to run as a "Secure Virtual Machine", ie. as a guest capable of running on a system with an Ultravisor [[https://git.kernel.org/linus/250c6c31228d49f3b96855ec387cf37bbe7cb6a7|commit]], [[https://git.kernel.org/linus/a49dddbdb0cca1d00fc9251e543a0aac09a6a65b|commit]], [[https://git.kernel.org/linus/bb04ffe85eebebd64d5e673a9434d968e80f3aa1|commit]], [[https://git.kernel.org/linus/139a1d2842ec181cf017502a46bb8d947682a960|commit]], [[https://git.kernel.org/linus/5223134029a87db925ecc9449f9501bad391a52e|commit]], [[https://git.kernel.org/linus/512a5a6452b6d742b6f713184414d28cb6413080|commit]], [[https://git.kernel.org/linus/6c85b7bc637b64e681760f62c0eafba2f56745c6|commit]]
   * Add Firmware-Assisted Dump for PowerNV platform [[https://git.kernel.org/linus/ca986d7fa7e7f7b3f018f227b999f35e654fbb79|commit]], [[https://git.kernel.org/linus/961cf26a98648a294de45ea6f806dc84dfc91197|commit]], [[https://git.kernel.org/linus/7f0ad11d3fb948a0d7770bd38ae17a51413c3dac|commit]], [[https://git.kernel.org/linus/8468d155450c89adbb400cdae42bd4095f3045a9|commit]], [[https://git.kernel.org/linus/72aa651795f0e9f48bfdb2b2dd0b3e6900351d2a|commit]], [[https://git.kernel.org/linus/0226e55275e569126882a7befe0b1a1c9bd270aa|commit]], [[https://git.kernel.org/linus/d3833a7010817f82bff373e26d146e6401c695f4|commit]], [[https://git.kernel.org/linus/41a65d1618238e63be1439871eaf44dc3c6a737c|commit]], [[https://git.kernel.org/linus/109f25cc5fae5f8fb403d925f7b3731f6f18218a|commit]], [[https://git.kernel.org/linus/8255da95e54519bb74638c2448ac17f4b34fe6f5|commit]], [[https://git.kernel.org/linus/f35120115b767c49ad8de56dd78c86540a14df5b|commit]], [[https://git.kernel.org/linus/1679b96e69ec2e10ccd9d82b691ade0b16cb64d1|commit]], [[https://git.kernel.org/linus/6f5f193e84d3d7b55d406ecc7ac4ea1ef1d1876f|commit]], [[https://git.kernel.org/linus/41df5928721ff4b5f83767cd5e8b77862fc62bb3|commit]], [[https://git.kernel.org/linus/6abec12c65e8870d8cafe154a86240fe0bcdd4f7|commit]], [[https://git.kernel.org/linus/742a265accd3e3afcc8e7b17f409c93c1de8be85|commit]], [[https://git.kernel.org/linus/2790d01d1e1d22735d848eec55668f7d44417e22|commit]], [[https://git.kernel.org/linus/a20a8fa42def548f46c7e0401a94f62b8e595883|commit]], [[https://git.kernel.org/linus/51bba8edef90cf579dba16de912d3ef809fe1d77|commit]], [[https://git.kernel.org/linus/2a1b06dd3a17ac278494da3c15cac84684346d22|commit]], [[https://git.kernel.org/linus/6071e8f9d5ac960f0d35495f070d4d0b7ae5fc76|commit]], [[https://git.kernel.org/linus/a4e2e2ca2f7bddf6d5d788033cc56f40af6e9c5a|commit]], [[https://git.kernel.org/linus/fbcafdaea2e234d3c6d79e7f5605a2e8373f6678|commit]], [[https://git.kernel.org/linus/579ca1a27675485a99da50cd7fedc14232f817c3|commit]], [[https://git.kernel.org/linus/5000a17afbd56b4e58b7f72ac77eabb92c418412|commit]], [[https://git.kernel.org/linus/e4fc48fb4d34f7e7d42eb980a9c130bb93aba3b9|commit]], [[https://git.kernel.org/linus/dda9dbfeeb7a855a75965b8ba7269f4edb35cde7|commit]], [[https://git.kernel.org/linus/b2a815a554a34f0e6fab4526ae762d5528783600|commit]], [[https://git.kernel.org/linus/bec53196adf4791d466adf0e339b61186c7b5283|commit]], [[https://git.kernel.org/linus/58cf055df47bb115e7c1533eec2a8f66639b80e3|commit]], [[https://git.kernel.org/linus/6f713d18144ce86c9f01cdf64222d6339e26129e|commit]], [[https://git.kernel.org/linus/845426f3f3443c3f60737751b7af0142e3020f08|commit]], [[https://git.kernel.org/linus/7b1b3b48250acbfd7f15ba950d4654b7f02a8300|commit]], [[https://git.kernel.org/linus/b3bba79d5a7ba27bf7e31e124afbcb386128f2c6|commit]], [[https://git.kernel.org/linus/becd91d9c5467160984a0380df72fdf71fee82f6|commit]], [[https://git.kernel.org/linus/7dee93a9a8808b3d8595e1cc79ccb8b1a7bc7a77|commit]]
@@ -377,7 +377,7 @@ Recommended LWN article: [[https://lwn.net/Articles/760045/|Kernel symbol namesp
   * eeh: Add a eeh_dev_break debugfs interface [[https://git.kernel.org/linus/bd6461cc7b3c4fd12dcba4b0e95dfc612df872fd|commit]] and a debugfs interface to run an EEH check [[https://git.kernel.org/linus/22cda7c1680c1ddfe941adae45e7e7ef52d0e411|commit]]
   * Use the generic dma coherent remap allocator [[https://git.kernel.org/linus/f2902a2fb40c589b886d21518ef8a1ee87f76b0c|commit]]
 
- * x86
+== x86 ==
   * Add UMIP emulation/spoofing for 64-bit processes as well, because of Wine based gaming [[https://git.kernel.org/linus/e86c2c8b9380440bbe761b8e2f63ab6b04a45ac2|commit]]
   * Enable a new AVX512 CPU instruction group/feature for enumeration in {{{/proc/cpuinfo}}}: AVX512_VP2INTERSECT [[https://git.kernel.org/linus/018ebca8bd704f18d56f8fff38e2c3d76d7d39fb|commit]]
   * Add Elkhart Lake, Tiger Lake and Airmont to Intel family [[https://git.kernel.org/linus/0f65605a8d744b3a205d0a2cd8f20707e31fc023|commit]], [[https://git.kernel.org/linus/6e1c32c5dbb4b90eea8f964c2869d0bde050dbe0|commit]], [[https://git.kernel.org/linus/855fa1f362cab2dc7574acb853b0963dd01d6b8d|commit]]
@@ -425,7 +425,7 @@ Recommended LWN article: [[https://lwn.net/Articles/760045/|Kernel symbol namesp
    * vmx: Emulate MSR IA32_UMWAIT_CONTROL [[https://git.kernel.org/linus/6e3ba4abcea5681eebbfc10f1b56c9fbe80b6685|commit]]
    * Add support for user wait instructions [[https://git.kernel.org/linus/e69e72faa3a0709dd23df6a4ca060a15e99168a1|commit]]
   * vmware: Support for VMCALL/VMMCALL based hypercalls [[https://git.kernel.org/linus/bac7b4e843232a3a49a042410cf743341eb0887e|commit]]
- * S390
+== S390 ==
   * Add support for IBM z15 machines [[https://git.kernel.org/linus/a0e2251132995b962281aa80ab54a9288f9e0b6b|commit]]
   * crypto: Add SHA3 and CCA AES cipher key support in zcrypt [[https://git.kernel.org/linus/3c2eb6b76cabb7d90834798d6455f7f3431fc989|commit]], [[https://git.kernel.org/linus/f2bbc96e7cfad3891b7bf9bd3e566b9b7ab4553d|commit]]
   * crypto: Add sysfs attributes to emit AES CIPHER key blobs [[https://git.kernel.org/linus/f71fee2711a788b94ff0acb02fbd2bfe2de7e0a3|commit]]
@@ -440,33 +440,36 @@ Recommended LWN article: [[https://lwn.net/Articles/760045/|Kernel symbol namesp
   * qeth: add TX NAPI support for IQD devices [[https://git.kernel.org/linus/e53edf743d26b39dfd78af43ff97620a4ac13ffc|commit]]
   * qeth: add xmit_more support for IQD devices [[https://git.kernel.org/linus/9549d70a2d71526b8dc41cc0b255219ba46e5bf7|commit]]
   * qeth: collect accurate TX statistics [[https://git.kernel.org/linus/eeac0e20a173dd9407e7092b3ddb45917249d68d|commit]]
- * MIPS
+== MIPS ==
   * Add partial 32-bit huge page support [[https://git.kernel.org/linus/35476311e5292ae0ef00dde5c2cccbe8514660c2|commit]]
   * BCM47XX: Add support for Netgear R6200 V1 [[https://git.kernel.org/linus/42374b94d70cea72af94202ff5a467f036bc083e|commit]]
   * Remove unused R4300 CPU support [[https://git.kernel.org/linus/f9065b54d437c4660e3d974ad9ce5188c068cd76|commit]]
   * Remove unused R5432 CPU support [[https://git.kernel.org/linus/8e96b08472e6698011d3105912031e90e7ef553f|commit]]
   * Remove unused R8000 CPU support [[https://git.kernel.org/linus/c2aeaaea175652af6610f97a0de6d7cd07311e18|commit]]
   * jz4740: Drop dead code [[https://git.kernel.org/linus/7f428252dbd0adc91317ae7ea27d7e27b70df1f6|commit]]
- * RISC-V
+== RISC-V ==
   * Add perf callchain support [[https://git.kernel.org/linus/dbeb90b0c1eb86a9b963b929d3c937afb7dadfa3|commit]], [[https://git.kernel.org/linus/51bc620ba972e1600b791a32c69fa28c80e16fdb|commit]], [[https://git.kernel.org/linus/98a93b0b561c571153b7cd6953e882bc3fd8cfcd|commit]]
   * Make mmap allocation top-down by default [[https://git.kernel.org/linus/54c95a11cc1b5e1d578209e027adf5775395dafd|commit]]
   * Implement sparsemem [[https://git.kernel.org/linus/d95f1a542c3df396137afa217ef9bd39cb8931ca|commit]]
- * User Mode Linux
+== User Mode Linux ==
   * Add virtio vhost-user driver [[https://git.kernel.org/linus/5d38f324993f49d1226ec81efe045834b46cd85a|commit]]
   * Added support for Unix socket transports and bess transport [[https://git.kernel.org/linus/77f1073c2c1bbea7ba8794103924ecd0d3961ffe|commit]]
   * Add legacy tap support and rename existing vector to hybrid [[https://git.kernel.org/linus/b3b8ca2a1b63713f59e8d7ad772b09bcd8dc9048|commit]]
- * PA-RISC
+== PA-RISC ==
   * Add assembly implementations for memset, strlen, strcpy, strncpy and strcat [[https://git.kernel.org/linus/83af58f8068ea3f7b3c537c37a30887bfa585069|commit]]
   * Add kexec support [[https://git.kernel.org/linus/fc697dc0c26a5908d467454e49440862d7fe96d0|commit]], [[https://git.kernel.org/linus/1191cf4986b5e8008c615896e487dc35fe922acd|commit]]
   * Add kprobes on ftrace support [[https://git.kernel.org/linus/52a22e6c27be9089fdd9c4e1857939f0dec8f57c|commit]]
- * IA-64
+== IA-64 ==
   * Remove the hpsim platform [[https://git.kernel.org/linus/fc5bad03709f9c79ea299f554b6f99fc6f4fe31c|commit]]
   * Remove the SGI UV simulator support [[https://git.kernel.org/linus/1164e757541b75f0bd87bb541f7ce49614471f5d|commit]]
   * Remove support for the SGI SN2 platform [[https://git.kernel.org/linus/cf07cb1ff4ea008abf06c95878c700cf1dd65c3e|commit]]
- * Xtensa
+== Xtensa ==
   * Add support for xtensa call0 ABI in userspace [[https://git.kernel.org/linus/09f8a6db20e6ed8eab1b2b23d09d2458f6e15062|commit]]
- * MicroBlaze
+== MicroBlaze ==
   * Use the generic DMA coherent remap allocator [[https://git.kernel.org/linus/04e3543e228fcbb000de922ec5d366f398bdd9ae|commit]]
+== ARC ==
+  * Allow perf on Big Endian configs [[https://git.kernel.org/linus/5effc09c4907901f0e71e68e5f2e14211d9a203f|commit]]
+  * HSDK platform updates [[https://git.kernel.org/linus/8ca8fa7f22dcb0a3265490a690b0c3e27de681f9|commit]], [[https://git.kernel.org/linus/ab563bf54a4d08cb59e7d7bcd419f7e8558a4964|commit]]
 
 = Drivers =
 == Graphics ==
