@@ -5,7 +5,12 @@
 readonly DIR='/home/dcg/Correo/.linux-kernel.directory/commits/*/*'
 readonly REPO='/home/dcg/código/linux'
 export GIT_DIR=$REPO/.git
-readonly REV='v5.8..v5.9-rc1'
+
+if [ $# -ne 2 ]; then
+	echo "Wrong number of arguments"
+	exit -1
+fi
+readonly REV="$1..$2"
 
 export LANG='C' # It speeds up grep significantly
 COMMITS=$(git rev-list $REV --no-merges)
