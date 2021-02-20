@@ -14,6 +14,8 @@ This release is a Long Term Support release, which means that maintainers will p
 == Ext4 fast commit support, for faster metadata performance ==
 Many applications use fsync(2) to ensure that data is reliably placed on disk. Such operation attempts to synchronize to the disk a few more metadata than expected. In this release, Ext4 will use a [[https://www.usenix.org/conference/atc17/technical-sessions/presentation/park|novel journaling technique]], consisting in optimistically only journal the minimum required information through which a crash recovery operation can recover the metadata modified through an fsync operation. This speeds up fsync() and metadata heavy operations. This feature needs to be enabled at mkfs time.
 
+Recommended LWN article: [[https://lwn.net/Articles/842385|Fast commits for ext4]]
+
 == Support io_uring restrictions to facilitate secure sharing of rings ==
 Since io_uring was [[https://kernelnewbies.org/Linux_5.1#High-performance_asynchronous_I.2FO_with_io_uring|introduced]] in Linux 5.1, it has seen widespread adoption. As usual, widespread adoption leads to new use cases, such as processes that might want share a ring with less trusted processes. This release adds a few API changes that add some restrictions and make possible for host application to grant access to some of its file descriptors and allow untrusted applications or guests to safely use io_uring.
 
@@ -433,6 +435,7 @@ Recommended LWN article: [[https://lwn.net/Articles/834289/|The Arm64 memory tag
   * Remove perfmon [[https://git.kernel.org/linus/ecf5b72d5f66af843f189dfe9ce31598c3e48ad7|commit]]
 == ARC ==
   * Drop support for EZChip NPS platform [[https://git.kernel.org/linus/dd7c7ab01a04d645b7e7baa8530bfd81e31a2202|commit]]
+  * Stack unwinder fixes [[https://git.kernel.org/linus/e42404fa10fd11fe72d0a0e149a321d10e577715|commit]], [[https://git.kernel.org/linus/f737561c709667013d832316dd3198a7fe3d1260|commit]]
 == UM ==
   * vector: Add dynamic tap interfaces and scripting (functionality roughly compatible with the existing qemu ifup scripting) [[https://git.kernel.org/linus/f06885b3f3e3884f98351d7b72a4fc8400911cde|commit]]
 

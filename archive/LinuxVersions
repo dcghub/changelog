@@ -2,6 +2,7 @@
 #pragma description Summary of the changes and new features merged in the Linux Kernel during the 2.5.x, 2.6.x, 3.x and 4.x development cycles
 This is a list of links to every changelog.
 = 5.x =
+ * [[Linux_5.11]] Released Sun, 14 Feb 2021 (63 days)
  * [[Linux_5.10]] Released Sun, 13 December 2020 (63 days)
  * [[Linux_5.9]] Released Sun, 11 October 2020 (70 days)
  * [[Linux_5.8]] Released Sun, 2 August 2020 (64 days)
