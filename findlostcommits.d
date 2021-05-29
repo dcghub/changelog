@@ -19,7 +19,6 @@ void main(string[] args) {
     mkdir("missed");
     string gitRange = args[1] ~ ".." ~ args[2];
     string[] missingCommits = getCommits(gitRange);
-    writeln(missingCommits);
     generateMails(missingCommits);
 }
 
@@ -30,38 +29,42 @@ string[] getCommits(string gitRange) {
     import std.file : dirEntries, SpanMode, isFile;
     import std.algorithm : filter;
     import std.conv : to;
-    import std.parallelism : parallel;
     import std.array;
 
     auto listCommits = execute(["git", "rev-list", gitRange, "--no-merges"], null, Config.none, ulong.max, gitDir);
     assert(listCommits.status == 0, "Git command failed: " ~ listCommits.to!string);
-    string[] missingCommits = listCommits.output.splitLines;
-    writeln(typeid(missingCommits));
-    writeln(missingCommits);
+    string[] rangeCommits = listCommits.output.splitLines;
+
+    string[] mailCommits;
     auto commitFiles = dirEntries(mailDir, SpanMode.depth)
         .filter!(a => a.isFile)
         .array;
     
-    foreach(file; parallel(commitFiles)) {
+    foreach(file; commitFiles) {
         import std.file : readText;
         import std.regex : matchFirst, regex;
 
-        writeln("Searching in ", file);
         auto buf = readText(file);
         auto expr = regex(`X-Git-Rev: (?P<id>[A-Fa-f0-9]{40})`);
         auto match = matchFirst(buf, expr);
         assert(match.empty == 0, "File didn't contain X-Git-Rev field");
- 
-        foreach(commitId; listCommits.output.splitLines)
-        {
-            import std.string : strip;
+        mailCommits ~= match["id"];
+    }
 
-            string commit = commitId.strip;
-            if (commit == match["id"])
-                missingCommits = missingCommits.filter!(x => x != commit).array;
+    writeln(`Commits in the range: `, rangeCommits.length);
+    writeln(`Commits in the emails: `, mailCommits.length);
+    string[] notFound;
+
+    foreach(hashRange; rangeCommits) {
+        import std.algorithm: canFind;
+
+        if (!canFind(mailCommits, hashRange)) {
+            writeln(`Missing commit: `, hashRange);
+            notFound ~= hashRange;
         }
     }
-    return missingCommits;
+
+    return notFound;
 }
 
 void generateMails(string[] missingCommits) {
@@ -79,7 +82,6 @@ void generateMails(string[] missingCommits) {
         import std.stdio : File, write;
 
         auto parent = gitCmd("%P", commit);
-        import std.stdio : writeln; writeln(typeid(parent));
         auto author = gitCmd("%an", commit);
         auto email = gitCmd("%ae", commit);
         auto authorDate = gitCmd("%ad", commit);
@@ -90,7 +92,7 @@ void generateMails(string[] missingCommits) {
         auto currentDate = Clock.currTime().toISOExtString();
         
         auto stat = execute(["git", "show", "--patch", "--pretty=format:%s%n%n%b", commit], null, Config.none, ulong.max, gitDir);
-        writeln(stat);
+//        writeln(stat);
         assert(stat.status == 0, "Git show stat failed.");
 
         auto emailContent = "From FINDLOSTCOMMITS " ~ currentDate ~ "\n" ~ 
