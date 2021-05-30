@@ -74,7 +74,7 @@ void generateMails(string[] missingCommits) {
     string gitCmd(string format, string commit) {
         auto res = execute(["git", "show", "--no-patch", "--pretty=format:\"" ~ format ~ "\"", commit], null, Config.none, ulong.max, gitDir);
         assert(res.status == 0, "Git show with format " ~ format ~ "for commit " ~ commit ~ " failed.");
-        return res.output.strip.strip("`");
+        return res.output.strip.strip(`"`);
     }
     
     foreach(commit; missingCommits) {
@@ -92,7 +92,6 @@ void generateMails(string[] missingCommits) {
         auto currentDate = Clock.currTime().toISOExtString();
         
         auto stat = execute(["git", "show", "--patch", "--pretty=format:%s%n%n%b", commit], null, Config.none, ulong.max, gitDir);
-//        writeln(stat);
         assert(stat.status == 0, "Git show stat failed.");
 
         auto emailContent = "From FINDLOSTCOMMITS " ~ currentDate ~ "\n" ~ 
