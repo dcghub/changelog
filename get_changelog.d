@@ -5,113 +5,183 @@ enum mailPath=`/tmp/foo`;
 enum codeRepo="/home/dcg/código/linux";
 enum gitRepo = codeRepo ~ "/.git";
 
-alias Entry = string[char][];
-alias Maintainers = Entry[string];
+
+struct Entry {
+    char type;
+    string content;
+}
+alias Subsys = Entry[][string];
 
 struct Mail {
     string subject;
-    string[] diff;
+    string[][] diffs;
 }
 alias Mails = Mail[string];
 
-void main() {
-    Mails mailsData = parseMails();
-    Maintainers maint = parseMaintainers();
 import std.stdio : writeln;
-    foreach(idx, subsys; maint) {
-        writeln("Subsys ", idx);
-        foreach(entry; subsys) {
-            writeln(" Entry ", entry);
-        }
-    }
+void main() {
+    correlateMailsMaint(CommitMails(mailPath), Maintainers(codeRepo ~ "/MAINTAINERS"));
 }
 
-Mails parseMails() {
-    import std.array;
-    import std.file : dirEntries, SpanMode, isFile;
-    import std.algorithm : filter;
-
+struct CommitMails {
     Mails mails;
-    auto files = dirEntries(mailPath, SpanMode.depth)
-        .filter!(a => a.isFile)
-        .array;
+    alias mails this;
 
-    foreach(file; files) {
-        import std.file : readText;
-        import std.regex : matchFirst, regex;
-        import std.process : execute, Config;
-        import std.conv : to;
-        import std.string : splitLines;
-        import std.stdio : writeln;
+    this(string path) {
+        import std.array : array;
+        import std.file : dirEntries, SpanMode, isFile;
+        import std.algorithm : filter;
 
-        auto buf = readText(file);
-        if (buf == "") {
-            writeln("WARNING: Void mail " ~ file);
-            continue;
+        auto files = dirEntries(path, SpanMode.depth)
+            .filter!(a => a.isFile)
+            .array;
+
+        foreach(file; files) {
+            import std.file : readText;
+            import std.regex : matchFirst, regex;
+            import std.process : execute, Config;
+            import std.conv : to;
+            import std.string : splitLines;
+            import std.stdio : writeln;
+
+            auto buf = readText(file);
+            if (buf == "") {
+                writeln("WARNING: Void mail " ~ file);
+                continue;
+            }
+            auto expr = regex(`X-Git-Rev: (?P<id>[A-Fa-f0-9]{40})`);
+            auto match = matchFirst(buf, expr);
+            assert(match.empty == 0, "File didn't contain X-Git-Rev field: " ~ file);
+            string commit = match["id"];
+
+            auto diffStat = execute([`git`, `--git-dir=` ~ gitRepo, `show`, `--pretty=format:%s`, `--numstat`, commit], null, Config.none, ulong.max, gitRepo);
+            assert(diffStat.status == 0, "Git commit failed: " ~ diffStat.to!string);
+
+            Mail email;
+            email.subject = diffStat.output.splitLines[0];
+            email.diffs = this.sortMails(diffStat.output.splitLines[1..$]);
+            mails[commit] = email;
         }
-        auto expr = regex(`X-Git-Rev: (?P<id>[A-Fa-f0-9]{40})`);
-        auto match = matchFirst(buf, expr);
-        assert(match.empty == 0, "File didn't contain X-Git-Rev field: " ~ file);
-        string commit = match["id"];
-
-        auto diffStat = execute([`git`, `--git-dir=` ~ gitRepo, `show`, `--pretty=format:%s`, `--stat`, commit], null, Config.none, ulong.max, gitRepo);
-        assert(diffStat.status == 0, "Git commit failed: " ~ diffStat.to!string);
-
-        Mail email;
-        email.subject = diffStat.output.splitLines[0];
-        email.diff = diffStat.output.splitLines[1..$-1];
-        mails[commit] = email;
     }
-    return mails;
+    string[][] sortMails(string[] diffs) {
+        import std.algorithm : sort, any, filter, map;
+        import std.range : array;
+        import std.conv : to;
+
+        auto pre = diffs.map!((diff) {
+            import std.regex : matchFirst, regex;
+
+            auto expr = regex(`(?P<add>\S+)\t(?P<del>\S+)\t(?P<file>.*)`);
+            auto match = matchFirst(diff, expr);
+            assert(match.empty == 0, "Error parsing diffstat: " ~ diff);
+
+            return [match["add"], match["del"], match["file"]];
+        });
+
+        string[][] regs = pre
+            .filter!(diff => diff.any!(file => file != "-"))
+            .array
+            .sort!((a, b) => a[0].to!int > b[0].to!int)
+            .array;
+
+        return regs; 
+    }
+
+}
+
+struct Maintainers {
+    Subsys maintainers;
+    alias maintainers this;
+    
+    this(string path) {
+        import std.stdio : File;
+
+        auto buf = File(path);
+        string title = "";
+        /*
+         * The maintainers file does not have any formal format
+         * We detect the "title" by waiting for a newline, then we set the title variable to the next line
+         * After a void line the title is resetted again
+         */
+        foreach(line; buf.byLine) {
+            import std.regex : regex, matchFirst;
+            import std.conv : to;
+            import std.array : split;
+ 
+            if (line == "") {
+                title = "";
+                continue;
+            }
+
+            if (title == "") {
+                title = line.to!string;
+                continue;
+            }
+
+            auto expr = regex(`^([A-Z]):\s*(.*)`);
+            auto match = matchFirst(line, expr);
+
+            Entry[] fill;
+
+            if (match.empty == false) {
+                import std.conv : to;
+
+                string[] res = split(match.hit.to!string, "\t");
+                // Some entries use whitespaces instead of tabs
+                if (res.length != 2)
+                    continue;
+
+                Entry tmp;
+                // M:<tab>blah
+                tmp.type = line[0];
+                tmp.content = line[3..$].to!string;
+                fill ~= tmp;
+            }
+            maintainers[title] ~= fill;
+        }
+    }
 }
 
 
-Maintainers parseMaintainers() {
-    import std.stdio : File;
+Subsys getMaintainersEntries(Subsys maint, char[] keys) {
+    import std.algorithm : filter, any;
+    import std.array : array;
 
-    Maintainers ret;
-    auto buf = File(codeRepo ~ "/MAINTAINERS");
-    string title = "";
-
-    /*
-     * The maintainers file does not have any formal format
-     * We detect the "title" by waiting for a newline, then we set the title variable to the next line
-     * We reset title after a void line.
-     */
-    foreach(line; buf.byLine) {
-        import std.regex : regex, matchFirst;
-        import std.conv : to;
-        import std.array : split;
- 
-        if (line == "") {
-            title = "";
-            continue;
-        }
-
-        if (title == "") {
-            title = line.to!string;
-            continue;
-        }
-
-        auto expr = regex(`^([A-Z]):\s*(.*)`);
-        auto match = matchFirst(line, expr);
-
-        if (match.empty == false) {
-            import std.conv : to;
-
-            string[] res = split(match.hit.to!string, "\t");
-            // Some entries use whitespaces instead of tabs
-            if (res.length != 2)
-                continue;
-
-            string[char] fill;
-            // M:<tab>blah
-            fill[line[0]] = line[3..$].to!string;
-            ret[title] ~= fill;
-        }
+    Subsys ret;
+    foreach(sub, ent; maint) {
+        Entry[] fill;
+        fill = ent.filter!(item => keys.any!(k => k == item.type)).array;
+        if (fill.length > 0)
+            ret[sub] = fill;
     }
     return ret;
 }
+    
+void correlateMailsMaint(Mails mails, Subsys subs) {
+    import std.array : array;
+
+    Subsys files = getMaintainersEntries(subs, ['F']);
+    foreach(subsys, maint; files) {
+        writeln("Subsys: ", subsys);
+        foreach(entry; maint) {
+            import std.regex : regex, matchFirst, escaper;
+            import std.conv : to;
+            
+            writeln(" matching ", entry.content.escaper.to!string);
+            auto expr = regex(entry.content.escaper.to!string);
+            foreach(mail; mails) {
+                foreach(diff; mail.diffs) {
+                    writeln(" Mail diffs: ", diff);
+                    auto match = matchFirst(diff[2], expr);
+                    if (match)
+                        writeln(" MATCH. Mail: ", mail, ". Subsys: ", subsys, " regex ", entry.content, " match ", match);
+                }
+            }
+        }
+    }
+   
+}
+
 /*
 for fd in os.listdir(emailpath):
 #    print(emailpath+fd)
