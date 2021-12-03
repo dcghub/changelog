@@ -7,20 +7,32 @@ enum gitRepo = codeRepo ~ "/.git";
 
 
 struct Entry {
-    char type;
-    string content;
+    char type; // F
+    string expr; // regex
 }
-alias Subsys = Entry[][string];
+alias Subsys = Entry[][string]; // Indexed by subsystem name, contains several entries per subsys
 
 struct Mail {
-    string subject;
-    string[][] diffs;
+    string subject; // Mail subject
+    string[][] diffs; // ["2", "2", "path/a/b"]
 }
-alias Mails = Mail[string];
+alias Mails = Mail[string]; // Indexed by commit
+
+struct Correlación {
+    Mail mail;
+    string commit;
+    string subsys;
+}
 
 import std.stdio : writeln;
 void main() {
-    correlateMailsMaint(CommitMails(mailPath), Maintainers(codeRepo ~ "/MAINTAINERS"));
+    CommitMails mails = CommitMails(mailPath);
+    Maintainers maint = Maintainers(codeRepo ~ "/MAINTAINERS");
+    Correlación[] corr = correlateMailsMaint(mails, maint);
+    writeln(corr);
+    string lista = generaLista(corr);
+    writeln("Lista final\n", lista);
+
 }
 
 struct CommitMails {
@@ -69,10 +81,10 @@ struct CommitMails {
         import std.conv : to;
 
         auto pre = diffs.map!((diff) {
-            import std.regex : matchFirst, regex;
+            import std.regex : matchFirst, regex, Regex, Captures;
 
-            auto expr = regex(`(?P<add>\S+)\t(?P<del>\S+)\t(?P<file>.*)`);
-            auto match = matchFirst(diff, expr);
+            Regex!char expr = regex(`(?P<add>\S+)\t(?P<del>\S+)\t(?P<file>.*)`);
+            Captures!string match = matchFirst(diff, expr);
             assert(match.empty == 0, "Error parsing diffstat: " ~ diff);
 
             return [match["add"], match["del"], match["file"]];
@@ -134,7 +146,7 @@ struct Maintainers {
                 Entry tmp;
                 // M:<tab>blah
                 tmp.type = line[0];
-                tmp.content = line[3..$].to!string;
+                tmp.expr= line[3..$].to!string;
                 fill ~= tmp;
             }
             maintainers[title] ~= fill;
@@ -157,32 +169,92 @@ Subsys getMaintainersEntries(Subsys maint, char[] keys) {
     return ret;
 }
     
-void correlateMailsMaint(Mails mails, Subsys subs) {
-    import std.array : array;
 
-    Subsys files = getMaintainersEntries(subs, ['F']);
-    foreach(subsys, maint; files) {
-        writeln("Subsys: ", subsys);
-        foreach(entry; maint) {
-            import std.regex : regex, matchFirst, escaper;
+Correlación[] correlateMailsMaint(Mails mails, Subsys subs) {
+    import std.array : array;
+    import std.algorithm : map;
+
+    Subsys maintainers = getMaintainersEntries(subs, ['F']);
+
+    string getMaintainers(Mail mail) {
+        import std.algorithm : sort, count;
+        import std.regex : Captures;
+        import std.array : byPair;
+
+        Captures!string[string] allSubsys;
+
+        foreach(subsys, maint; maintainers) {
+            import std.algorithm : filter, map;
+            import std.array : array;
+            import std.range : takeOne;
+            import std.regex : regex, matchFirst, escaper, Regex;
             import std.conv : to;
-            
-            writeln(" matching ", entry.content.escaper.to!string);
-            auto expr = regex(entry.content.escaper.to!string);
-            foreach(mail; mails) {
-                foreach(diff; mail.diffs) {
-                    writeln(" Mail diffs: ", diff);
-                    auto match = matchFirst(diff[2], expr);
-                    if (match)
-                        writeln(" MATCH. Mail: ", mail, ". Subsys: ", subsys, " regex ", entry.content, " match ", match);
-                }
-            }
+
+            string[] expresiones = maint.map!(x => x.expr).array;
+            Captures!string[] bestMatch = expresiones.map!((ex) {
+                Regex!char expr = regex(ex.escaper.to!string);
+                Captures!string match = matchFirst(mail.diffs[0][2], expr);
+                return match;
+            })
+            .filter!(m => !m.empty)
+            .array
+            .sort!((a, b) => a.count("/") > b.count("/"))
+            .takeOne
+            .array;
+            if (bestMatch.length == 1)
+                allSubsys[subsys] = bestMatch[0];
         }
+        return allSubsys
+            .byPair
+            .array
+            .sort!((a, b) => a.value.count("/") > b.value.count("/"))
+            .map!(x => x.key)
+            .array[0];
     }
-   
+
+    Correlación[] corr;
+    foreach(commit, mail; mails) {
+        Correlación tmp;
+        tmp.mail = mail;
+        tmp.commit = commit;
+        tmp.subsys = getMaintainers(mail);
+        corr ~= tmp;
+    }
+    return corr;
 }
 
+
+string generaLista(Correlación[] corr) {
+    import std.algorithm : map, sort, uniq, filter, each;
+    import std.range : array;
+    import std.array : appender;
+
+    auto lista = appender!string;
+    string[] topics = corr.map!(c => c.subsys)
+        .array
+        .sort
+        .uniq
+        .array;
+    writeln("Topics: ", topics);
+
+    topics.each!((t) {
+        import std.algorithm : each;
+        lista.put("== " ~ t ~ " ==\n");
+        Correlación[] selecc = corr.filter!(c => c.subsys == t).array;
+        selecc.each!((s) {
+            lista.put(" * " ~ s.mail.subject);
+            lista.put(" [[https://git.kernel.org/linus/" ~ s.commit ~ "|commit]]\n");
+        });
+    });
+
+    return lista.array;
+}
 /*
+struct Correlación {
+    Mail mail;
+    string commit;
+    string subsys;
+}
 for fd in os.listdir(emailpath):
 #    print(emailpath+fd)
     message = email.message_from_file(open(emailpath+fd, encoding="utf8", errors='ignore'))
