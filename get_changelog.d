@@ -1,7 +1,6 @@
 #!/bin/rdmd
 
-//enum emailpath="/home/dcg/Correo/.linux-kernel.directory/.commits.directory/commitlist/new/";
-enum mailPath=`/tmp/foo`;
+enum mailPath="/home/dcg/Correo/.linux-kernel.directory/.commits.directory/commitlist/new/";
 enum codeRepo="/home/dcg/código/linux";
 enum gitRepo = codeRepo ~ "/.git";
 
@@ -28,8 +27,9 @@ import std.stdio : writeln;
 void main() {
     CommitMails mails = CommitMails(mailPath);
     Maintainers maint = Maintainers(codeRepo ~ "/MAINTAINERS");
+    Subsys uapi; uapi["uapi"] = [Entry('F', "include/uapi")];
+    maint.mergeWith(uapi);
     Correlación[] corr = correlateMailsMaint(mails, maint);
-    writeln(corr);
     string lista = generaLista(corr);
     writeln("Lista final\n", lista);
 
@@ -104,6 +104,12 @@ struct CommitMails {
 struct Maintainers {
     Subsys maintainers;
     alias maintainers this;
+
+    void mergeWith(Subsys fill) {
+        import std.range : chain;
+        import std.array : byPair, assocArray;
+        maintainers = maintainers.byPair.chain(fill.byPair).assocArray;
+    }
     
     this(string path) {
         import std.stdio : File;
@@ -202,18 +208,27 @@ Correlación[] correlateMailsMaint(Mails mails, Subsys subs) {
             .takeOne
             .array;
             if (bestMatch.length == 1)
+            {
+                writeln("Adding: ", bestMatch[0]);
                 allSubsys[subsys] = bestMatch[0];
+            }
         }
-        return allSubsys
+
+        string[] ret = allSubsys
             .byPair
             .array
             .sort!((a, b) => a.value.count("/") > b.value.count("/"))
             .map!(x => x.key)
-            .array[0];
+            .array;
+        if (ret.length == 0)
+            return "UNKNOW";
+        else
+            return ret[0];
     }
 
     Correlación[] corr;
     foreach(commit, mail; mails) {
+        writeln("Examinating commit ", commit, " mail ", mail);
         Correlación tmp;
         tmp.mail = mail;
         tmp.commit = commit;
