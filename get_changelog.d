@@ -11,9 +11,15 @@ struct Entry {
 }
 alias Subsys = Entry[][string]; // Indexed by subsystem name, contains several entries per subsys
 
+
+struct Diferencia {
+    string añadidas;
+    string borradas;
+    string ruta;
+}
 struct Mail {
     string subject; // Mail subject
-    string[][] diffs; // ["2", "2", "path/a/b"]
+    Diferencia[] diferencias;
 }
 alias Mails = Mail[string]; // Indexed by commit
 
@@ -41,28 +47,28 @@ struct CommitMails {
 
     this(string path) {
         import std.array : array;
-        import std.file : dirEntries, SpanMode, isFile;
+        import std.file : DirEntry, dirEntries, SpanMode, isFile;
         import std.algorithm : filter;
 
-        auto files = dirEntries(path, SpanMode.depth)
+        DirEntry[] files = dirEntries(path, SpanMode.depth)
             .filter!(a => a.isFile)
             .array;
 
         foreach(file; files) {
             import std.file : readText;
-            import std.regex : matchFirst, regex;
+            import std.regex : matchFirst, regex, Regex, Captures;
             import std.process : execute, Config;
             import std.conv : to;
             import std.string : splitLines;
             import std.stdio : writeln;
 
-            auto buf = readText(file);
+            string buf = readText(file);
             if (buf == "") {
                 writeln("WARNING: Void mail " ~ file);
                 continue;
             }
-            auto expr = regex(`X-Git-Rev: (?P<id>[A-Fa-f0-9]{40})`);
-            auto match = matchFirst(buf, expr);
+            Regex!char expr = regex(`X-Git-Rev: (?P<id>[A-Fa-f0-9]{40})`);
+            Captures!string match = matchFirst(buf, expr);
             assert(match.empty == 0, "File didn't contain X-Git-Rev field: " ~ file);
             string commit = match["id"];
 
@@ -71,15 +77,17 @@ struct CommitMails {
 
             Mail email;
             email.subject = diffStat.output.splitLines[0];
-            email.diffs = this.sortMails(diffStat.output.splitLines[1..$]);
+            email.diferencias = this.sortMails(diffStat.output.splitLines[1..$]);
             mails[commit] = email;
         }
     }
-    string[][] sortMails(string[] diffs) {
+    Diferencia[] sortMails(string[] diffs) {
+        writeln("sortMails diffs: ", diffs);
         import std.algorithm : sort, any, filter, map;
         import std.range : array;
         import std.conv : to;
 
+        // string[][]
         auto pre = diffs.map!((diff) {
             import std.regex : matchFirst, regex, Regex, Captures;
 
@@ -90,13 +98,14 @@ struct CommitMails {
             return [match["add"], match["del"], match["file"]];
         });
 
-        string[][] regs = pre
-            .filter!(diff => diff.any!(file => file != "-"))
+        Diferencia[] regs = pre
+            .filter!(dif => dif.any!(campo => campo != "-"))
             .array
             .sort!((a, b) => a[0].to!int > b[0].to!int)
+            .map!(i => Diferencia(i[0], i[1], i[2]))
             .array;
 
-        return regs; 
+        return regs;
     }
 
 }
@@ -199,7 +208,7 @@ Correlación[] correlateMailsMaint(Mails mails, Subsys subs) {
             string[] expresiones = maint.map!(x => x.expr).array;
             Captures!string[] bestMatch = expresiones.map!((ex) {
                 Regex!char expr = regex(ex.escaper.to!string);
-                Captures!string match = matchFirst(mail.diffs[0][2], expr);
+                Captures!string match = matchFirst(mail.diferencias[0].ruta, expr);
                 return match;
             })
             .filter!(m => !m.empty)
@@ -242,9 +251,9 @@ Correlación[] correlateMailsMaint(Mails mails, Subsys subs) {
 string generaLista(Correlación[] corr) {
     import std.algorithm : map, sort, uniq, filter, each;
     import std.range : array;
-    import std.array : appender;
+    import std.array : Appender, appender;
 
-    auto lista = appender!string;
+    Appender!string lista = appender!string;
     string[] topics = corr.map!(c => c.subsys)
         .array
         .sort
@@ -253,7 +262,6 @@ string generaLista(Correlación[] corr) {
     writeln("Topics: ", topics);
 
     topics.each!((t) {
-        import std.algorithm : each;
         lista.put("== " ~ t ~ " ==\n");
         Correlación[] selecc = corr.filter!(c => c.subsys == t).array;
         selecc.each!((s) {
@@ -262,7 +270,7 @@ string generaLista(Correlación[] corr) {
         });
     });
 
-    return lista.array;
+    return lista[];
 }
 /*
 struct Correlación {
