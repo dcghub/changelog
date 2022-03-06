@@ -31,11 +31,14 @@ struct Correlación {
 
 import std.stdio : writeln;
 void main() {
+    import std.array : array;
+    import std.algorithm : map;
+
     CommitMails mails = CommitMails(mailPath);
     Maintainers maint = Maintainers(codeRepo ~ "/MAINTAINERS");
     Subsys uapi; uapi["uapi"] = [Entry('F', "include/uapi")];
     maint.mergeWith(uapi);
-    Correlación[] corr = correlateMailsMaint(mails, maint);
+    Correlación[] corr = mails.byKeyValue.map!(obj => correlateMailsMaint(obj.value, obj.key, maint)).array;
     string lista = generaLista(corr);
     writeln("Lista final\n", lista);
 
@@ -64,7 +67,7 @@ struct CommitMails {
 
             string buf = readText(file);
             if (buf == "") {
-                writeln("WARNING: Void mail " ~ file);
+                writeln("WARNING: Empty mail " ~ file);
                 continue;
             }
             Regex!char expr = regex(`X-Git-Rev: (?P<id>[A-Fa-f0-9]{40})`);
@@ -82,7 +85,6 @@ struct CommitMails {
         }
     }
     Diferencia[] sortMails(string[] diffs) {
-        writeln("sortMails diffs: ", diffs);
         import std.algorithm : sort, any, filter, map;
         import std.range : array;
         import std.conv : to;
@@ -185,7 +187,7 @@ Subsys getMaintainersEntries(Subsys maint, char[] keys) {
 }
     
 
-Correlación[] correlateMailsMaint(Mails mails, Subsys subs) {
+Correlación correlateMailsMaint(Mail mail, string commit, Subsys subs) {
     import std.array : array;
     import std.algorithm : map;
 
@@ -218,7 +220,7 @@ Correlación[] correlateMailsMaint(Mails mails, Subsys subs) {
             .array;
             if (bestMatch.length == 1)
             {
-                writeln("Adding: ", bestMatch[0]);
+//                writeln("Adding: ", bestMatch[0]);
                 allSubsys[subsys] = bestMatch[0];
             }
         }
@@ -235,15 +237,11 @@ Correlación[] correlateMailsMaint(Mails mails, Subsys subs) {
             return ret[0];
     }
 
-    Correlación[] corr;
-    foreach(commit, mail; mails) {
-        writeln("Examinating commit ", commit, " mail ", mail);
-        Correlación tmp;
-        tmp.mail = mail;
-        tmp.commit = commit;
-        tmp.subsys = getMaintainers(mail);
-        corr ~= tmp;
-    }
+    Correlación corr;
+    corr.mail = mail;
+    corr.commit = commit;
+    corr.subsys = getMaintainers(mail);
+
     return corr;
 }
 
