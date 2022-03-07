@@ -34,14 +34,30 @@ void main() {
     import std.array : array;
     import std.algorithm : map;
 
+    auto asociaciones = [
+        "Core": ["kernel"],
+        "File systems": ["fs"],
+        "Memory management": ["mm"],
+        "Networking": ["net", "drivers/net"],
+        "Graphics": ["drivers/gpu"],
+        "Security": ["security"],
+        "Virtualization": ["virt"],
+        "Architectures": ["arch"],
+    ];
+
+    writeln("CommitMails");
     CommitMails mails = CommitMails(mailPath);
+    writeln("Maintainers");
     Maintainers maint = Maintainers(codeRepo ~ "/MAINTAINERS");
     Subsys uapi; uapi["uapi"] = [Entry('F', "include/uapi")];
     maint.mergeWith(uapi);
-    Correlación[] corr = mails.byKeyValue.map!(obj => correlateMailsMaint(obj.value, obj.key, maint)).array;
+    writeln("Consiguiendo correlaciones");
+    Correlación[] corr = mails
+        .byKeyValue.map!(obj => Correlación(obj.value, obj.key, getMailSubys(obj.value, maint)))
+        .array;
+    writeln("Generando lista");
     string lista = generaLista(corr);
     writeln("Lista final\n", lista);
-
 }
 
 struct CommitMails {
@@ -80,11 +96,14 @@ struct CommitMails {
 
             Mail email;
             email.subject = diffStat.output.splitLines[0];
-            email.diferencias = this.sortMails(diffStat.output.splitLines[1..$]);
+            email.diferencias = this.ordenaDiferencias(diffStat.output.splitLines[1..$]);
             mails[commit] = email;
         }
     }
-    Diferencia[] sortMails(string[] diffs) {
+    // Se escoge la diferencia con mayor cantidad de cambios
+    // Cada diferencia es el nombre de archivo y el número de + y -
+    // Ordenadas por número de cambios
+    Diferencia[] ordenaDiferencias(string[] diffs) {
         import std.algorithm : sort, any, filter, map;
         import std.range : array;
         import std.conv : to;
@@ -186,30 +205,30 @@ Subsys getMaintainersEntries(Subsys maint, char[] keys) {
     return ret;
 }
     
+// Primero, se busca entre las expresiones de cada entrada de mantenedores la que tiene 
+// mayor cantidad de barras (más específica). Luego, de entre todas esas, también la que
+// tiene la mayor cantidad de barras
+string getMailSubys(Mail mail, Subsys subs) {
+    import std.algorithm : map, sort, count, filter;
+    import std.array : array, byPair;
+    import std.regex : Captures, regex, matchFirst, escaper, Regex;
 
-Correlación correlateMailsMaint(Mail mail, string commit, Subsys subs) {
-    import std.array : array;
-    import std.algorithm : map;
+    struct corr {
+        string t;
+        Entry[] e;
+    }
 
-    Subsys maintainers = getMaintainersEntries(subs, ['F']);
+    Captures!string[string] allCaptures;
+    Subsys allEntries;
 
-    string getMaintainers(Mail mail) {
-        import std.algorithm : sort, count;
-        import std.regex : Captures;
-        import std.array : byPair;
+    Subsys subsys = getMaintainersEntries(subs, ['F']);
+    foreach(name, entries; subsys) {
+        import std.range : takeOne;
+        import std.conv : to;
 
-        Captures!string[string] allSubsys;
-
-        foreach(subsys, maint; maintainers) {
-            import std.algorithm : filter, map;
-            import std.array : array;
-            import std.range : takeOne;
-            import std.regex : regex, matchFirst, escaper, Regex;
-            import std.conv : to;
-
-            string[] expresiones = maint.map!(x => x.expr).array;
-            Captures!string[] bestMatch = expresiones.map!((ex) {
-                Regex!char expr = regex(ex.escaper.to!string);
+        Captures!string[] bestMatch = entries
+            .map!((ex) {
+                Regex!char expr = regex(ex.expr.escaper.to!string);
                 Captures!string match = matchFirst(mail.diferencias[0].ruta, expr);
                 return match;
             })
@@ -218,31 +237,24 @@ Correlación correlateMailsMaint(Mail mail, string commit, Subsys subs) {
             .sort!((a, b) => a.count("/") > b.count("/"))
             .takeOne
             .array;
-            if (bestMatch.length == 1)
-            {
+        if (bestMatch.length == 1) { // Quizás no se encuentre nada
 //                writeln("Adding: ", bestMatch[0]);
-                allSubsys[subsys] = bestMatch[0];
-            }
+            allCaptures[name] = bestMatch[0];
+            allEntries[name] = entries;
         }
-
-        string[] ret = allSubsys
-            .byPair
-            .array
-            .sort!((a, b) => a.value.count("/") > b.value.count("/"))
-            .map!(x => x.key)
-            .array;
-        if (ret.length == 0)
-            return "UNKNOW";
-        else
-            return ret[0];
     }
 
-    Correlación corr;
-    corr.mail = mail;
-    corr.commit = commit;
-    corr.subsys = getMaintainers(mail);
-
-    return corr;
+    // Get the subsys name belonging to the capture with the longest nr of /
+    string[] ret = allCaptures
+        .byPair
+        .array
+        .sort!((a, b) => a.value.count("/") > b.value.count("/"))
+        .map!(c => c.key)
+        .array;
+    if (ret.length == 0)
+        return "unknown";
+    else
+        return ret[0];
 }
 
 
@@ -259,14 +271,20 @@ string generaLista(Correlación[] corr) {
         .array;
     writeln("Topics: ", topics);
 
-    topics.each!((t) {
-        lista.put("== " ~ t ~ " ==\n");
-        Correlación[] selecc = corr.filter!(c => c.subsys == t).array;
-        selecc.each!((s) {
-            lista.put(" * " ~ s.mail.subject);
-            lista.put(" [[https://git.kernel.org/linus/" ~ s.commit ~ "|commit]]\n");
-        });
-    });
+
+    void generarSección(string nombre) {
+        
+
+    }
+
+//    topics.each!((t) {
+//        lista.put("== " ~ t ~ " ==\n");
+//        Correlación[] selecc = corr.filter!(c => c.subsys == t).array;
+//        selecc.each!((s) {
+//            lista.put(" * " ~ s.mail.subject);
+//            lista.put(" [[https://git.kernel.org/linus/" ~ s.commit ~ "|commit]]\n");
+//        });
+//    });
 
     return lista[];
 }
