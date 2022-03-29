@@ -2,6 +2,7 @@
 #pragma keywords Linux, kernel, operating system, changes, changelog, file system, Linus Torvalds, open source, device drivers
 #pragma description List of changes and new features merged in the Linux kernel during the 5.15 development cycle
 
+Linux 5.15 [[https://lore.kernel.org/lkml/CAHk-=wjfbfQobW2jygMvgfJXKmzZNB=UTzBrFs2vTEzVpBXA4Q@mail.gmail.com/t/|was released]] on Sunday, 31 Oct 2021.
 
 Summary: This release adds a new NTFS read-write implementation; support for putting all the processes within a cgroup in the SCHED_IDLE scheduling class; Btrfs support for fs-verity and id mapping;  support for the DAMON, which allows to monitor memory access patterns of specific processes; a new in-kernel SMB 3 server; a new process_mrelease(2) system call to let service managers release process resources faster; support for migrating memory pages to persistent memory instead of discarding them; support in the Device Mapper for IMA-based remote attestation; support for avoiding scheduling 32 bits tasks on 64-bit only CPUS in systems with mixed CPUs. As always, there are many other features, new drivers, improvements and fixes.
 
