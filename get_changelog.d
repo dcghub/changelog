@@ -188,10 +188,10 @@ struct Correlación {
 // tiene la mayor cantidad de barras
 
 string generaLista(Mail[string] mails, Subsys sub) {
-    import std.algorithm : map, sort, uniq, filter, each;
+    import std.algorithm : map, sort, uniq, filter, each, maxElement;
     import std.range : array, repeat, join;
     import std.array : Appender, appender, byPair;
-foreach(mail; mails) writeln("Mail: ", mail);
+//foreach(mail; mails) writeln("Mail: ", mail);
     auto asociaciones = [
         "Core": ["kernel"],
         "File systems": ["fs"],
@@ -220,8 +220,8 @@ foreach(mail; mails) writeln("Mail: ", mail);
                 foreach(entrada; entradas) {
                     import std.algorithm : startsWith;
                     if (entrada.expr.startsWith(ruta)) {
-                        writeln("sacarEntradas encontró entrada.expr ", entrada.expr, " ruta ", ruta);
-                        writeln("nombre ", nombre, " entrada ", entrada);
+//                        writeln("sacarEntradas encontró entrada.expr ", entrada.expr, " ruta ", ruta);
+//                        writeln("nombre ", nombre, " entrada ", entrada);
                         ret[nombre] = entradas;
                     }
                 }
@@ -230,22 +230,39 @@ foreach(mail; mails) writeln("Mail: ", mail);
         return ret;
     }
 
-    void imprimirCorreos(Appender!string saco, Mail[string] correos) {
+    string imprimirCorreos(Mail[string] correos) {
+        Appender!string saco;
+        import std.regex : Captures, regex, matchFirst, escaper, Regex;
+        import std.conv : text;
+        import std.uni : toUpper;
+        import std.algorithm : canFind;
+
+        Regex!char expr = regex(`\(?\w+[:/]\)? (.*$)`);
         foreach(commit, correo; correos) {
-            saco.put(" * " ~ correo.subject);
+            // Elimina el "foo: "
+            Captures!string match = matchFirst(correo.subject, expr);
+            string tema = match.empty ? correo.subject : match[1];
+            // Si, tras eliminarlo, no hay ningún ':' (doble referencia), es un Asunto, poner mayúscula
+            if (!canFind(tema, ":"))
+                tema = tema[0].text.toUpper ~ tema[1 .. $];
+
+            saco.put(" * " ~ tema);
             saco.put(" [[https://git.kernel.org/linus/" ~ commit ~ "|commit]]\n");
         }
+        return saco[];
     }
 
-    Mail[string] sacaCorreos(Mail[string] correos, Entry[] entradas) {
+    Mail[string] sacaCorreos(Mail[string] correos, ulong índiceDif, Entry[] entradas) {
         import std.regex : Captures, regex, matchFirst, escaper, Regex;
         import std.conv : to;
 
         Mail[string] ret;
         foreach(commit, correo; correos) {
+            if (correo.diferencias.length <= índiceDif)
+                continue;
             foreach(entrada; entradas) {
                 Regex!char expr = regex(entrada.expr.escaper.to!string);
-                Captures!string match = matchFirst(correo.diferencias[0].ruta, expr);
+                Captures!string match = matchFirst(correo.diferencias[índiceDif].ruta, expr);
                 if (!match.empty)
                     ret[commit] = correo;
             }
@@ -263,16 +280,57 @@ foreach(mail; mails) writeln("Mail: ", mail);
         Subsys filtradas = sacarEntradas(sub, rutas);
 
         foreach(nombre, entrada; filtradas) {
-            Mail[string] filtrados = sacaCorreos(mails, entrada);
+            Mail[string] filtrados = sacaCorreos(mails, 0, entrada);
             if (filtrados.length > 0)
                 lista.put("== " ~ nombre ~ " ==\n");
 
-            imprimirCorreos(lista, filtrados);
+            lista.put(imprimirCorreos(filtrados));
             foreach(commit, correo; filtrados)
                 mails.remove(commit);
         }
     }
-    imprimirCorreos(lista, mails);
+    // Hemos imprimido las asociaciones
+    // Ahora, el remanente de correos, pero clasificado por subsys
+    // sacarCorreos busca, para las expresiones regulares de cada subsys, la coincidencia en
+    // la primera diferencia de cada correo, que no tiene por qué encontrar nada
+    // Luego, de los correos restantes, buscamos en cada subsys (es decir, el proceso contrario)
+    // De los que quedan, los imprimimos directamente
+    //
+    // 1. Iteración de subsystem
+    //  2. Para cada subsys, buscar todos los correos que tengan en su primera diferencia
+    //   3. Una vez iterados TODOS los subsistemas, buscar en la segunda diferencia. Para esto
+    //      Necesitamos saber, en primera lugar, el número máximo de diferencias.
+    // Debido a los anteriores requisitos, es imprescindible
+    //  1. Saber de antemano el número máximo de diferencias
+    //  2. Acumular los resultados para cada subsistema hasta el final
+    ulong máxDif = mails
+        .byValue
+        .map!(c => c.diferencias.length)
+        .maxElement;
+    string[string] acumulaSubsys;
+    lista.put("NO ASOCIACIONES\n");
+    foreach(numDiferencia; 0 .. máxDif) {
+        foreach(nombre, entrada; sub) {
+            Mail[string] filtrados = sacaCorreos(mails, numDiferencia, entrada);
+            if (filtrados.length == 0)
+                continue;
+            
+            string temp = imprimirCorreos(filtrados);
+            acumulaSubsys[nombre] = temp;
+
+            foreach(commit, correo; filtrados)
+                mails.remove(commit);
+        }
+    }
+    foreach(nombre, buf; acumulaSubsys.byPair) {
+        lista.put("= " ~ nombre ~ " =\n");
+        lista.put(buf);
+    }
+
+    lista.put("SOBRAS\n");
+    lista.put(imprimirCorreos(mails));
+    lista.put("FIN");
+
 
     return lista[];
 }
